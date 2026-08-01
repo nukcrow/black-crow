@@ -1,0 +1,51 @@
+name: Update Personal Subscriptions
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # اجرای هر ۶ ساعت (امن و بدون ریسک بن)
+  workflow_dispatch:        # قابلیت اجرای دستی
+
+jobs:
+  update-subscriptions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # دسترسی نوشتن روی همین ریپو
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Switcher Script
+        run: python switcher.py
+
+      - name: Push to 'subs' branch with Zero History
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ۱. موقتا خروجی پوشه sub رو نگه‌می‌داریم
+          mkdir -p /tmp/sub_export
+          cp -r sub/* /tmp/sub_export/
+
+          # ۲. ساخت یک برنچ کاملا یتیم (بدون تاریخچه قبلی)
+          git checkout --orphan subs
+          git rm -rf .
+
+          # ۳. برگرداندن فایل‌های ساب
+          mkdir -p sub
+          cp -r /tmp/sub_export/* sub/
+
+          # ۴. کامیت و اوررایت کامل برنچ
+          git add sub/
+          git commit -m "Auto-update subscriptions [$(date -u +'%Y-%m-%d %H:%M UTC')]"
+          git push origin subs --force
