@@ -1,9 +1,9 @@
-name: Update 5 Personal Subscriptions
+name: Update Categorized Subscriptions
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # اجرای اتوماتیک هر ۳ ساعت
-  workflow_dispatch:        # قابلیت اجرای دستی
+    - cron: '0 */3 * * *'  # اجرای هر ۳ ساعت
+  workflow_dispatch:
 
 jobs:
   update-subscriptions:
@@ -26,12 +26,12 @@ jobs:
           pip install requests
 
       - name: Run Switcher Script
-        run: python switcher.py
+        run: python scripts/switcher.py
 
-      - name: Commit and Push to Main
+      - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add sub1.txt sub2.txt sub3.txt sub4.txt sub5.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update 5 subs [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push origin main)
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update protocol & 50-item subs [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push origin main)
