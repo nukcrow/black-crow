@@ -58,9 +58,15 @@ jobs:
         run: python scripts/select_best.py
 
       - name: Commit and Push best30
-        shell: bash
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add sub/best30.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update best30 by real ping [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+          $status = git status --porcelain sub/best30.txt
+          if ($status) {
+            $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")
+            git commit -m "Update best30 by real ping [$ts]"
+            git push
+          } else {
+            Write-Host "No changes to commit"
+          }
