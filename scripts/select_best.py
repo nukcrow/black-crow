@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import base64
@@ -6,6 +7,11 @@ import socket
 import statistics
 from urllib.parse import urlparse, quote
 from concurrent.futures import ThreadPoolExecutor
+
+# اجرای بدون رابط کاربری (مثل سرویس ویندوز) با انکودینگ قدیمی cp1252 کرش می‌کند؛
+# این خط خروجی را مجبور به UTF-8 می‌کند تا متن فارسی مشکلی ایجاد نکند.
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 
 # --- تنظیمات ---
 SOURCE_DIR = "sub/protocols"          # فایل‌های خروجی switcher.py (کانفیگ‌های زنده مخزن black-crow)
@@ -55,9 +61,7 @@ def extract_ip_port(config):
 
 
 def measure_latency(config):
-    """اتصال TCP واقعی به سرور کانفیگ و اندازه‌گیری RTT از همین ماشینی که اسکریپت روش اجرا میشه.
-    این عدد دقیقاً بازتاب اینترنت خودته — چون از همون مسیر شبکه‌ای که الان داری باهاش
-    وصل میشی تست میشه، نه از یه دیتاسنتر دیگه."""
+    """اتصال TCP واقعی به سرور کانفیگ و اندازه‌گیری RTT از همین ماشینی که اسکریپت روش اجرا میشه."""
     ip, port = extract_ip_port(config)
     if not ip or not port:
         return None
@@ -106,7 +110,7 @@ def main():
     configs = load_configs()
     print(f"مجموع کانفیگ‌ها: {len(configs)}")
 
-    print(f"در حال تست پینگ واقعی هر کانفیگ (از همین اینترنتی که الان داری)، {PING_ATTEMPTS} بار برای هرکدام...")
+    print(f"در حال تست پینگ واقعی هر کانفیگ، {PING_ATTEMPTS} بار برای هرکدام...")
     results = []
     with ThreadPoolExecutor(max_workers=60) as executor:
         for res in executor.map(measure_latency, configs):
@@ -115,7 +119,6 @@ def main():
 
     print(f"کانفیگ‌های پاسخگو: {len(results)}")
 
-    # مرتب‌سازی بر اساس کمترین پینگ (قوی‌ترین اتصال از نگاه اینترنت خودت)
     results.sort(key=lambda x: x[1])
     top = results[:TOP_N]
 
