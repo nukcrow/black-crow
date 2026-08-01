@@ -1,12 +1,12 @@
-name: Update Personal Subscription
+name: Update 5 Personal Subscriptions
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # اجرای هر ۴ ساعت جهت تازه‌سازی کانفیگ‌ها
+    - cron: '0 */3 * * *'  # اجرای اتوماتیک هر ۳ ساعت
   workflow_dispatch:        # قابلیت اجرای دستی
 
 jobs:
-  update-subscription:
+  update-subscriptions:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -33,5 +33,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add sub.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update fresh configs [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push origin main)
+          git add sub1.txt sub2.txt sub3.txt sub4.txt sub5.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update 5 subs [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push origin main)
