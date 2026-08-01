@@ -24,7 +24,7 @@ jobs:
         pip install requests
 
     - name: Run Subscriptions Switcher
-      run: python switcher.py
+      run: python scripts/switcher.py
 
     - name: Commit and Push Changes
       run: |
