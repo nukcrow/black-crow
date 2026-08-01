@@ -1,37 +1,34 @@
-name: Update Categorized Subscriptions
+name: Auto-update Subscriptions
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # اجرای هر ۳ ساعت
-  workflow_dispatch:
+    - cron: '0 */3 * * *'  # اجرای خودکار هر ۳ ساعت یک‌بار
+  workflow_dispatch:      # امکان اجرای دستی از تب Actions
 
 jobs:
-  update-subscriptions:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
 
-      - name: Run Switcher Script
-        run: python scripts/switcher.py
+    - name: Run Subscriptions Switcher
+      run: python switcher.py
 
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update protocol & 50-item subs [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push origin main)
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add sub/
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update protocol & sub files [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
