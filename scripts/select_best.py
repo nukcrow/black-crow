@@ -8,17 +8,19 @@ import statistics
 from urllib.parse import urlparse, quote
 from concurrent.futures import ThreadPoolExecutor
 
-# اجرای بدون رابط کاربری (مثل سرویس ویندوز) با انکودینگ قدیمی cp1252 کرش می‌کند؛
+# اجرای بدون رابط کاربری (مثل سرویس/رانر) با انکودینگ قدیمی cp1252 کرش می‌کند؛
 # این خط خروجی را مجبور به UTF-8 می‌کند تا متن فارسی مشکلی ایجاد نکند.
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
 # --- تنظیمات ---
-SOURCE_DIR = "sub/protocols"          # فایل‌های خروجی switcher.py (کانفیگ‌های زنده مخزن black-crow)
+SOURCE_DIR = "sub/protocols"          # کانفیگ‌های عمومی زنده (خروجی switcher.py)
+IRAN_DIR = "sub/protocols_iran"       # کانفیگ‌های زنده‌ی منابع مخصوص ایران
 OUTPUT_FILE = "sub/pool.txt"          # استخر بزرگ برای انتخاب رندوم توسط Worker
-TOP_N = 150
-PING_ATTEMPTS = 3                     # هر کانفیگ چند بار تست میشه (میانگین گرفته میشه)
-TIMEOUT = 1.2                         # ثانیه
+TOP_N = 150                           # اندازه‌ی کل استخر
+IRAN_QUOTA = 40                       # حداقل تعداد تضمینی از منابع ایران‌محور در استخر
+PING_ATTEMPTS = 3
+TIMEOUT = 1.2
 
 
 def decode_base64_safe(data):
@@ -32,14 +34,13 @@ def decode_base64_safe(data):
         return ""
 
 
-def load_configs():
-    """همه کانفیگ‌های از پیش فیلترشده‌ی مخزن رو از sub/protocols می‌خونه."""
+def load_dir(path):
     configs = []
-    if not os.path.isdir(SOURCE_DIR):
-        raise SystemExit(f"پوشه {SOURCE_DIR} پیدا نشد؛ اول scripts/switcher.py رو اجرا کن.")
-    for fname in os.listdir(SOURCE_DIR):
-        path = os.path.join(SOURCE_DIR, fname)
-        with open(path, "r", encoding="utf-8") as f:
+    if not os.path.isdir(path):
+        return configs
+    for fname in os.listdir(path):
+        fpath = os.path.join(path, fname)
+        with open(fpath, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
@@ -61,7 +62,6 @@ def extract_ip_port(config):
 
 
 def measure_latency(config):
-    """اتصال TCP واقعی به سرور کانفیگ و اندازه‌گیری RTT از همین ماشینی که اسکریپت روش اجرا میشه."""
     ip, port = extract_ip_port(config)
     if not ip or not port:
         return None
@@ -73,7 +73,7 @@ def measure_latency(config):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(TIMEOUT)
             result = sock.connect_ex((ip, port))
-            elapsed = (time.perf_counter() - start) * 1000  # ms
+            elapsed = (time.perf_counter() - start) * 1000
             sock.close()
             if result == 0:
                 samples.append(elapsed)
@@ -85,17 +85,27 @@ def measure_latency(config):
     return config, statistics.median(samples)
 
 
-def rename_with_ping(config, proto, ping_ms):
-    remark = f"crow | {int(ping_ms)}ms | {proto.upper()}"
+def rank_by_ping(configs):
+    results = []
+    with ThreadPoolExecutor(max_workers=60) as executor:
+        for res in executor.map(measure_latency, configs):
+            if res:
+                results.append(res)
+    results.sort(key=lambda x: x[1])
+    return results
+
+
+def rename_with_ping(config, proto, ping_ms, tag=""):
+    label = f"persianata{tag} | {int(ping_ms)}ms | {proto.upper()}"
     if proto == "vmess":
         try:
             data = json.loads(decode_base64_safe(config[8:]))
-            data["ps"] = remark
+            data["ps"] = label
             return "vmess://" + base64.b64encode(json.dumps(data).encode("utf-8")).decode("utf-8")
         except Exception:
             return config
     base_part = config.split("#")[0]
-    return f"{base_part}#{quote(remark)}"
+    return f"{base_part}#{quote(label)}"
 
 
 def detect_proto(config):
@@ -106,33 +116,52 @@ def detect_proto(config):
 
 
 def main():
-    print("در حال خواندن کانفیگ‌های مخزن (sub/protocols)...")
-    configs = load_configs()
-    print(f"مجموع کانفیگ‌ها: {len(configs)}")
+    print("در حال خواندن کانفیگ‌های عمومی...")
+    general_configs = load_dir(SOURCE_DIR)
+    print(f"عمومی: {len(general_configs)}")
 
-    print(f"در حال تست پینگ واقعی هر کانفیگ، {PING_ATTEMPTS} بار برای هرکدام...")
-    results = []
-    with ThreadPoolExecutor(max_workers=60) as executor:
-        for res in executor.map(measure_latency, configs):
-            if res:
-                results.append(res)
+    print("در حال خواندن کانفیگ‌های مخصوص ایران...")
+    iran_configs = load_dir(IRAN_DIR)
+    print(f"ایران‌محور: {len(iran_configs)}")
 
-    print(f"کانفیگ‌های پاسخگو: {len(results)}")
+    print("در حال تست پینگ کانفیگ‌های ایران‌محور...")
+    iran_ranked = rank_by_ping(iran_configs)
+    print(f"ایران‌محور پاسخگو: {len(iran_ranked)}")
 
-    results.sort(key=lambda x: x[1])
-    top = results[:TOP_N]
+    print("در حال تست پینگ کانفیگ‌های عمومی...")
+    general_ranked = rank_by_ping(general_configs)
+    print(f"عمومی پاسخگو: {len(general_ranked)}")
+
+    # --- ساخت استخر نهایی با سهمیه‌ی تضمینی برای ایران‌محور ---
+    final_pairs = []  # (config, ping_ms, is_iran)
+
+    iran_take = iran_ranked[:IRAN_QUOTA]
+    final_pairs.extend([(c, p, True) for c, p in iran_take])
+
+    remaining_slots = TOP_N - len(final_pairs)
+    general_take = general_ranked[:remaining_slots]
+    final_pairs.extend([(c, p, False) for c, p in general_take])
+
+    # اگه ایران‌محور به سهمیه نرسید، جای خالی رو با بقیه‌ی عمومی پر می‌کنیم
+    if len(final_pairs) < TOP_N:
+        extra_needed = TOP_N - len(final_pairs)
+        extra = general_ranked[remaining_slots:remaining_slots + extra_needed]
+        final_pairs.extend([(c, p, False) for c, p in extra])
+
+    final_pairs.sort(key=lambda x: x[1])
 
     final_lines = []
-    for config, ping_ms in top:
+    for config, ping_ms, is_iran in final_pairs:
         proto = detect_proto(config)
-        final_lines.append(rename_with_ping(config, proto, ping_ms))
-        print(f"{ping_ms:6.1f} ms  |  {proto:10s}")
+        tag = " 🇮🇷" if is_iran else ""
+        final_lines.append(rename_with_ping(config, proto, ping_ms, tag))
+        print(f"{ping_ms:6.1f} ms  |  {proto:10s}  |  {'IRAN' if is_iran else 'general'}")
 
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(final_lines))
 
-    print(f"\nذخیره شد: {OUTPUT_FILE} ({len(final_lines)} کانفیگ برتر)")
+    print(f"\nذخیره شد: {OUTPUT_FILE} ({len(final_lines)} کانفیگ، از این تعداد {sum(1 for _,_,i in final_pairs if i)} تای ایران‌محور)")
 
 
 if __name__ == "__main__":
