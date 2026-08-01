@@ -11,13 +11,14 @@ from concurrent.futures import ThreadPoolExecutor
 DIRS = [
     "sub/general",
     "sub/protocols",
-    "sub/light"
+    "sub/light",
+    "sub/protocols_iran"   # کانفیگ‌های سالمِ منابع مخصوص شبکه‌ی ایران (جدا نگه داشته می‌شن تا سهمیه‌شون تضمین بشه)
 ]
 
 for d in DIRS:
     os.makedirs(d, exist_ok=True)
 
-# --- مخازن برتر و پالایش‌شده ---
+# --- مخازن عمومی ---
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/v2ray.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
@@ -32,10 +33,17 @@ SOURCES = [
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/MhdiTaheri/V2rayCollector/main/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/main/mix.txt",
-    "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt"
+    "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt",
+]
+
+# --- مخازن مخصوص شبکه‌ی ایران (اولویت‌دار، سهمیه‌ی تضمینی توی select_best.py دارن) ---
+IRAN_SOURCES = [
+    "https://raw.githubusercontent.com/jafarm83/ConfigV2Ray/main/jafar.txt",
+    "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
 ]
 
 SUPPORTED_PROTOCOLS = ["vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic"]
+
 
 def decode_base64_safe(data):
     try:
@@ -47,15 +55,16 @@ def decode_base64_safe(data):
     except Exception:
         return ""
 
-def fetch_configs():
+
+def fetch_from(urls):
+    """کانفیگ‌های خام رو از یه لیست URL می‌خونه."""
     raw_list = []
     headers = {'User-Agent': 'Mozilla/5.0'}
-    for url in SOURCES:
+    for url in urls:
         try:
             res = requests.get(url, headers=headers, timeout=10)
             if res.status_code == 200:
                 text = res.text.strip()
-                # بررسی امکان Base64 بودن کل ساب
                 decoded = decode_base64_safe(text)
                 content = decoded if "://" in decoded else text
                 lines = content.splitlines()
@@ -67,6 +76,7 @@ def fetch_configs():
             continue
     return list(set(raw_list))
 
+
 def extract_ip_port(config):
     """استخراج آی‌پی و پورت برای تست پینگ سریع TCP"""
     try:
@@ -75,11 +85,11 @@ def extract_ip_port(config):
             json_str = decode_base64_safe(b64_part)
             data = json.loads(json_str)
             return data.get("add"), int(data.get("port", 443))
-        
+
         parsed = urlparse(config)
         host = parsed.hostname
         port = parsed.port
-        
+
         if not port:
             if config.startswith("https") or "tls" in config:
                 port = 443
@@ -88,6 +98,7 @@ def extract_ip_port(config):
         return host, int(port)
     except Exception:
         return None, None
+
 
 def check_tcp_alive(config):
     """تست زنده بودن پورت (TCP Connect Check با تایم‌اوت ۱ ثانیه)"""
@@ -105,6 +116,7 @@ def check_tcp_alive(config):
         pass
     return None
 
+
 def parse_and_rename(config):
     """استانداردسازی نام و مشخص کردن نوع پروتکل"""
     proto = "unknown"
@@ -114,11 +126,11 @@ def parse_and_rename(config):
     elif config.startswith("ss://"): proto = "ss"
     elif config.startswith("hysteria2://") or config.startswith("hy2://"): proto = "hysteria2"
     elif config.startswith("tuic://"): proto = "tuic"
-    
+
     if proto == "unknown":
         return None, None
 
-    new_remark = f"crow | 🌐 | {proto.upper()}"
+    new_remark = f"persianata | 🌐 | {proto.upper()}"
 
     try:
         if proto == "vmess":
@@ -137,33 +149,39 @@ def parse_and_rename(config):
     except Exception:
         return None, None
 
-def main():
-    print("Fetching configs...")
-    raw_configs = fetch_configs()
-    print(f"Total fetched: {len(raw_configs)}")
 
-    print("Checking TCP connection for active configs...")
-    alive_configs = []
-    # تست همزمان با ۱۰۰ ترد برای بالا بردن سرعت اسکریپت
+def filter_alive(raw_configs):
+    alive = []
     with ThreadPoolExecutor(max_workers=100) as executor:
-        results = executor.map(check_tcp_alive, raw_configs)
-        for res in results:
+        for res in executor.map(check_tcp_alive, raw_configs):
             if res:
-                alive_configs.append(res)
-    
-    print(f"Total alive configs: {len(alive_configs)}")
+                alive.append(res)
+    return alive
 
-    # دسته‌بندی بر اساس پروتکل
-    protocol_buckets = {
-        "vless": [],
-        "vmess": [],
-        "trojan": [],
-        "ss": [],
-        "hysteria2": [],
-        "tuic": []
-    }
 
-    for cfg in alive_configs:
+def main():
+    print("Fetching general configs...")
+    general_raw = fetch_from(SOURCES)
+    print(f"General fetched: {len(general_raw)}")
+
+    print("Fetching Iran-focused configs...")
+    iran_raw = fetch_from(IRAN_SOURCES)
+    print(f"Iran-focused fetched: {len(iran_raw)}")
+
+    # جلوگیری از هم‌پوشانی: اگه یه کانفیگ توی هر دو لیست بود، فقط توی iran می‌مونه
+    general_raw = [c for c in general_raw if c not in set(iran_raw)]
+
+    print("Checking TCP connection for general configs...")
+    alive_general = filter_alive(general_raw)
+    print(f"Alive general: {len(alive_general)}")
+
+    print("Checking TCP connection for Iran-focused configs...")
+    alive_iran = filter_alive(iran_raw)
+    print(f"Alive Iran-focused: {len(alive_iran)}")
+
+    # --- پردازش عمومی (همون ساختار قبلی) ---
+    protocol_buckets = {"vless": [], "vmess": [], "trojan": [], "ss": [], "hysteria2": [], "tuic": []}
+    for cfg in alive_general:
         proto, formatted = parse_and_rename(cfg)
         if proto in protocol_buckets and formatted:
             protocol_buckets[proto].append(formatted)
@@ -171,16 +189,11 @@ def main():
     all_active_formatted = []
     for p, items in protocol_buckets.items():
         all_active_formatted.extend(items)
-        
-        # ۱. ذخیره ساب‌های کامل پروتکل
         with open(f"sub/protocols/{p}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(items))
-            
-        # ۲. ذخیره ساب‌های سبک ۵۰‌تایی پروتکل
         with open(f"sub/light/{p}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(items[:50]))
 
-    # ۳. تقسیم‌بندی فایل‌های عمومی ۵‌گانه (حداکثر ۲۰۰۰ کانفیگ در هر فایل)
     chunk_size = 2000
     for i in range(5):
         start = i * chunk_size
@@ -189,7 +202,19 @@ def main():
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
+    # --- پردازش کانفیگ‌های مخصوص ایران (فایل جدا، برای سهمیه‌ی تضمینی) ---
+    iran_formatted = []
+    for cfg in alive_iran:
+        proto, formatted = parse_and_rename(cfg)
+        if formatted:
+            iran_formatted.append(formatted)
+
+    with open("sub/protocols_iran/iran.txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(iran_formatted))
+
+    print(f"Iran-focused alive & saved: {len(iran_formatted)}")
     print("All subscription files updated successfully!")
+
 
 if __name__ == "__main__":
     main()
