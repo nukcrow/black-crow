@@ -15,8 +15,8 @@ sys.stderr.reconfigure(encoding="utf-8")
 
 # --- تنظیمات ---
 SOURCE_DIR = "sub/protocols"          # فایل‌های خروجی switcher.py (کانفیگ‌های زنده مخزن black-crow)
-OUTPUT_FILE = "sub/best30.txt"        # ساب نهایی ۳۰ کانفیگ برتر
-TOP_N = 30
+OUTPUT_FILE = "sub/pool.txt"          # استخر بزرگ برای انتخاب رندوم توسط Worker
+TOP_N = 150
 PING_ATTEMPTS = 3                     # هر کانفیگ چند بار تست میشه (میانگین گرفته میشه)
 TIMEOUT = 1.2                         # ثانیه
 
