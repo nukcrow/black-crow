@@ -6,10 +6,7 @@ on:
   workflow_dispatch:        # امکان اجرای دستی از تب Actions
 
 jobs:
-  # --- مرحله ۱: جمع‌آوری و فیلتر کانفیگ‌های زنده ---
-  # مهم نیست کجا اجرا بشه (پینگ اینجا مهم نیست، فقط زنده بودن پورت تست میشه)
-  # پس روی رانر ابری گیت‌هاب می‌مونه، رایگان و سریع.
-  fetch:
+  update:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,44 +26,12 @@ jobs:
       - name: Run Subscriptions Switcher
         run: python scripts/switcher.py
 
+      - name: Select Best 30 by Ping
+        run: python scripts/select_best.py
+
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add sub/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update protocol & sub files [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
-
-  # --- مرحله ۲: رتبه‌بندی بر اساس پینگ واقعی ---
-  # این job فقط روی رانر self-hosted (سیستم/سرور خودت) اجرا میشه،
-  # چون باید از اینترنت واقعی خودت تست بشه، نه از دیتاسنتر گیت‌هاب.
-  # راه‌اندازی: Settings > Actions > Runners > New self-hosted runner
-  # روی سیستم خودت نصبش کن و به‌عنوان سرویس (running) نگه‌دار.
-  rank:
-    needs: fetch
-    runs-on: self-hosted
-
-    steps:
-      - name: Checkout Repository (latest)
-        uses: actions/checkout@v3
-        with:
-          ref: main
-
-      - name: Pull latest sub files
-        run: git pull origin main
-
-      - name: Select Best 30 by Real Ping
-        run: python scripts/select_best.py
-
-      - name: Commit and Push best30
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add sub/best30.txt
-          $status = git status --porcelain sub/best30.txt
-          if ($status) {
-            $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")
-            git commit -m "Update best30 by real ping [$ts]"
-            git push
-          } else {
-            Write-Host "No changes to commit"
-          }
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update subscriptions [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
