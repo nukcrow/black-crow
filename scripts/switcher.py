@@ -1,190 +1,195 @@
 import os
 import re
 import json
-import random
 import base64
+import socket
 import requests
-from typing import List, Dict
+from urllib.parse import urlparse, unquote, quote
+from concurrent.futures import ThreadPoolExecutor
 
-# مسیر پوشه خروجی ساب‌ها
-SUB_DIR = "sub"
-
-# منابع پایش‌شده
-SOURCES = [
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/Epodonios/bulk-xray-v2ray-vless-vmess-configs/main/sub.txt",
-    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/v2ray.txt",
-    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/main/sub.txt",
-    "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/Freedom.txt",
-    "https://raw.githubusercontent.com/jafarm83/ConfigV2Ray/main/v2ray.txt",
-    "https://raw.githubusercontent.com/MrAbolfazlNorouzi/iran-configs/main/v2ray.txt",
-    "https://raw.githubusercontent.com/mheidari98/.proxy/main/all",
-    "https://raw.githubusercontent.com/miladtahanian/V2RayCFGDumper/main/configs.txt",
-    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/sub.txt",
-    "https://raw.githubusercontent.com/MhdiTaheri/V2rayCollector/main/sub.txt",
-    "https://raw.githubusercontent.com/Mahdi0024/ProxyCollector/master/sub/mix",
-    "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/mix.txt",
-    "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/Kolandone/v2raycollector/main/mix.txt",
-    "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/sub.txt"
+# --- تنظیمات ساختار پوشه‌ها ---
+DIRS = [
+    "sub/general",
+    "sub/protocols",
+    "sub/light"
 ]
 
-def extract_flag(text: str) -> str:
-    """استخراج پرچم کشور"""
-    flag_pattern = re.compile(r'[\U0001F1E6-\U0001F1FF]{2}')
-    match = flag_pattern.search(text)
-    if match:
-        return match.group(0)
-    
-    cc_pattern = re.compile(r'\b(US|DE|FR|GB|NL|CA|TR|FI|PL|SG|JP|KR|HK|IR|CF)\b', re.IGNORECASE)
-    cc_match = cc_pattern.search(text)
-    if cc_match:
-        return f"[{cc_match.group(0).upper()}]"
-        
-    return "🌐"
+for d in DIRS:
+    os.makedirs(d, exist_ok=True)
 
-def get_protocol_name(config: str) -> str:
-    """تشخیص نام پروتکل برای برچسب‌گذاری"""
-    if config.startswith("vless://"):
-        return "VLESS"
-    elif config.startswith("vmess://"):
-        return "VMESS"
-    elif config.startswith(("hysteria2://", "hy2://")):
-        return "HY2"
-    elif config.startswith("trojan://"):
-        return "TROJAN"
-    elif config.startswith("tuic://"):
-        return "TUIC"
-    elif config.startswith("ss://"):
-        return "SS"
-    return "PROXY"
+# --- مخازن برتر و پالایش‌شده ---
+SOURCES = [
+    "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/v2ray.txt",
+    "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
+    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/main/sub/sub.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
+    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/refs/heads/main/all/vless.txt",
+    "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/config.txt",
+    "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/v2ray.txt",
+    "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/mix",
+    "https://raw.githubusercontent.com/MahdiGhaffari/V2rayAggregator/main/sub/sub_merge.txt",
+    "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+    "https://raw.githubusercontent.com/MhdiTaheri/V2rayCollector/main/sub/sub_merge.txt",
+    "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/main/mix.txt",
+    "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt"
+]
 
-def process_vmess(config: str) -> str:
-    """اصلاح ریمارک VMess به همراه نام پروتکل"""
+SUPPORTED_PROTOCOLS = ["vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic"]
+
+def decode_base64_safe(data):
     try:
-        b64_part = config.replace("vmess://", "")
-        b64_part += '=' * (-len(b64_part) % 4)
-        decoded_bytes = base64.b64decode(b64_part)
-        data = json.loads(decoded_bytes.decode('utf-8', errors='ignore'))
-        
-        flag = extract_flag(data.get("ps", ""))
-        data["ps"] = f"crow | {flag} | VMESS"
-        
-        new_json = json.dumps(data, ensure_ascii=False)
-        new_b64 = base64.b64encode(new_json.encode('utf-8')).decode('utf-8')
-        return f"vmess://{new_b64}"
+        data = data.strip()
+        missing_padding = len(data) % 4
+        if missing_padding:
+            data += '=' * (4 - missing_padding)
+        return base64.b64decode(data).decode('utf-8', errors='ignore')
     except Exception:
         return ""
 
-def clean_and_tag(config: str) -> str:
-    """تغییر ریمارک به فرمت: crow | [پرچم] | [پروتکل]"""
-    config = config.strip()
-    if not config:
-        return ""
+def fetch_configs():
+    raw_list = []
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    for url in SOURCES:
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                text = res.text.strip()
+                # بررسی امکان Base64 بودن کل ساب
+                decoded = decode_base64_safe(text)
+                content = decoded if "://" in decoded else text
+                lines = content.splitlines()
+                for line in lines:
+                    line = line.strip()
+                    if any(line.startswith(p + "://") for p in ["vless", "vmess", "trojan", "ss", "hysteria2", "hy2", "tuic"]):
+                        raw_list.append(line)
+        except Exception:
+            continue
+    return list(set(raw_list))
 
-    proto = get_protocol_name(config)
-
-    if config.startswith("vmess://"):
-        return process_vmess(config)
-    
-    if "#" in config:
-        base_part, old_remark = config.split("#", 1)
-        flag = extract_flag(old_remark)
-        return f"{base_part}#crow | {flag} | {proto}"
-    else:
-        return f"{config}#crow | 🌐 | {proto}"
-
-def fetch_configs(url: str) -> List[str]:
+def extract_ip_port(config):
+    """استخراج آی‌پی و پورت برای تست پینگ سریع TCP"""
     try:
-        res = requests.get(url, timeout=10)
-        if res.status_code == 200:
-            text = res.text.strip()
-            try:
-                decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
-                return decoded.splitlines()
-            except Exception:
-                return text.splitlines()
+        if config.startswith("vmess://"):
+            b64_part = config[8:]
+            json_str = decode_base64_safe(b64_part)
+            data = json.loads(json_str)
+            return data.get("add"), int(data.get("port", 443))
+        
+        parsed = urlparse(config)
+        host = parsed.hostname
+        port = parsed.port
+        
+        if not port:
+            if config.startswith("https") or "tls" in config:
+                port = 443
+            else:
+                port = 80
+        return host, int(port)
+    except Exception:
+        return None, None
+
+def check_tcp_alive(config):
+    """تست زنده بودن پورت (TCP Connect Check با تایم‌اوت ۱ ثانیه)"""
+    ip, port = extract_ip_port(config)
+    if not ip or not port:
+        return None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1.0)
+        result = sock.connect_ex((ip, port))
+        sock.close()
+        if result == 0:
+            return config
     except Exception:
         pass
-    return []
+    return None
 
-def save_file(filepath: str, configs: List[str]):
-    """ذخیره لیست کانفیگ‌ها در پوشه مقصد"""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write("\n".join(configs))
+def parse_and_rename(config):
+    """استانداردسازی نام و مشخص کردن نوع پروتکل"""
+    proto = "unknown"
+    if config.startswith("vless://"): proto = "vless"
+    elif config.startswith("vmess://"): proto = "vmess"
+    elif config.startswith("trojan://"): proto = "trojan"
+    elif config.startswith("ss://"): proto = "ss"
+    elif config.startswith("hysteria2://") or config.startswith("hy2://"): proto = "hysteria2"
+    elif config.startswith("tuic://"): proto = "tuic"
+    
+    if proto == "unknown":
+        return None, None
+
+    new_remark = f"crow | 🌐 | {proto.upper()}"
+
+    try:
+        if proto == "vmess":
+            b64_part = config[8:]
+            data = json.loads(decode_base64_safe(b64_part))
+            data['ps'] = new_remark
+            new_config = "vmess://" + base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
+            return proto, new_config
+        else:
+            if "#" in config:
+                base_part = config.split("#")[0]
+            else:
+                base_part = config
+            new_config = f"{base_part}#{quote(new_remark)}"
+            return proto, new_config
+    except Exception:
+        return None, None
 
 def main():
-    os.makedirs(SUB_DIR, exist_ok=True)
-    collected = set()
-    valid_prefixes = ("vless://", "hysteria2://", "hy2://", "vmess://", "trojan://", "tuic://", "ss://")
+    print("Fetching configs...")
+    raw_configs = fetch_configs()
+    print(f"Total fetched: {len(raw_configs)}")
 
-    print("[+] Fetching configurations...")
-    for src in SOURCES:
-        lines = fetch_configs(src)
-        for line in lines:
-            line = line.strip()
-            if line.startswith(valid_prefixes):
-                processed = clean_and_tag(line)
-                if processed:
-                    collected.add(processed)
+    print("Checking TCP connection for active configs...")
+    alive_configs = []
+    # تست همزمان با ۱۰۰ ترد برای بالا بردن سرعت اسکریپت
+    with ThreadPoolExecutor(max_workers=100) as executor:
+        results = executor.map(check_tcp_alive, raw_configs)
+        for res in results:
+            if res:
+                alive_configs.append(res)
+    
+    print(f"Total alive configs: {len(alive_configs)}")
 
-    config_list = list(collected)
-    random.shuffle(config_list)
-
-    if not config_list:
-        print("[-] No valid configs retrieved.")
-        return
-
-    # ۱. ساب اختصاصی ۵۰‌تایی ترکیبی (فوق‌العاده سریع برای نرم‌افزارهای موبایل/ویندوز)
-    mix_50 = config_list[:50]
-    save_file(os.path.join(SUB_DIR, "mix_50.txt"), mix_50)
-
-    # ۲. تفکیک دقیق بر اساس پروتکل
-    by_protocol: Dict[str, List[str]] = {
+    # دسته‌بندی بر اساس پروتکل
+    protocol_buckets = {
         "vless": [],
         "vmess": [],
-        "hysteria2": [],
         "trojan": [],
-        "tuic": [],
-        "ss": []
+        "ss": [],
+        "hysteria2": [],
+        "tuic": []
     }
 
-    for cfg in config_list:
-        if cfg.startswith("vless://"):
-            by_protocol["vless"].append(cfg)
-        elif cfg.startswith("vmess://"):
-            by_protocol["vmess"].append(cfg)
-        elif cfg.startswith(("hysteria2://", "hy2://")):
-            by_protocol["hysteria2"].append(cfg)
-        elif cfg.startswith("trojan://"):
-            by_protocol["trojan"].append(cfg)
-        elif cfg.startswith("tuic://"):
-            by_protocol["tuic"].append(cfg)
-        elif cfg.startswith("ss://"):
-            by_protocol["ss"].append(cfg)
+    for cfg in alive_configs:
+        proto, formatted = parse_and_rename(cfg)
+        if proto in protocol_buckets and formatted:
+            protocol_buckets[proto].append(formatted)
 
-    # ذخیره فایل‌های کامل و فایل‌های ۵۰‌تایی تفکیک‌شده بر اساس پروتکل
-    for proto, cfgs in by_protocol.items():
-        if cfgs:
-            # فایل کامل پروتکل (تا ۲۰۰۰ کانفیگ)
-            save_file(os.path.join(SUB_DIR, f"{proto}.txt"), cfgs[:2000])
-            # فایل سبک ۵۰‌تایی پروتکل (برای تست سریع در v2rayN/v2rayNG)
-            save_file(os.path.join(SUB_DIR, f"{proto}_50.txt"), cfgs[:50])
+    all_active_formatted = []
+    for p, items in protocol_buckets.items():
+        all_active_formatted.extend(items)
+        
+        # ۱. ذخیره ساب‌های کامل پروتکل
+        with open(f"sub/protocols/{p}.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(items))
+            
+        # ۲. ذخیره ساب‌های سبک ۵۰‌تایی پروتکل
+        with open(f"sub/light/{p}.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(items[:50]))
 
-    # ۳. ذخیره ساب‌های عمومی ۱ تا ۵ داخل پوشه sub
-    CONFIGS_PER_SUB = 2000
+    # ۳. تقسیم‌بندی فایل‌های عمومی ۵‌گانه (حداکثر ۲۰۰۰ کانفیگ در هر فایل)
+    chunk_size = 2000
     for i in range(5):
-        start_idx = i * CONFIGS_PER_SUB
-        end_idx = min((i + 1) * CONFIGS_PER_SUB, len(config_list))
-        chunk = config_list[start_idx:end_idx]
-        if chunk:
-            save_file(os.path.join(SUB_DIR, f"sub{i+1}.txt"), chunk)
+        start = i * chunk_size
+        end = start + chunk_size
+        chunk_data = all_active_formatted[start:end]
+        with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(chunk_data))
 
-    print(f"[+] Processed {len(config_list)} configs into '{SUB_DIR}/' folder successfully.")
+    print("All subscription files updated successfully!")
 
 if __name__ == "__main__":
     main()
