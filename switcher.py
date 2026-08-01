@@ -1,53 +1,49 @@
 import os
 import re
 import json
+import random
 import base64
 import requests
-from typing import List, Tuple
+from typing import List
 
-# پوشه خروجی
-OUTPUT_DIR = "sub"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+# فایل خروجی اصلی مستقیم در ریشه پروژه
+OUTPUT_FILE = "sub.txt"
 
-# سقف کل کانفیگ‌ها برای حفظ امنیت در گیت‌هاب و جلوگیری از بن
-MAX_CONFIGS = 1500
+# سقف کل کانفیگ‌ها جهت سرعت بالا و عدم فشار روی نرم‌افزار
+MAX_CONFIGS = 500
 
-# ۲۲ منبع فعال و قوی (مناسب شرایط اختلال شبکه)
+# منابع تقویت‌شده با تمرکز روی VLESS TLS/WS/gRPC کلادفلر و Hysteria2
 SOURCES = [
     "https://raw.githubusercontent.com/yebekhe/TVC/main/subscriptions/xray/base64/mix",
     "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/soroushmirzaei/telegram-v2ray-collector/main/sub/mix",
-    "https://raw.githubusercontent.com/ts-indexer/sub-collector/main/sub/mix",
+    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
+    "https://raw.githubusercontent.com/surfboardv2ray/v2ray-collector/main/sub/mix",
+    "https://raw.githubusercontent.com/Arash-S3/v2ray-collector/main/sub/mix",
     "https://raw.githubusercontent.com/morteza-f/v2ray-collector/main/sub/mix",
+    "https://raw.githubusercontent.com/ts-indexer/sub-collector/main/sub/mix",
     "https://raw.githubusercontent.com/E3436/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/LalatinaHub/v2ray-index/main/sub/mix",
-    "https://raw.githubusercontent.com/freefq/free/master/v2",
-    "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray",
-    "https://raw.githubusercontent.com/pek32/v2ray-free/main/v2ray",
     "https://raw.githubusercontent.com/erfanyab/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/MoV2ray/v2ray/main/mix",
-    "https://raw.githubusercontent.com/sub-collector/v2ray-collector/main/sub/mix",
+    "https://raw.githubusercontent.com/v2rayCollector/v2rayCollector/main/sub/mix",
     "https://raw.githubusercontent.com/BardiaPishro/v2ray-configs/main/sub.txt",
     "https://raw.githubusercontent.com/Iranian-v2ray/v2ray-collector/main/mix.txt",
-    "https://raw.githubusercontent.com/Arash-S3/v2ray-collector/main/sub/mix",
-    "https://raw.githubusercontent.com/surfboardv2ray/v2ray-collector/main/sub/mix",
+    "https://raw.githubusercontent.com/freefq/free/master/v2",
+    "https://raw.githubusercontent.com/pek32/v2ray-free/main/v2ray",
+    "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray",
     "https://raw.githubusercontent.com/alien-v2ray/v2ray/main/sub.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
-    "https://raw.githubusercontent.com/v2ray-reload/v2ray-reload/main/sub/mix",
-    "https://raw.githubusercontent.com/v2rayCollector/v2rayCollector/main/sub/mix"
+    "https://raw.githubusercontent.com/v2ray-reload/v2ray-reload/main/sub/mix"
 ]
 
 def extract_flag(text: str) -> str:
-    """استخراج پرچم کشور از متن ریمارک"""
-    # الگوی ردیابی ایموجی‌های پرچم سازمان ملل (Unicode Regional Indicator Symbols)
+    """استخراج پرچم یا کد کشور"""
     flag_pattern = re.compile(r'[\U0001F1E6-\U0001F1FF]{2}')
     match = flag_pattern.search(text)
     if match:
         return match.group(0)
     
-    # جستجوی کدهای ۲ حرفی کشورها مانند CA, DE, US
-    cc_pattern = re.compile(r'\b(US|DE|FR|GB|NL|CA|TR|FI|PL|SG|JP|KR|HK|IR)\b', re.IGNORECASE)
+    cc_pattern = re.compile(r'\b(US|DE|FR|GB|NL|CA|TR|FI|PL|SG|JP|KR|HK|IR|CF)\b', re.IGNORECASE)
     cc_match = cc_pattern.search(text)
     if cc_match:
         return f"[{cc_match.group(0).upper()}]"
@@ -55,16 +51,14 @@ def extract_flag(text: str) -> str:
     return "🌐"
 
 def process_vmess(config: str) -> str:
-    """اصلاح ریمارک برای کانفیگ‌های VMess بیس۶۴"""
+    """تغییر ریمارک VMess"""
     try:
         b64_part = config.replace("vmess://", "")
-        # افزودن padding جهت دکود صحیح
         b64_part += '=' * (-len(b64_part) % 4)
         decoded_bytes = base64.b64decode(b64_part)
         data = json.loads(decoded_bytes.decode('utf-8', errors='ignore'))
         
-        old_ps = data.get("ps", "")
-        flag = extract_flag(old_ps)
+        flag = extract_flag(data.get("ps", ""))
         data["ps"] = f"crow | {flag}"
         
         new_json = json.dumps(data, ensure_ascii=False)
@@ -74,7 +68,7 @@ def process_vmess(config: str) -> str:
         return ""
 
 def clean_and_tag(config: str) -> str:
-    """تغییر نام ریمارک به crow همراه با پرچم کشور"""
+    """تغییر ریمارک تمامی پروتکل‌ها به crow + پرچم"""
     config = config.strip()
     if not config:
         return ""
@@ -82,7 +76,6 @@ def clean_and_tag(config: str) -> str:
     if config.startswith("vmess://"):
         return process_vmess(config)
     
-    # سایر پروتکل‌ها (VLESS, Trojan, Hysteria2, SS, TUIC)
     if "#" in config:
         base_part, old_remark = config.split("#", 1)
         flag = extract_flag(old_remark)
@@ -91,7 +84,6 @@ def clean_and_tag(config: str) -> str:
         return f"{config}#crow | 🌐"
 
 def fetch_configs(url: str) -> List[str]:
-    """دریافت دیتای منابع"""
     try:
         res = requests.get(url, timeout=7)
         if res.status_code == 200:
@@ -107,9 +99,10 @@ def fetch_configs(url: str) -> List[str]:
 
 def main():
     collected = set()
-    valid_prefixes = ("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://")
+    # اولویت شدید با VLESS و Hysteria2 که بیشترین اتصال را دارند
+    valid_prefixes = ("vless://", "hysteria2://", "hy2://", "vmess://", "trojan://", "ss://", "tuic://")
 
-    print("[+] Collecting from 22 proxy sources...")
+    print("[+] Gathering configurations...")
     for src in SOURCES:
         lines = fetch_configs(src)
         for line in lines:
@@ -118,35 +111,27 @@ def main():
                 processed = clean_and_tag(line)
                 if processed:
                     collected.add(processed)
-                    if len(collected) >= MAX_CONFIGS:
-                        break
-        if len(collected) >= MAX_CONFIGS:
-            break
 
     config_list = list(collected)
-    total = len(config_list)
-    print(f"[+] Successfully gathered and formatted {total} configs.")
+    
+    # هم زدن هوشمند لیست برای اینکه در هر آپدیت ترکیبی تازه از کانفیگ‌ها سر رو بیایند
+    random.shuffle(config_list)
+    
+    # انتخاب ۳۰۰ تا ۵۰۰ کانفیگ برتر بر اساس محدودیت
+    final_configs = config_list[:MAX_CONFIGS]
+    total = len(final_configs)
+    
+    print(f"[+] Total fresh configs prepared: {total}")
 
     if total == 0:
         print("[-] No valid configs retrieved.")
         return
 
-    # تقسیم کانفیگ‌ها به دقیقاً ۱۰ فایل سابسکریپشن
-    num_files = 10
-    chunk_size = max(1, total // num_files)
+    # ذخیره مستقیم در فایل اصلی sub.txt
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write("\n".join(final_configs))
 
-    for i in range(num_files):
-        start = i * chunk_size
-        end = (i + 1) * chunk_size if i < num_files - 1 else total
-        chunk = config_list[start:end]
-        
-        file_name = f"{i+1:02d}.txt"
-        file_path = os.path.join(OUTPUT_DIR, file_name)
-        
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(chunk))
-
-    print(f"[+] Successfully created 10 subscription files in '{OUTPUT_DIR}/'.")
+    print(f"[+] 'sub.txt' updated successfully with {total} configs.")
 
 if __name__ == "__main__":
     main()
