@@ -24,8 +24,10 @@ jobs:
           pip install requests
 
       - name: Run Subscriptions Switcher
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
         run: python scripts/switcher.py
-
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
