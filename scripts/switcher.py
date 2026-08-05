@@ -1,48 +1,53 @@
 import os
-import re
 import json
 import base64
 import socket
 import requests
-from urllib.parse import urlparse, unquote, quote
+from urllib.parse import urlparse, quote
 from concurrent.futures import ThreadPoolExecutor
 
-# --- تنظیمات ساختار پوشه‌ها ---
 DIRS = [
-    "sub/general",
     "sub/protocols",
-    "sub/light",
-    "sub/protocols_iran"   # کانفیگ‌های سالمِ منابع مخصوص شبکه‌ی ایران (جدا نگه داشته می‌شن تا سهمیه‌شون تضمین بشه)
+    "sub/general"
 ]
-
 for d in DIRS:
     os.makedirs(d, exist_ok=True)
 
-# --- مخازن عمومی ---
+# --- مخازن منبع (گسترش‌یافته) ---
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/v2ray.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/main/sub/sub.txt",
+    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
     "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
+    "https://raw.githubusercontent.com/barry-far/v2ray-config/main/v2ray.txt",
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
     "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/refs/heads/main/all/vless.txt",
     "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/config.txt",
     "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/v2ray.txt",
     "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/mix",
+    "https://raw.githubusercontent.com/yebekhe/V2RayConfig/main/v2ray.txt",
     "https://raw.githubusercontent.com/MahdiGhaffari/V2rayAggregator/main/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/MhdiTaheri/V2rayCollector/main/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/main/mix.txt",
     "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt",
-]
-
-# --- مخازن مخصوص شبکه‌ی ایران (اولویت‌دار، سهمیه‌ی تضمینی توی select_best.py دارن) ---
-IRAN_SOURCES = [
     "https://raw.githubusercontent.com/jafarm83/ConfigV2Ray/main/jafar.txt",
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
+    "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/v2ray.txt",
+    "https://raw.githubusercontent.com/Anankke/Sub-Store/master/config/node.txt",
+    "https://raw.githubusercontent.com/freefq/free/master/v2",
+    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix.txt",
+    "https://raw.githubusercontent.com/lm705/vair/main/vair.txt",
+    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/E5%2Fsub.txt",
+    "https://raw.githubusercontent.com/mohamadfg-dev/telegram-v2ray-configs-collector/main/v2ray.txt",
+    "https://raw.githubusercontent.com/MrRabbitson/RabbitProxyz-proxy-list/main/proxy-list.txt",
+    "https://raw.githubusercontent.com/tbbatbb/V2Ray/master/v2ray.txt",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray.txt",
+    "https://raw.githubusercontent.com/VP01596/vless-top15/main/vless.txt",
 ]
 
-SUPPORTED_PROTOCOLS = ["vless", "vmess", "trojan", "shadowsocks", "hysteria2", "tuic"]
+REMARK = "persian crow"
 
 
 def decode_base64_safe(data):
@@ -56,52 +61,47 @@ def decode_base64_safe(data):
         return ""
 
 
-def fetch_from(urls):
-    """کانفیگ‌های خام رو از یه لیست URL می‌خونه."""
-    raw_list = []
+def fetch_one(url):
     headers = {'User-Agent': 'Mozilla/5.0'}
-    for url in urls:
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code == 200:
-                text = res.text.strip()
-                decoded = decode_base64_safe(text)
-                content = decoded if "://" in decoded else text
-                lines = content.splitlines()
-                for line in lines:
-                    line = line.strip()
-                    if any(line.startswith(p + "://") for p in ["vless", "vmess", "trojan", "ss", "hysteria2", "hy2", "tuic"]):
-                        raw_list.append(line)
-        except Exception:
-            continue
+    found = []
+    try:
+        res = requests.get(url, headers=headers, timeout=8)
+        if res.status_code == 200:
+            text = res.text.strip()
+            decoded = decode_base64_safe(text)
+            content = decoded if "://" in decoded else text
+            for line in content.splitlines():
+                line = line.strip()
+                if any(line.startswith(p + "://") for p in ["vless", "vmess", "trojan", "ss", "hysteria2", "hy2", "tuic"]):
+                    found.append(line)
+    except Exception:
+        pass
+    return found
+
+
+def fetch_all():
+    """موازی می‌خونه تا اضافه‌شدن منابع بیشتر، اجرا رو کند نکنه."""
+    raw_list = []
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        for result in executor.map(fetch_one, SOURCES):
+            raw_list.extend(result)
     return list(set(raw_list))
 
 
 def extract_ip_port(config):
-    """استخراج آی‌پی و پورت برای تست پینگ سریع TCP"""
     try:
         if config.startswith("vmess://"):
-            b64_part = config[8:]
-            json_str = decode_base64_safe(b64_part)
-            data = json.loads(json_str)
+            data = json.loads(decode_base64_safe(config[8:]))
             return data.get("add"), int(data.get("port", 443))
-
         parsed = urlparse(config)
         host = parsed.hostname
-        port = parsed.port
-
-        if not port:
-            if config.startswith("https") or "tls" in config:
-                port = 443
-            else:
-                port = 80
+        port = parsed.port or (443 if "tls" in config else 80)
         return host, int(port)
     except Exception:
         return None, None
 
 
 def check_tcp_alive(config):
-    """تست زنده بودن پورت (TCP Connect Check با تایم‌اوت ۱ ثانیه)"""
     ip, port = extract_ip_port(config)
     if not ip or not port:
         return None
@@ -117,103 +117,72 @@ def check_tcp_alive(config):
     return None
 
 
-def parse_and_rename(config):
-    """استانداردسازی نام و مشخص کردن نوع پروتکل"""
-    proto = "unknown"
-    if config.startswith("vless://"): proto = "vless"
-    elif config.startswith("vmess://"): proto = "vmess"
-    elif config.startswith("trojan://"): proto = "trojan"
-    elif config.startswith("ss://"): proto = "ss"
-    elif config.startswith("hysteria2://") or config.startswith("hy2://"): proto = "hysteria2"
-    elif config.startswith("tuic://"): proto = "tuic"
-
-    if proto == "unknown":
-        return None, None
-
-    new_remark = f"persianata | 🌐 | {proto.upper()}"
-
-    try:
-        if proto == "vmess":
-            b64_part = config[8:]
-            data = json.loads(decode_base64_safe(b64_part))
-            data['ps'] = new_remark
-            new_config = "vmess://" + base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
-            return proto, new_config
-        else:
-            if "#" in config:
-                base_part = config.split("#")[0]
-            else:
-                base_part = config
-            new_config = f"{base_part}#{quote(new_remark)}"
-            return proto, new_config
-    except Exception:
-        return None, None
-
-
 def filter_alive(raw_configs):
     alive = []
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=150) as executor:
         for res in executor.map(check_tcp_alive, raw_configs):
             if res:
                 alive.append(res)
     return alive
 
 
+def detect_proto(config):
+    if config.startswith("vless://"): return "vless"
+    if config.startswith("vmess://"): return "vmess"
+    if config.startswith("trojan://"): return "trojan"
+    if config.startswith("ss://"): return "ss"
+    if config.startswith("hysteria2://") or config.startswith("hy2://"): return "hysteria2"
+    if config.startswith("tuic://"): return "tuic"
+    return "unknown"
+
+
+def rename_config(config, proto):
+    try:
+        if proto == "vmess":
+            data = json.loads(decode_base64_safe(config[8:]))
+            data['ps'] = REMARK
+            return "vmess://" + base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
+        else:
+            base_part = config.split("#")[0]
+            return f"{base_part}#{quote(REMARK)}"
+    except Exception:
+        return None
+
+
 def main():
-    print("Fetching general configs...")
-    general_raw = fetch_from(SOURCES)
-    print(f"General fetched: {len(general_raw)}")
+    print(f"Fetching from {len(SOURCES)} sources (parallel)...")
+    raw = fetch_all()
+    print(f"Fetched: {len(raw)}")
 
-    print("Fetching Iran-focused configs...")
-    iran_raw = fetch_from(IRAN_SOURCES)
-    print(f"Iran-focused fetched: {len(iran_raw)}")
+    print("Checking TCP alive...")
+    alive = filter_alive(raw)
+    print(f"Alive: {len(alive)}")
 
-    # جلوگیری از هم‌پوشانی: اگه یه کانفیگ توی هر دو لیست بود، فقط توی iran می‌مونه
-    general_raw = [c for c in general_raw if c not in set(iran_raw)]
-
-    print("Checking TCP connection for general configs...")
-    alive_general = filter_alive(general_raw)
-    print(f"Alive general: {len(alive_general)}")
-
-    print("Checking TCP connection for Iran-focused configs...")
-    alive_iran = filter_alive(iran_raw)
-    print(f"Alive Iran-focused: {len(alive_iran)}")
-
-    # --- پردازش عمومی (همون ساختار قبلی) ---
     protocol_buckets = {"vless": [], "vmess": [], "trojan": [], "ss": [], "hysteria2": [], "tuic": []}
-    for cfg in alive_general:
-        proto, formatted = parse_and_rename(cfg)
-        if proto in protocol_buckets and formatted:
-            protocol_buckets[proto].append(formatted)
+    all_formatted = []
 
-    all_active_formatted = []
+    for cfg in alive:
+        proto = detect_proto(cfg)
+        if proto not in protocol_buckets:
+            continue
+        renamed = rename_config(cfg, proto)
+        if renamed:
+            protocol_buckets[proto].append(renamed)
+            all_formatted.append(renamed)
+
     for p, items in protocol_buckets.items():
-        all_active_formatted.extend(items)
         with open(f"sub/protocols/{p}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(items))
-        with open(f"sub/light/{p}.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(items[:50]))
 
     chunk_size = 2000
     for i in range(5):
         start = i * chunk_size
         end = start + chunk_size
-        chunk_data = all_active_formatted[start:end]
+        chunk_data = all_formatted[start:end]
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
-    # --- پردازش کانفیگ‌های مخصوص ایران (فایل جدا، برای سهمیه‌ی تضمینی) ---
-    iran_formatted = []
-    for cfg in alive_iran:
-        proto, formatted = parse_and_rename(cfg)
-        if formatted:
-            iran_formatted.append(formatted)
-
-    with open("sub/protocols_iran/iran.txt", "w", encoding="utf-8") as f:
-        f.write("\n".join(iran_formatted))
-
-    print(f"Iran-focused alive & saved: {len(iran_formatted)}")
-    print("All subscription files updated successfully!")
+    print(f"Done. Total formatted: {len(all_formatted)}")
 
 
 if __name__ == "__main__":
