@@ -222,7 +222,7 @@ def main():
     # preferred اول، بعد fallback -> یعنی توی هر فایل general، اول کانفیگ‌های قابل‌اعتمادتر میان
     all_formatted = preferred_all + fallback_all
 
-    chunk_size = 2000
+    chunk_size = 1000
     for i in range(5):
         start = i * chunk_size
         end = start + chunk_size
