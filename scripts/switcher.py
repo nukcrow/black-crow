@@ -45,6 +45,65 @@ SOURCES = [
 
 REMARK = "persian crow"
 
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+SEARCH_PROTOCOLS = ["vless", "vmess", "trojan", "hysteria2"]
+SEARCH_MAX_PAGES = 2  # هر صفحه ۱۰۰ نتیجه؛ برای جلوگیری از rate limit محدودش می‌کنیم
+
+
+def github_code_search(protocol_prefix):
+    """با GitHub Code Search، فایل‌های حاوی این پروتکل رو توی کل گیت‌هاب پیدا می‌کنه."""
+    if not GITHUB_TOKEN:
+        return []
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+    urls = set()
+    for page in range(1, SEARCH_MAX_PAGES + 1):
+        try:
+            res = requests.get(
+                "https://api.github.com/search/code",
+                headers=headers,
+                params={"q": f'"{protocol_prefix}://"', "per_page": 100, "page": page},
+                timeout=15,
+            )
+            if res.status_code != 200:
+                break
+            items = res.json().get("items", [])
+            if not items:
+                break
+            for item in items:
+                raw_url = (
+                    item["html_url"]
+                    .replace("github.com", "raw.githubusercontent.com")
+                    .replace("/blob/", "/")
+                )
+                urls.add(raw_url)
+        except Exception:
+            break
+    return list(urls)
+
+
+def fetch_from_github_search():
+    """کل گیت‌هاب رو برای هر پروتکل جستجو می‌کنه و فایل‌های پیدا‌شده رو می‌خونه."""
+    if not GITHUB_TOKEN:
+        print("GITHUB_TOKEN موجود نیست، جستجوی گیت‌هاب رد شد.")
+        return []
+
+    all_urls = set()
+    for proto in SEARCH_PROTOCOLS:
+        found_urls = github_code_search(proto)
+        all_urls.update(found_urls)
+        print(f"  جستجوی '{proto}://': {len(found_urls)} فایل")
+
+    print(f"GitHub Code Search: مجموعاً {len(all_urls)} فایل یکتا پیدا شد")
+
+    found = []
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        for result in executor.map(fetch_one, list(all_urls)):
+            found.extend(result)
+    return found
+
 # بر اساس نمونه‌های خودت: این ترکیب‌ها معمولاً وصل میشن (CDN-fronted یا Reality)
 PREFERRED_SECURITY = {"tls", "reality"}
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
@@ -184,9 +243,15 @@ def rename_config(config, proto):
 
 
 def main():
-    print(f"Fetching from {len(SOURCES)} sources (parallel)...")
+    print(f"Fetching from {len(SOURCES)} fixed sources (parallel)...")
     raw = fetch_all()
-    print(f"Fetched (raw): {len(raw)}")
+    print(f"Fetched from fixed sources: {len(raw)}")
+
+    print("Searching GitHub itself for more config files...")
+    github_raw = fetch_from_github_search()
+    print(f"Fetched from GitHub search: {len(github_raw)}")
+    raw.extend(github_raw)
+    print(f"Total raw (combined): {len(raw)}")
 
     raw = dedupe_by_host_port(raw)
     print(f"After host:port dedupe: {len(raw)}")
@@ -222,8 +287,8 @@ def main():
     # preferred اول، بعد fallback -> یعنی توی هر فایل general، اول کانفیگ‌های قابل‌اعتمادتر میان
     all_formatted = preferred_all + fallback_all
 
-    chunk_size = 1000
-    for i in range(5):
+    chunk_size = 2000
+    for i in range(10):
         start = i * chunk_size
         end = start + chunk_size
         chunk_data = all_formatted[start:end]
