@@ -149,11 +149,18 @@ def detect_proto(config):
 
 
 def is_preferred(config, proto):
-    """بر اساس نمونه‌های خودت: tls/reality + ws/grpc/xhttp معمولاً وصل میشن.
-    hysteria2 و vmess (که خودشون همیشه رمزنگاری‌شده‌ان) همیشه preferred حساب میشن."""
-    if proto in ("hysteria2", "vmess"):
-        return True
+    """چک واقعی برای هر پروتکل - دیگه به هیچ‌کدوم "کورکورانه" تایید نمی‌دیم."""
     try:
+        if proto == "vmess":
+            data = json.loads(decode_base64_safe(config[8:]))
+            net = str(data.get("net", "")).lower()
+            tls = str(data.get("tls", "")).lower()
+            return tls == "tls" and net in {"ws", "grpc", "h2", "httpupgrade"}
+
+        if proto == "hysteria2":
+            # hysteria2 خودش همیشه روی QUIC+TLS کار می‌کنه، پس همیشه preferred
+            return True
+
         parsed = urlparse(config)
         qs = parse_qs(parsed.query)
         security = (qs.get("security", [""])[0]).lower()
