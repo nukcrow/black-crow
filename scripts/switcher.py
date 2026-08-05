@@ -2,18 +2,14 @@ import os
 import json
 import base64
 import socket
+from urllib.parse import urlparse, quote, parse_qs
 import requests
-from urllib.parse import urlparse, quote
 from concurrent.futures import ThreadPoolExecutor
 
-DIRS = [
-    "sub/protocols",
-    "sub/general"
-]
+DIRS = ["sub/protocols", "sub/general"]
 for d in DIRS:
     os.makedirs(d, exist_ok=True)
 
-# --- مخازن منبع (گسترش‌یافته) ---
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/v2ray.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
@@ -49,6 +45,10 @@ SOURCES = [
 
 REMARK = "persian crow"
 
+# بر اساس نمونه‌های خودت: این ترکیب‌ها معمولاً وصل میشن (CDN-fronted یا Reality)
+PREFERRED_SECURITY = {"tls", "reality"}
+PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
+
 
 def decode_base64_safe(data):
     try:
@@ -80,12 +80,11 @@ def fetch_one(url):
 
 
 def fetch_all():
-    """موازی می‌خونه تا اضافه‌شدن منابع بیشتر، اجرا رو کند نکنه."""
     raw_list = []
     with ThreadPoolExecutor(max_workers=20) as executor:
         for result in executor.map(fetch_one, SOURCES):
             raw_list.extend(result)
-    return list(set(raw_list))
+    return raw_list
 
 
 def extract_ip_port(config):
@@ -99,6 +98,19 @@ def extract_ip_port(config):
         return host, int(port)
     except Exception:
         return None, None
+
+
+def dedupe_by_host_port(configs):
+    """چون خیلی از کانفیگ‌ها فقط UUID متفاوت دارن ولی سرورشون یکیه، بر اساس host:port یکتا می‌کنیم."""
+    seen = set()
+    unique = []
+    for cfg in configs:
+        ip, port = extract_ip_port(cfg)
+        key = (ip, port)
+        if key not in seen and ip:
+            seen.add(key)
+            unique.append(cfg)
+    return unique
 
 
 def check_tcp_alive(config):
@@ -136,6 +148,21 @@ def detect_proto(config):
     return "unknown"
 
 
+def is_preferred(config, proto):
+    """بر اساس نمونه‌های خودت: tls/reality + ws/grpc/xhttp معمولاً وصل میشن.
+    hysteria2 و vmess (که خودشون همیشه رمزنگاری‌شده‌ان) همیشه preferred حساب میشن."""
+    if proto in ("hysteria2", "vmess"):
+        return True
+    try:
+        parsed = urlparse(config)
+        qs = parse_qs(parsed.query)
+        security = (qs.get("security", [""])[0]).lower()
+        ctype = (qs.get("type", [""])[0]).lower()
+        return security in PREFERRED_SECURITY and (ctype in PREFERRED_TYPES or ctype == "")
+    except Exception:
+        return False
+
+
 def rename_config(config, proto):
     try:
         if proto == "vmess":
@@ -152,27 +179,41 @@ def rename_config(config, proto):
 def main():
     print(f"Fetching from {len(SOURCES)} sources (parallel)...")
     raw = fetch_all()
-    print(f"Fetched: {len(raw)}")
+    print(f"Fetched (raw): {len(raw)}")
+
+    raw = dedupe_by_host_port(raw)
+    print(f"After host:port dedupe: {len(raw)}")
 
     print("Checking TCP alive...")
     alive = filter_alive(raw)
     print(f"Alive: {len(alive)}")
 
     protocol_buckets = {"vless": [], "vmess": [], "trojan": [], "ss": [], "hysteria2": [], "tuic": []}
-    all_formatted = []
+    preferred_all, fallback_all = [], []
 
     for cfg in alive:
         proto = detect_proto(cfg)
         if proto not in protocol_buckets:
             continue
         renamed = rename_config(cfg, proto)
-        if renamed:
+        if not renamed:
+            continue
+
+        pref = is_preferred(cfg, proto)
+        # داخل هر پروتکل هم preferred رو اول می‌ذاریم
+        if pref:
+            protocol_buckets[proto].insert(0, renamed)
+            preferred_all.append(renamed)
+        else:
             protocol_buckets[proto].append(renamed)
-            all_formatted.append(renamed)
+            fallback_all.append(renamed)
 
     for p, items in protocol_buckets.items():
         with open(f"sub/protocols/{p}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(items))
+
+    # preferred اول، بعد fallback -> یعنی توی هر فایل general، اول کانفیگ‌های قابل‌اعتمادتر میان
+    all_formatted = preferred_all + fallback_all
 
     chunk_size = 2000
     for i in range(5):
@@ -182,7 +223,7 @@ def main():
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
-    print(f"Done. Total formatted: {len(all_formatted)}")
+    print(f"Done. Preferred (tls/reality+ws/grpc/xhttp): {len(preferred_all)} | Fallback: {len(fallback_all)}")
 
 
 if __name__ == "__main__":
