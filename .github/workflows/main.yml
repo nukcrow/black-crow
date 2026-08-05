@@ -26,9 +26,6 @@ jobs:
       - name: Run Subscriptions Switcher
         run: python scripts/switcher.py
 
-      - name: Select Best 30 by Ping
-        run: python scripts/select_best.py
-
       - name: Commit and Push Changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
