@@ -6,7 +6,7 @@ from urllib.parse import urlparse, quote, parse_qs
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
-DIRS = ["sub/protocols", "sub/general"]
+DIRS = ["sub/protocols", "sub/general", "sub/premium"]
 for d in DIRS:
     os.makedirs(d, exist_ok=True)
 
@@ -241,7 +241,20 @@ def main():
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
+    # --- ساب جدا: فقط preferred (TLS+WS/xHTTP یا Reality)، بدون هیچ fallback ---
+    premium_chunk_size = 1000
+    premium_files = max(1, (len(preferred_all) // premium_chunk_size) + 1)
+    for i in range(premium_files):
+        start = i * premium_chunk_size
+        end = start + premium_chunk_size
+        chunk_data = preferred_all[start:end]
+        if not chunk_data:
+            continue
+        with open(f"sub/premium/premium{i+1}.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(chunk_data))
+
     print(f"Done. Preferred (tls/reality+ws/grpc/xhttp): {len(preferred_all)} | Fallback: {len(fallback_all)}")
+    print(f"Premium files written: {premium_files}")
 
 
 if __name__ == "__main__":
