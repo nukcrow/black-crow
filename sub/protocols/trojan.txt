@@ -99,7 +99,6 @@ trojan://mainssh-niwrhf87@108.61.171.167:443?security=tls&sni=getgrpc.mainssh.xy
 trojan://mainssh-ddoejfv14@95.179.254.136:443?security=tls&sni=frtgrpc.mainssh.xyz&type=grpc&serviceName=trojangrpc#persian%20crow
 trojan://M08tvzYWtUEJNtbpHp@nl-4.tr202512.com:443?security=tls#persian%20crow
 trojan://M08tvzYWtUEJNtbpHp@194.124.216.192:443?security=tls#persian%20crow
-trojan://kkzh2prsyr2ik47as615@64.94.95.118:57142?security=tls&sni=64.94.95.118#persian%20crow
 trojan://JT80563429@musical-shrew.rooster465.autos:443?security=tls#persian%20crow
 trojan://JA96378052@evident-gnat.rooster465.autos:443?security=tls#persian%20crow
 trojan://iyinglong@18.140.67.76:443?security=tls#persian%20crow
@@ -249,7 +248,6 @@ trojan://38f169d6-d202-4b1b-8db8-e6eb1648f5cf@43.160.197.160:443?security=tls#pe
 trojan://255c924c-1314-4084-9a9e-1d1a82a5cf49@us2.trojanvh.xyz:80?security=tls#persian%20crow
 trojan://20ba0c60-0133-11f1-95ef-1239d0255272@172.64.152.23:443?path=/howdy&security=tls&insecure=1&host=uk1.test3.net&type=ws&allowInsecure=1&sni=uk1.test3.net#persian%20crow
 trojan://19877587-ed94-4033-88cd-4ac50a5e8718@104.16.148.5:443?security=tls&sni=dimskiee.biz.id&type=ws&path=%2FWangCai-8&Host=dimskiee.biz.id#persian%20crow
-trojan://16bcc187-a1a0-4b8a-8b69-627f38b7cc0d@15.235.197.4:80?security=tls&sni=15.235.197.4#persian%20crow
 trojan://14bdba6dede262387ebdebaa706e1c90@trs12.bolab.net:443?security=tls#persian%20crow
 trojan://0ebb269c9f2d4e8e46b0cd4105a55134@163.245.196.68:49361?security=tls&sni=163.245.196.68.sslip.io#persian%20crow
 trojan://0b65bb06-6b28-487a-8e3c-820dda51e977@series-v1.samanehha.co:443?security=tls&sni=series-v1.samanehha.co&type=ws&path=/43xf5zgeApzDAfhOHq&Host=series-v1.samanehha.co#persian%20crow
@@ -296,6 +294,7 @@ trojan://humanity@104.18.152.97:443?allowInsecure=0&sni=www.ignitelimit.com&type
 trojan://humanity@172.67.149.60:443?path=%2Fassignment&amp;security=tls&amp;insecure=0&amp;host=www.ignitelimit.com&amp;ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&amp;type=ws&amp;allowInsecure=0&amp;sni=www.ignitelimit.com#persian%20crow
 trojan://humanity@188.114.97.7:443?type=ws&amp;path=/assignment&amp;security=tls&amp;sni=www.ignitelimit.com&amp;ech=ip.gs+udp://8.8.8.8#persian%20crow
 trojan://humanity@render.com:443?path=%2Fassignment&amp;security=tls&amp;insecure=0&amp;host=www.ignitelimit.com&amp;ech=ip.gs%2Budp%3A%2F%2F8.8.8.8&amp;type=ws&amp;allowInsecure=0&amp;sni=www.ignitelimit.com#persian%20crow
+trojan://024316f4-be3f-4473-ad63-0abfed02fdec@v1in2.stableq.top:24407?sni=v1in2.stableq.top&type=tcp&fp=chrome#persian%20crow
 trojan://2eutknankxtbgkwcajzt@193.148.19.210:52794?security=tls&sni=www.vk.com&fp=chrome&type=tcp&headerType=none&path=/&allow_insecure=1#persian%20crow
 trojan://41c406e2-12b5-41f2-a329-d0621052d675@157.254.38.210:20034?sni=hk.catxstar.com&path=/#persian%20crow
 trojan://41c406e2-12b5-41f2-a329-d0621052d675@oplosgru-c.catcat321.com:20088?allowInsecure=0&sni=hk.catxstar.com#persian%20crow
