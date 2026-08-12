@@ -10,6 +10,8 @@ hysteria2://https@starlink-ft.251313.xyz:443?insecure=1&sni=www.cloudflare.com#p
 hysteria2://dongtaiwang.com@62.210.124.146:22000?insecure=1&sni=www.microsoft.com#persian%20crow
 hysteria2://cd74c0a406664a5bc0bac098220a2468@ru1.sferavpn.pro:443?sni=ru1.sferavpn.pro&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0#persian%20crow
 hysteria2://cd74c0a406664a5bc0bac098220a2468@ee2.sferavpn.pro:443?sni=ee2.sferavpn.pro&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0#persian%20crow
+hysteria2://%40Telegram%40Configvibes@107.181.155.107:2096?insecure=1&sni=ftp.debian.org&obfs=salamander&obfs-password=Configvibes------Configvibes------Configvibes------Configvibes------Configvibes------Configvibes------Configvibes------Configvibes------Configvibes------Configvibes#persian%20crow
+hysteria2://95e8532b-cc69-42d4-9553-e3c23292b15b@151.247.193.5:8443?sni=iq5ny.pleiades.codes#persian%20crow
 hysteria2://76713d07-5a6b-49c2-abd8-bc450a2fa7fc@usa1.spectrumproxy.shop:443?sni=usa1.spectrumproxy.shop#persian%20crow
 hysteria2://76713d07-5a6b-49c2-abd8-bc450a2fa7fc@138.124.68.188:443?sni=usa1.spectrumproxy.shop#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52076?insecure=0&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=zducqb7ro143x0t2#persian%20crow
@@ -17,6 +19,7 @@ hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52062?ins
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52061?obfs=salamander&obfs-password=fd3olglr2bmimgje&sni=assets.gateway-stream.com#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52060?obfs=salamander&obfs-password=l960g2kn19nphlra&sni=assets.gateway-stream.com#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52052?insecure=0&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=gfy85fok75ipi28z#persian%20crow
+hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52032?insecure=0&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=hc7wdqfxl9wi1y8z#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52029?obfs=salamander&obfs-password=v8h63irhnay97090&sni=assets.gateway-stream.com#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52003?insecure=0&alpn=h3&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=5xo4v7u2pv8bktvb#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@assets.gateway-stream.com:52002?insecure=0&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=ielzukpwth087afx#persian%20crow
@@ -27,14 +30,11 @@ hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@95.217.96.131:52029?obfs=salamander
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@95.217.96.131:52002?obfs=salamander&obfs-password=ielzukpwth087afx&sni=assets.gateway-stream.com#persian%20crow
 hysteria2://4ff4adfb8e7a4bae9c959c54fa5af52f@95.217.96.131:52000?insecure=1&obfs=salamander&obfs-password=gu74jg3ym0e21zco#persian%20crow
 hysteria2://2b5f7fc3d38f4798a0f62d4ef8876528@82.22.41.125:443?insecure=1&obfs=salamander&obfs-password=1yvnm8sv41&sni=pl6.lckdwn.ru#persian%20crow
-hysteria2://16b3793b-3335-4832-b1fd-877b2c5e15d6@42.200.231.126:8443?insecure=1&sni=store.nintendo.com.hk#persian%20crow
 hy2://gf1:gfhysteria2024@5.129.235.85:443/?insecure=1&sni=www.linux.com#persian%20crow
 hy2://gf1:gfhysteria2024@185.156.44.99:443/?insecure=1&sni=www.amazon.com#persian%20crow
-hy2://df489ab2-2242-4952-a774-1074a3a31f41@eh-spl1.craft-supply.org:8443/?sni=eh-spl1.craft-supply.org#persian%20crow
 hy2://cd74c0a406664a5bc0bac098220a2468@nl2.sferavpn.pro:443/?insecure=1&sni=nl2.sferavpn.pro&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0#persian%20crow
 hy2://95e8532b-cc69-42d4-9553-e3c23292b15b@iq5ny.pleiades.codes:8443/?sni=iq5ny.pleiades.codes#persian%20crow
 hy2://95e8532b-cc69-42d4-9553-e3c23292b15b@176.124.222.180:8443/?sni=j47lq.pleiades.codes#persian%20crow
-hy2://71cada65-d23e-418c-88e4-a06188d14689@it-one.quiet-rogue.site:443/?sni=it-one.quiet-rogue.site#persian%20crow
 hy2://71cada65-d23e-418c-88e4-a06188d14689@de-two.quiet-rogue.site:443/?sni=de-two.quiet-rogue.site#persian%20crow
 hy2://71cada65-d23e-418c-88e4-a06188d14689@144.31.166.91:443/?sni=de-two.quiet-rogue.site#persian%20crow
 hy2://68b4b16e-2759-47a4-8a69-33118edf5ce6@ang.leontunel.ru:443/?sni=ang.leontunel.ru#persian%20crow
