@@ -1,3 +1,19 @@
+vmess://eyJhZGQiOiAiZGUtdi5zc2htYXgueHl6IiwgImFpZCI6IDAsICJob3N0IjogImRlLXYuc3NobWF4Lnh5eiIsICJpZCI6ICI1NjY4ZmY5Ny02MzFmLTQ2MDItYTEzZi1iNTY1NTJjNjdhYmUiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3ZtZXNzIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAiZWUub3Bwby5xdWVzdCIsICJhaWQiOiAwLCAiaG9zdCI6ICJlZS5vcHBvLnF1ZXN0IiwgImlkIjogImY5MjQ3ZGY0LTAyZDUtNGIzMS1hY2M1LTQwMjI2NTJjNTk1MyIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAiZnJlZS1ydXNzaWFuMDEtY2RuLnhpYW9ob3V6aS5jbHViIiwgImFpZCI6IDIzMywgImhvc3QiOiAiZnJlZS1ydXNzaWFuMDEtY2RuLnhpYW9ob3V6aS5jbHViIiwgImlkIjogIjNkMzE3MjhlLTA2NGQtNDJiOC1iOTQ1LWY3OWMwMDhmNzNmYyIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAiZ2NvcmUuY29tIiwgImFpZCI6IDAsICJob3N0IjogImFwYXJhdC1tb3ZpZXMuaXIiLCAiaWQiOiAiYjliNzI3ODgtYTVlYi00M2ZhLWJhYTMtODc1ODFmZTM5M2MxIiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi8iLCAicG9ydCI6IDgwLCAicHMiOiAicGVyc2lhbiBjcm93IiwgInRscyI6ICIiLCAidHlwZSI6ICJhdXRvIiwgInNlY3VyaXR5IjogImF1dG8iLCAic2tpcC1jZXJ0LXZlcmlmeSI6IHRydWUsICJzbmkiOiAiIn0=
+vmess://eyJhZGQiOiAiZ2V0LnRlY2giLCAiYWlkIjogMCwgImhvc3QiOiAiZ2V0LnRlY2giLCAiaWQiOiAiODc2M2U2MjUtOTI5YS00M2RhLWI3YmYtN2U3YmMyZTU3NjE1IiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi9zaGFyZWQiLCAicG9ydCI6IDgwLCAicHMiOiAicGVyc2lhbiBjcm93IiwgInRscyI6ICIiLCAidHlwZSI6ICJhdXRvIiwgInNlY3VyaXR5IjogImF1dG8iLCAic2tpcC1jZXJ0LXZlcmlmeSI6IHRydWUsICJzbmkiOiAiIn0=
+vmess://eyJhZGQiOiAiaGs4MC0yLnNhbmZlbjAwMS5waWNzIiwgImFpZCI6IDAsICJob3N0IjogImhrODAtMi5zYW5mZW4wMDEucGljcyIsICJpZCI6ICIzYzM0ZjI2NC02ZDljLTQyMzQtYjFkYS0zYjg0ZjE4M2E5MzEiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3poLWNuLyIsICJwb3J0IjogODAsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogZmFsc2UsICJzbmkiOiAid3d3LmJhaWR1LmNvbSJ9
+vmess://eyJhZGQiOiAiaGs4MC5zYW5mZW4wMDEucGljcyIsICJhaWQiOiAwLCAiaG9zdCI6ICJoazgwLnNhbmZlbjAwMS5waWNzIiwgImlkIjogIjUwNmQ5M2VjLWZmZGItNDFjZC1iYmMzLTM2NzAzOWM0YjE4ZiIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvemgtY24vIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiBmYWxzZSwgInNuaSI6ICJ3d3cuYmFpZHUuY29tIn0=
+vmess://eyJhZGQiOiAiaWNvb2suaGsiLCAiYWlkIjogMCwgImhvc3QiOiAiaWNvb2suaGsiLCAiaWQiOiAiM2ViMDVjYjYtZDJlMS00YTMxLTlmODItNTE0Y2ZhOThmZTE1IiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi9yYXk/ZWQ9MjA0OCIsICJwb3J0IjogODAsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogdHJ1ZSwgInNuaSI6ICIifQ==
+vmess://eyJhZGQiOiAianA4MC00LnNhbmZlbjAwMS5waWNzIiwgImFpZCI6IDAsICJob3N0IjogImpwODAtNC5zYW5mZW4wMDEucGljcyIsICJpZCI6ICIzYzM0ZjI2NC02ZDljLTQyMzQtYjFkYS0zYjg0ZjE4M2E5MzEiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3poLWNuIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiBmYWxzZSwgInNuaSI6ICJ3d3cuYmFpZHUuY29tIn0=
+vmess://eyJhZGQiOiAibG1zLnVpbi1hbnRhc2FyaS5hYy5pZCIsICJhaWQiOiAwLCAiaG9zdCI6ICJiaXpuZXQtcy5uZXh0dnBuLmNjIiwgImlkIjogIjQ2YmZkYjU5LTgzYzYtNDcxMC04NzdlLWM4MDliNWE5MGRmZiIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvdnBubmVvIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAiUkFDS05FUkQuQ09NIiwgImFpZCI6IDAsICJob3N0IjogImJyLmNsb3VkZmxhcmUucXVlc3QiLCAiaWQiOiAiYzJhNTVkZWYtZTkxZS00MTMyLWM1MDQtMGYyNzZjNGMzYTFlIiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi9hcmllcyIsICJwb3J0IjogMjA4NiwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAicnVzc2lhLmNvbSIsICJhaWQiOiAwLCAiaG9zdCI6ICJydXNzaWEuY29tIiwgImlkIjogIjRiMDVhYmY1LWM2OGQtNGZmYy05MTVmLWFkZDJmMzc4NmRjYSIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvYXBpL3YzL2Rvd25sb2FkLmdldEZpbGUiLCAicG9ydCI6IDgwODAsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogdHJ1ZSwgInNuaSI6ICIifQ==
+vmess://eyJhZGQiOiAic2VyaWVzLXYxLnNhbWFuZWhoYS5jbyIsICJhaWQiOiAwLCAiaG9zdCI6ICJzZXJpZXMtdjEuc2FtYW5laGhhLmNvIiwgImlkIjogIjBiNjViYjA2LTZiMjgtNDg3YS04ZTNjLTgyMGRkYTUxZTk3NyIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvZFQ5czNIcWdaZUQzZUFwekRBZmhPSHEiLCAicG9ydCI6IDgwLCAicHMiOiAicGVyc2lhbiBjcm93IiwgInRscyI6ICIiLCAidHlwZSI6ICJjaGFjaGEyMC1wb2x5MTMwNSIsICJzZWN1cml0eSI6ICJjaGFjaGEyMC1wb2x5MTMwNSIsICJza2lwLWNlcnQtdmVyaWZ5IjogdHJ1ZSwgInNuaSI6ICIifQ==
+vmess://eyJhZGQiOiAic2ctdi5zc2htYXgueHl6IiwgImFpZCI6IDAsICJob3N0IjogInNnLXYuc3NobWF4Lnh5eiIsICJpZCI6ICIwYmFhZjAxNC1hZjA0LTQwMjgtYmU1My1mNWM3NWJiMjc2YWUiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3ZtZXNzIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAic2c4MC0yLnNhbmZlbjAwMS5waWNzIiwgImFpZCI6IDAsICJob3N0IjogInNnODAtMi5zYW5mZW4wMDEucGljcyIsICJpZCI6ICI5ZjNmNjEyYS0yZmIwLTQyMGQtODMwZi0xYTUwMmExZGI1MGMiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3poLWNuL2Rvd25sb2FkIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
+vmess://eyJhZGQiOiAic2gtY24tMS5kbnNwcm8uaWN1IiwgImFpZCI6IDAsICJob3N0IjogInNoLWNuLTEuZG5zcHJvLmljdSIsICJpZCI6ICIxM2VmNWYyYy1kMDAyLTM2YTItOWU5Ni1hMTNkNWUzYWUwM2IiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL2lzbyIsICJwb3J0IjogMjAwMjUsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogZmFsc2UsICJzbmkiOiAic2gtY24tMS5kbnNwcm8uaWN1In0=
 vmess://eyJhZGQiOiAic2hvcGlmeS5jb20iLCAiYWlkIjogMCwgImhvc3QiOiAibGlub2RlLmNsb3VkZmxhcmUucXVlc3QiLCAiaWQiOiAiNDM5N2QwNjYtZjc1My00MzAwLWU3ZWQtNDQ3OTdkZGZjZDI0IiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi9hcmllcyIsICJwb3J0IjogODAsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogdHJ1ZSwgInNuaSI6ICIifQ==
 vmess://eyJhZGQiOiAic3QtMS5kbnNwcm8uaWN1IiwgImFpZCI6IDAsICJob3N0IjogInN0LTEuZG5zcHJvLmljdSIsICJpZCI6ICIxM2VmNWYyYy1kMDAyLTM2YTItOWU5Ni1hMTNkNWUzYWUwM2IiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL2lzbyIsICJwb3J0IjogOTExMSwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiBmYWxzZSwgInNuaSI6ICJoa3QwMi5kbnNwcm8uaWN1In0=
 vmess://eyJhZGQiOiAic3QtMi5kbnNwcm8uaWN1IiwgImFpZCI6IDAsICJob3N0IjogInN0LTIuZG5zcHJvLmljdSIsICJpZCI6ICIxM2VmNWYyYy1kMDAyLTM2YTItOWU5Ni1hMTNkNWUzYWUwM2IiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL2lzbyIsICJwb3J0IjogNTEwMCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiBmYWxzZSwgInNuaSI6ICJsZy1oa2ctYi5nY29yZWxhYnMuaW5mbyJ9
@@ -9,46 +25,33 @@ vmess://eyJhZGQiOiAidXM4MC0zLnNhbmZlbjAwMS5waWNzIiwgImFpZCI6IDAsICJob3N0IjogInVz
 vmess://eyJhZGQiOiAidmlzYS5jbiIsICJhaWQiOiAwLCAiaG9zdCI6ICJkZWVlLmhvcnJ5YW40LmV1Lm9yZyIsICJpZCI6ICI5ODE0ZTg1OC02OWQ1LTRmZmYtOTVlNy02NDUzNDM3YWQ0YzgiLCAibmV0IjogIndzIiwgInBhdGgiOiAiL3NiYS12bT9lZD0yMDQ4IiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
 vmess://eyJhZGQiOiAid3d3Lmtlcm5lbHMuYmlkIiwgImFpZCI6IDAsICJob3N0IjogIi93cyIsICJpZCI6ICIzMzE5MmM3Zi0zYzgyLTBkZDQtYTI0YS03Yjc2ODMzYTA3OWQiLCAibmV0IjogIndzIiwgInBhdGgiOiAiLyIsICJwb3J0IjogODAsICJwcyI6ICJwZXJzaWFuIGNyb3ciLCAidGxzIjogIiIsICJ0eXBlIjogImF1dG8iLCAic2VjdXJpdHkiOiAiYXV0byIsICJza2lwLWNlcnQtdmVyaWZ5IjogdHJ1ZSwgInNuaSI6ICIifQ==
 vmess://eyJhZGQiOiAid3d3LnN0dGxpbmsuY2MiLCAiYWlkIjogMCwgImhvc3QiOiAid3d3LnN0dGxpbmsuY2MiLCAiaWQiOiAiZDNhMjRiZTgtYzg0Ny00YzdmLWJhMzItOGRkNmU3OWU1MmIyIiwgIm5ldCI6ICJ3cyIsICJwYXRoIjogIi9BU0ZITEFTSEZPIiwgInBvcnQiOiA4MCwgInBzIjogInBlcnNpYW4gY3JvdyIsICJ0bHMiOiAiIiwgInR5cGUiOiAiYXV0byIsICJzZWN1cml0eSI6ICJhdXRvIiwgInNraXAtY2VydC12ZXJpZnkiOiB0cnVlLCAic25pIjogIiJ9
-vless://155e8dd4-a559-407a-9ea8-13a5e829f066@104.171.133.161:4100?encryption=none&type=ws&sni=tn.tmn141246.ru&path=%252Fv1&host=live.ok.ru#persian%20crow
 vless://155e8dd4-a559-407a-9ea8-13a5e829f066@188.225.81.61:4100?encryption=none&type=ws&path=%252Fv1&host=live.ok.ru#persian%20crow
 vless://5d0fbb28-3be3-4044-bc5b-e4b7ca1916c7@5.129.241.247:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
 vless://106b0505-da24-4ae4-b22c-302ab814f6f4@79.137.192.188:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://2a88091e-e3f8-4478-9751-6ce0557a7f2e@82.117.87.199:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://aef0e934-09d7-4b8f-b3bc-de78d2eec928@45.90.32.132:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://2aa7f4b1-e859-46d0-b8ac-8587811ab7b1@168.222.140.155:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://2aa7f4b1-e859-46d0-b8ac-8587811ab7b1@168.222.143.50:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://112912a9-cedf-485d-b8ed-d8f8d4774437@31.129.96.186:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://31c2a8e8-0ab2-4f3f-8767-11f3a35d4228@45.90.32.132:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
 vless://5d0fbb28-3be3-4044-bc5b-e4b7ca1916c7@31.177.82.106:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://2e79f3ca-b8db-4d4d-a96e-8f7313480696@168.222.203.14:4100?encryption=none&host=live.ok.ru&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://e1e26ef7-3291-45ac-b821-a11dcdbfdb4d@168.222.140.55:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://4cbdaf4f-ca34-4a00-9a96-49eaa6564b42@31.177.83.201:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://155e8dd4-a559-407a-9ea8-13a5e829f066@77.222.35.36:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://a484645e-59df-4980-b649-92b71250ec60@72.56.246.91:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://e1e26ef7-3291-45ac-b821-a11dcdbfdb4d@109.73.193.169:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://0c4f46c2-afb7-4a80-8f6e-10258d80333e@85.92.111.38:4100?encryption=none&host=live.ok.ru&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://e7c3374c-f8b8-490c-aee8-11e3bdab67bc@109.73.193.169:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
 vless://0c4f46c2-afb7-4a80-8f6e-10258d80333e@185.185.142.79:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://ed1cd50f-ead9-4e01-b5ae-b7d2dfb532fc@201.51.5.253:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://a484645e-59df-4980-b649-92b71250ec60@104.171.137.148:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://2a88091e-e3f8-4478-9751-6ce0557a7f2e@186.246.6.234:2200?encryption=none&host=rzd.ru&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://9b4ba157-f60b-4a5b-b326-4d561eb826d4@77.95.201.235:2200?encryption=none&host=rzd.ru&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://87f3bc47-ee10-4418-9260-7a4e43f28e00@176.98.178.17:4100?encryption=none&host=live.ok.ru&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://eb135f2b-4b9e-4abb-9a89-78242613da61@201.51.2.6:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://4cbdaf4f-ca34-4a00-9a96-49eaa6564b42@217.149.23.169:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
+vless://b3d66abd-ea82-4616-92f0-1dec8d1e4cfc@193.188.23.170:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
 vless://96c4225e-119c-4259-9015-7f74e057db36@89.223.70.156:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://e7299042-7d8f-440f-8368-2516b0e69341@147.45.235.14:2200?encryption=none&host=rzd.ru&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://87f3bc47-ee10-4418-9260-7a4e43f28e00@176.98.178.17:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://f2d2907c-1d74-43eb-8fd2-fc55dfd92427@72.56.247.70:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://859ca789-2c75-472c-b02b-4b7af099f512@194.26.229.214:4100?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://d4aad26f-70b6-4411-8517-17f7b4281886@77.222.35.10:2200?encryption=none&path=%2Fv1&security=none&type=ws#persian%20crow
-vless://1a2f7607-b36a-4996-b7a2-72359123c446@194.26.229.211:4100?encryption=none&host=live.ok.ru&path=%2Fv1&security=none&type=ws#persian%20crow
 vless://187c2caa-528c-46bf-9903-99df02d8067d@217.149.23.169:4100?type=ws&sni=live.ok.ru#persian%20crow
-vless://59525c39-e731-4c27-bc9e-6d8cef67572c@201.24.120.68:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://a484645e-59df-4980-b649-92b71250ec60@185.247.16.4:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://e7c3374c-f8b8-490c-aee8-11e3bdab67bc@109.73.193.169:4100?type=ws&sni=live.ok.ru#persian%20crow
 vless://6620ef58-9c62-43fe-9596-ff862b200958@200.165.228.47:4100?type=ws&sni=live.ok.ru#persian%20crow
 vless://1f9ac5fe-ce9c-40ff-b52f-6f96b1285ba6@193.188.23.170:4100?type=ws&sni=live.ok.ru#persian%20crow
-vless://31c2a8e8-0ab2-4f3f-8767-11f3a35d4228@45.90.32.132:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://bee21918-0933-430c-904b-c941b92256ba@104.171.133.53:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://9b44bfb4-9d28-4870-9fc3-5154d6d462ff@168.222.140.155:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://20124617-eba7-4b34-87ad-fcf700ea7dff@194.26.229.210:4100?type=ws&sni=live.ok.ru#persian%20crow
+vless://b79c54f3-68e9-4e9d-8b57-22cbbe978730@77.222.37.89:4100?type=ws&sni=live.ok.ru#persian%20crow
 vless://2aa7f4b1-e859-46d0-b8ac-8587811ab7b1@tn2.tmn141246.ru:4100?type=ws&sni=live.ok.ru#persian%20crow
 vless://b3764969-ffeb-4436-8f83-ca9f1774edb9@72.56.7.195:4100?type=ws&sni=live.ok.ru#persian%20crow
 vless://d3984ebd-b876-4a38-be7d-90299feafc81@212.193.26.170:4100?type=ws&sni=live.ok.ru#persian%20crow
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@13.231.154.142:2377?plugin=obfs-local;obfs=tls;obfs-host=(Telegram№Ј№Г @VPNine1)3c626ae:42411#persian%20crow
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@18.176.55.211:2377?plugin=obfs-local;obfs=tls;obfs-host=(Telegram№Ј№Г @VPNine1)2fed698:63225#persian%20crow
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@54.95.13.147:2377?plugin=obfs-local;obfs=tls;obfs-host=(Telegram№Ј№Г @VPNine1)f478f13:54448#persian%20crow
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@13.231.154.142:2377?plugin=obfs-local;obfs=tls;obfs-host=(TelegramрҹҮЁрҹҮі @VPNine1)3c626ae:42411#persian%20crow
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@18.176.55.211:2377?plugin=obfs-local;obfs=tls;obfs-host=(TelegramрҹҮЁрҹҮі @VPNine1)2fed698:63225#persian%20crow
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0MHNybWR4cm0zeHlqbnZxejlld2x4YjJteXE3cmp1dg@54.95.13.147:2377?plugin=obfs-local;obfs=tls;obfs-host=(TelegramрҹҮЁрҹҮі @VPNine1)f478f13:54448#persian%20crow
 vless://4d263c1a-fbb9-4946-a639-1de531120cde@185.18.250.67:8080?encryption=none&security=none&type=xhttp&host=amazon.joingulf.lol&path=/awduhiawad?ed=2560&mode=auto#persian%20crow
 vless://57f56a3c-0e10-4fb2-ad70-3db23a572b0f@172.66.156.81:80?encryption=none&type=ws&host=websocket.network.www.speedtest.net.flutter.dev.russia.python.vegaskala.com.Shahin.vegaskala.com.fdf.vegaskala.com.vegafod.com.&path=/&security=none#persian%20crow
 vless://8285eef0-147d-4bb6-9d12-0e4601a36e78@151.101.204.190:80?encryption=none&security=none&type=xhttp&host=minovpnch.net&path=/awduhiawad?ed=2560&mode=auto#persian%20crow
