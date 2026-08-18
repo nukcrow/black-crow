@@ -1,10 +1,6 @@
 hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52057?security=tls&obfs=salamander&alpn=h3&obfs-password=auw7lhtk2kxyq4g9&insecure=0&sni=assets.gateway-stream.com#persian%20crow
-hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52049?alpn=h3&fp=chrome&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=phos93w1zi0nj6uv#persian%20crow
-hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52045?alpn=h3&fp=chrome&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=jg5vvom5svs9rmnx#persian%20crow
-hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52040?alpn=h3&fp=chrome&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=7206pa46enqqdnmt#persian%20crow
-hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52009?Telegram=@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad&security=tls&obfs=salamander&alpn=h3&obfs-password=kf1lypzqidy6pimt&insecure=0&sni=#persian%20crow
-hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52008?alpn=h3&fp=chrome&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=93lc6r07zfx4crct#persian%20crow
-hysteria2://suAmQS9LlInNq4Wumh-FUF4GGlpgmG_g@159.223.157.129:8443?insecure=1&sni=www.microsoft.com#persian%20crow
+hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52040?insecure=0&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=7206pa46enqqdnmt#persian%20crow
+hysteria2://suAmQS9LlInNq4Wumh-FUF4GGlpgmG_g@159.223.157.129:8443?insecure=1&sni=159.223.157.129#persian%20crow
 hysteria2://mkL3AfdSZIpTWRB9TcWPn9vywPGN89MRHg3ToRDj@91.196.32.163:443?insecure=1&sni=germany3.h2corp.local#persian%20crow
 hysteria2://dongtaiwang.com@62.210.124.146:22000?insecure=1&sni=www.microsoft.com#persian%20crow
 hysteria2://76713d07-5a6b-49c2-abd8-bc450a2fa7fc@138.124.68.188:443?sni=usa1.spectrumproxy.shop#persian%20crow
