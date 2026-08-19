@@ -6,47 +6,36 @@ from urllib.parse import urlparse, quote, parse_qs
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
-DIRS = ["sub/protocols", "sub/general", "sub/premium"]
-for d in DIRS:
-    os.makedirs(d, exist_ok=True)
+os.makedirs("sub/general", exist_ok=True)
 
+# --- منابع (همه verified، 404های قبلی حذف/جایگزین شدن) ---
 SOURCES = [
-    "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/v2ray.txt",
+    "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
-    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/main/sub/sub.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/barry-far/v2ray-config/main/v2ray.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
     "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/refs/heads/main/all/vless.txt",
-    "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/main/config.txt",
-    "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/main/v2ray.txt",
-    "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/mix",
-    "https://raw.githubusercontent.com/yebekhe/V2RayConfig/main/v2ray.txt",
-    "https://raw.githubusercontent.com/MahdiGhaffari/V2rayAggregator/main/sub/sub_merge.txt",
+    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/main/domain/vless.txt",
+    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/main/ru/vless.txt",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/MhdiTaheri/V2rayCollector/main/sub/sub_merge.txt",
-    "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/main/mix.txt",
     "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt",
     "https://raw.githubusercontent.com/jafarm83/ConfigV2Ray/main/jafar.txt",
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
-    "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/v2ray.txt",
-    "https://raw.githubusercontent.com/Anankke/Sub-Store/master/config/node.txt",
     "https://raw.githubusercontent.com/freefq/free/master/v2",
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix.txt",
-    "https://raw.githubusercontent.com/lm705/vair/main/vair.txt",
-    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/E5%2Fsub.txt",
-    "https://raw.githubusercontent.com/mohamadfg-dev/telegram-v2ray-configs-collector/main/v2ray.txt",
-    "https://raw.githubusercontent.com/MrRabbitson/RabbitProxyz-proxy-list/main/proxy-list.txt",
-    "https://raw.githubusercontent.com/tbbatbb/V2Ray/master/v2ray.txt",
-    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray.txt",
-    "https://raw.githubusercontent.com/VP01596/vless-top15/main/vless.txt",
+    "https://raw.githubusercontent.com/MrRabbitson/RabbitProxyz-proxy-list/main/sub.txt",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no2.txt",
+    "https://raw.githubusercontent.com/VP01596/vless-top15/main/All.txt",
+    "https://raw.githubusercontent.com/3nerg0n/vless-parser/refs/heads/main/sub_vless_3nerg0n_92sh81",
+    "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/sub1.txt",
+    "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/sub2.txt",
+    "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/githubmirror/1.txt",
+    "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/githubmirror/10.txt",
 ]
 
-REMARK = "persian crow"
-
-# بر اساس نمونه‌های خودت: این ترکیب‌ها معمولاً وصل میشن (CDN-fronted یا Reality)
-PREFERRED_SECURITY = {"tls", "reality"}
+REMARK = "nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 
 
@@ -101,7 +90,6 @@ def extract_ip_port(config):
 
 
 def dedupe_by_host_port(configs):
-    """چون خیلی از کانفیگ‌ها فقط UUID متفاوت دارن ولی سرورشون یکیه، بر اساس host:port یکتا می‌کنیم."""
     seen = set()
     unique = []
     for cfg in configs:
@@ -149,9 +137,7 @@ def detect_proto(config):
 
 
 def is_preferred(config, proto):
-    """چک واقعی برای هر پروتکل.
-    نکته‌ی مهم: Reality بر خلاف TLS معمولی، ذاتاً نیازی به ws/grpc نداره
-    (امنیتش از تقلید TLS handshake واقعیه، نه از پشت CDN رد شدن)."""
+    """Reality با هر type preferred‌ه؛ TLS فقط با ws/grpc/xhttp."""
     try:
         if proto == "vmess":
             data = json.loads(decode_base64_safe(config[8:]))
@@ -160,7 +146,6 @@ def is_preferred(config, proto):
             return tls == "tls" and net in {"ws", "grpc", "h2", "httpupgrade"}
 
         if proto == "hysteria2":
-            # hysteria2 خودش همیشه روی QUIC+TLS کار می‌کنه، پس همیشه preferred
             return True
 
         parsed = urlparse(config)
@@ -169,13 +154,9 @@ def is_preferred(config, proto):
         ctype = (qs.get("type", [""])[0]).lower()
 
         if security == "reality":
-            # Reality با هر type (tcp/raw/ws/grpc) preferred حساب میشه
             return True
-
         if security == "tls":
-            # TLS معمولی فقط وقتی preferred‌ه که پشت ws/grpc/xhttp (فرانت CDN) باشه
             return ctype in PREFERRED_TYPES or ctype == ""
-
         return False
     except Exception:
         return False
@@ -195,7 +176,7 @@ def rename_config(config, proto):
 
 
 def main():
-    print(f"Fetching from {len(SOURCES)} sources (parallel)...")
+    print(f"Fetching from {len(SOURCES)} verified sources (parallel)...")
     raw = fetch_all()
     print(f"Fetched (raw): {len(raw)}")
 
@@ -206,55 +187,32 @@ def main():
     alive = filter_alive(raw)
     print(f"Alive: {len(alive)}")
 
-    protocol_buckets = {"vless": [], "vmess": [], "trojan": [], "ss": [], "hysteria2": [], "tuic": []}
     preferred_all, fallback_all = [], []
-
     for cfg in alive:
         proto = detect_proto(cfg)
-        if proto not in protocol_buckets:
+        if proto == "unknown":
             continue
         renamed = rename_config(cfg, proto)
         if not renamed:
             continue
 
-        pref = is_preferred(cfg, proto)
-        # داخل هر پروتکل هم preferred رو اول می‌ذاریم
-        if pref:
-            protocol_buckets[proto].insert(0, renamed)
+        if is_preferred(cfg, proto):
             preferred_all.append(renamed)
         else:
-            protocol_buckets[proto].append(renamed)
             fallback_all.append(renamed)
 
-    for p, items in protocol_buckets.items():
-        with open(f"sub/protocols/{p}.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(items))
-
-    # preferred اول، بعد fallback -> یعنی توی هر فایل general، اول کانفیگ‌های قابل‌اعتمادتر میان
+    # preferred اول، بعد fallback -> یعنی sub1 بهترین‌ها رو داره
     all_formatted = preferred_all + fallback_all
 
     chunk_size = 1000
-    for i in range(10):
+    for i in range(20):
         start = i * chunk_size
         end = start + chunk_size
         chunk_data = all_formatted[start:end]
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
-    # --- ساب جدا: فقط preferred (TLS+WS/xHTTP یا Reality)، بدون هیچ fallback ---
-    premium_chunk_size = 1000
-    premium_files = max(1, (len(preferred_all) // premium_chunk_size) + 1)
-    for i in range(premium_files):
-        start = i * premium_chunk_size
-        end = start + premium_chunk_size
-        chunk_data = preferred_all[start:end]
-        if not chunk_data:
-            continue
-        with open(f"sub/premium/premium{i+1}.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(chunk_data))
-
-    print(f"Done. Preferred (tls/reality+ws/grpc/xhttp): {len(preferred_all)} | Fallback: {len(fallback_all)}")
-    print(f"Premium files written: {premium_files}")
+    print(f"Done. Preferred: {len(preferred_all)} | Fallback: {len(fallback_all)} | Total: {len(all_formatted)}")
 
 
 if __name__ == "__main__":
