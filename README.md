@@ -6,10 +6,6 @@
 
 <br/><br/>
 
-![License](https://img.shields.io/badge/License-MIT-0d1117?style=for-the-badge)
-![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-0d1117?style=for-the-badge&logo=githubactions&logoColor=white)
-![Python](https://img.shields.io/badge/Python-0d1117?style=for-the-badge&logo=python&logoColor=white)
-
 <div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:161b22,100:21262d&height=120&section=footer" width="100%"/>
