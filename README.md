@@ -9,14 +9,6 @@
 ![License](https://img.shields.io/badge/License-MIT-0d1117?style=for-the-badge)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-0d1117?style=for-the-badge&logo=githubactions&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-0d1117?style=for-the-badge&logo=python&logoColor=white)
-![Cloudflare Workers](https://img.shields.io/badge/Cloudflare%20Workers-0d1117?style=for-the-badge&logo=cloudflareworkers&logoColor=white)
-![Telegram Bot](https://img.shields.io/badge/Telegram%20Bot-0d1117?style=for-the-badge&logo=telegram&logoColor=white)
-
-</div>
-
-<br/>
-
-<br/>
 
 <div align="center">
 
