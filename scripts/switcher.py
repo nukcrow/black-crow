@@ -7,8 +7,9 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 
 os.makedirs("sub/general", exist_ok=True)
+os.makedirs("sub/protocols", exist_ok=True)
 
-# --- منابع (همه verified، 404های قبلی حذف/جایگزین شدن) ---
+# --- منابع (همه verified با curl) ---
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
@@ -33,10 +34,20 @@ SOURCES = [
     "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/sub2.txt",
     "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/githubmirror/1.txt",
     "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/githubmirror/10.txt",
+    "https://raw.githubusercontent.com/DukeMehdi/FreeList-V2ray-Configs/main/Configs/All-DukeMehdi-Configs.txt",
+    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/base64/all_sub.txt",
+    "https://raw.githubusercontent.com/miladtahanian/V2RayCFGDumper/main/sub.txt",
+    "https://raw.githubusercontent.com/Kolandone/v2raycollector/main/config.txt",
+    "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
+    "https://raw.githubusercontent.com/mehrdadmb2/V2ray_Sub/main/Mix.txt",
+    "https://raw.githubusercontent.com/mosapase/v2ray-sub/main/sub.txt",
+    "https://raw.githubusercontent.com/rasool083/v2ray-sub/main/sub.txt",
 ]
 
 REMARK = "nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
+PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]  # ۵ دسته‌ی اصلی برای بخش تفکیک‌شده
+PROTOCOL_CAP = 200  # هر فایل تفکیک‌شده حداکثر این تعداد
 
 
 def decode_base64_safe(data):
@@ -70,7 +81,7 @@ def fetch_one(url):
 
 def fetch_all():
     raw_list = []
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with ThreadPoolExecutor(max_workers=25) as executor:
         for result in executor.map(fetch_one, SOURCES):
             raw_list.extend(result)
     return raw_list
@@ -188,6 +199,8 @@ def main():
     print(f"Alive: {len(alive)}")
 
     preferred_all, fallback_all = [], []
+    proto_buckets = {p: {"preferred": [], "fallback": []} for p in PROTO_LIST}
+
     for cfg in alive:
         proto = detect_proto(cfg)
         if proto == "unknown":
@@ -196,21 +209,36 @@ def main():
         if not renamed:
             continue
 
-        if is_preferred(cfg, proto):
+        pref = is_preferred(cfg, proto)
+        if pref:
             preferred_all.append(renamed)
         else:
             fallback_all.append(renamed)
 
-    # preferred اول، بعد fallback -> یعنی sub1 بهترین‌ها رو داره
-    all_formatted = preferred_all + fallback_all
+        # برای بخش تفکیک‌شده - فقط ۵ پروتکل اصلی (tuic نادره، شامل نمیشه)
+        if proto in proto_buckets:
+            if pref:
+                proto_buckets[proto]["preferred"].append(renamed)
+            else:
+                proto_buckets[proto]["fallback"].append(renamed)
 
+    # --- خروجی ۱: general/sub1..sub5 (preferred اول، هرکدوم ۱۰۰۰ تایی) ---
+    all_formatted = preferred_all + fallback_all
     chunk_size = 1000
-    for i in range(20):
+    for i in range(5):
         start = i * chunk_size
         end = start + chunk_size
         chunk_data = all_formatted[start:end]
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
+
+    # --- خروجی ۲: protocols/ - تفکیک‌شده بر اساس نوع، هرکدوم حداکثر ۲۰۰ preferred اول ---
+    for proto in PROTO_LIST:
+        combined = proto_buckets[proto]["preferred"] + proto_buckets[proto]["fallback"]
+        capped = combined[:PROTOCOL_CAP]
+        with open(f"sub/protocols/{proto}.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(capped))
+        print(f"  {proto}: {len(capped)} (preferred: {len(proto_buckets[proto]['preferred'][:PROTOCOL_CAP])})")
 
     print(f"Done. Preferred: {len(preferred_all)} | Fallback: {len(fallback_all)} | Total: {len(all_formatted)}")
 
