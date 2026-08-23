@@ -163,7 +163,6 @@ ss://932a9656-d5ec-4ab0-a56e-4755f5420171@lin.cryptoofarm.com:8443?security=real
 ss://954ee007-ed27-42cc-bfa8-7e104a2a4279@45.131.6.203:2053?path=/ws?ed=2560&security=tls&encryption=none&insecure=0&host=airb.pcapps.ir&type=ws&allowInsecure=0&sni=airb.pcapps.ir#nukcrow
 ss://986907c0-34b9-428f-8810-954e91d926a1@104.16.174.118:443?mode=auto&path=/pl&security=tls&encryption=none&insecure=0&host=rplcdn.ultran.ir&type=xhttp&allowInsecure=0&sni=rplcdn.ultran.ir#nukcrow
 ss://991519c1-3680-49b7-bb9f-9029a7a39067@c2.s-sub.org:8443?path=/&security=tls&alpn=h2,http/1.1&encryption=none&insecure=0&host=backup.f-sub.cfd&fp=chrome&type=ws&allowInsecure=0&sni=backup.f-sub.cfd#nukcrow
-ss://9ca2de90-90c3-48ef-beac-998a8fbd56fb@static.oneset.ir:2128?security=reality&alpn=h2,http/1.1&encryption=none&pbk=eMVkOTpnVUr1xnc9E5Dr_bz2D1ALNIOrBWUKypukQHA&headerType=none&fp=chrome&type=tcp&sni=yahoo.com&sid=815594171dd04f27#nukcrow
 ss://9f19123a-1450-49f9-8ca4-3cc5f92f600b@plkrep.tgflow.me:443?security=reality&encryption=none&pbk=5SNuJakUsFk3udLSxuAhlzrdC6Xr2snwTIHvHwT5UiI&host=/?BIA_TELEGRAM@MARAMBASHI_MARAMBASHI_MARAMBASHI_MARAMBASHI&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=plkrep.tgflow.me&sid=fe8950f135674cfc#nukcrow
 ss://9e4074c6-f048-46c2-9626-37c3be19a432@tr1ir.botdeep.pw:2083?security=tls&encryption=none&insecure=0&type=ws&allowInsecure=0&sni=pn.sirdeep.com#nukcrow
 ss://XpnTeam-65@151.101.57.134:443?path=/&security=tls&alpn=http/1.1&encryption=none&insecure=0&host=Appxdn.global.ssl.fastly.net&fp=chrome&type=ws&allowInsecure=0&sni=default.ssl.fastly.net#nukcrow
@@ -198,3 +197,4 @@ ss://c68ea6d3-8a7e-d7f7-f0bd-40daefcb6751@x4g-production-5035.up.railway.app:443
 ss://c5ece540-6d4b-4057-85a6-2b651c1697b7@securitytrails.com:2083?mode=auto&path=/forall&security=tls&alpn=h2,http/1.1&encryption=none&extra={"xPaddingBytes":"100-1000"}&insecure=0&host=ns1.mtp-roto.info&fp=chrome&type=xhttp&allowInsecure=0&sni=ns1.mtp-roto.info#nukcrow
 ss://c82f8880-bdd8-4a35-b8e7-ad5aa880f7d0@212.183.88.102:443?security=tls&sni=ve.ylkszy.eu.org&type=ws&path=/?proxyip#nukcrow
 ss://c4086a36-0f42-4075-a233-fede47ec8102@simplefv.asan-ps.ir:443?mode=auto&path=/NEWS&security=tls&encryption=none&insecure=1&host=de247ks0922222aq.global.ssl.fastly.net&fp=chrome&type=xhttp&allowInsecure=1&sni=speedtest.net#nukcrow
+ss://cf038a28-8f85-41fc-9e86-ba99a3fdd0d9@144.31.216.98:8443?encryption=none&flow=xtls-rprx-vision&fp=&pbk=Xb-A55KyH9nwjxKw85wksIUJs9KBGk5B8rLArXGVLiw&security=reality&sid=d9654598d4415f95&sni=service.mycloudsfere.abrdns.com&type=tcp#nukcrow
