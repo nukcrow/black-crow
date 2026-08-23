@@ -28,6 +28,7 @@ ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@188.166.69.138:443?path=/&security=tls
 ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@188.68.53.11:443?encryption=none&fp=chrome&host=vpn47.cc.cd&path=/&security=tls&sni=vpn47.cc.cd&type=ws#nukcrow
 ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@45.131.208.61:443?path=/&security=tls&encryption=none&insecure=0&host=vpn47.cc.cd&fp=chrome&type=ws&allowInsecure=0&sni=vpn47.cc.cd#nukcrow
 ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@66.81.247.91:443?path=/&security=tls&encryption=none&insecure=0&host=vpn47.cc.cd&fp=chrome&type=ws&allowInsecure=0&sni=vpn47.cc.cd#nukcrow
+ss://09748875-9da3-440e-9809-9752e1dda1e4@38.244.137.198:443?security=reality&encryption=none&pbk=QXGsw1KqljvUiarkvFdBs3T1TeUQq4skwHFlsmbj31o&headerType=none&fp=chrome&spx=/&type=tcp&sni=google.com&sid=365c07ed#nukcrow
 ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@188.226.185.55:8443?path=/&security=tls&encryption=none&insecure=0&host=vpn47.cc.cd&fp=chrome&type=ws&allowInsecure=0&sni=vpn47.cc.cd#nukcrow
 ss://083e5c65-d8e3-4ae7-aad9-180c27a2337c@cdnip.speadmaster.ir:2087?mode=auto&path=/api&security=tls&alpn=h2,http/1.1&encryption=none&insecure=0&host=tr-spead.speadmaster.ir&fp=chrome&type=xhttp&allowInsecure=0&sni=tr-spead.speadmaster.ir#nukcrow
 ss://0970324b-8c61-4ae7-8c3f-385a6f1e17e4@198.211.121.165:443?encryption=none&fp=chrome&host=vpn47.cc.cd&path=/&security=tls&sni=vpn47.cc.cd&type=ws#nukcrow
@@ -197,4 +198,3 @@ ss://c35050ce-01ab-45a9-91b8-54cec637d0a8@elliot.ns.cloudflare.com:443?path=/udf
 ss://c7b7209f-b449-4092-82b0-1bf877c190e9@ez-421a72.mohamadfarajian09144538950.workers.dev:443?path=/&security=tls&encryption=none&host=ez-421a72.mohamadfarajian09144538950.workers.dev&fp=chrome&type=ws&sni=ez-421a72.mohamadfarajian09144538950.workers.dev#nukcrow
 ss://c68ea6d3-8a7e-d7f7-f0bd-40daefcb6751@x4g-production-5035.up.railway.app:443?encryption=none&type=ws&security=tls&path=/ws/c68ea6d3-8a7e-d7f7-f0bd-40daefcb6751&host=x4g-production-5035.up.railway.app&sni=x4g-production-5035.up.railway.app&alpn=http/1.1&fp=chrome&insecure=0&allowInsecure=0#nukcrow
 ss://c5ece540-6d4b-4057-85a6-2b651c1697b7@securitytrails.com:2083?mode=auto&path=/forall&security=tls&alpn=h2,http/1.1&encryption=none&extra={"xPaddingBytes":"100-1000"}&insecure=0&host=ns1.mtp-roto.info&fp=chrome&type=xhttp&allowInsecure=0&sni=ns1.mtp-roto.info#nukcrow
-ss://c82f8880-bdd8-4a35-b8e7-ad5aa880f7d0@212.183.88.102:443?security=tls&sni=ve.ylkszy.eu.org&type=ws&path=/?proxyip#nukcrow
