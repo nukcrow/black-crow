@@ -1,4 +1,5 @@
 hysteria2://6aab8efdf13945829ae3699c342be406@31.76.80.69:443?security=tls&obfs=salamander&obfs-password=uw9b2qq5rx&insecure=0&sni=fiproxy1.lockdwn.com#nukcrow
+hysteria2://HowdyHysteria2023w0W@51.15.19.206:8443/?insecure=1&amp;obfs=salamander&amp;obfs-password=HysteriaHowdy&amp;sni=sni-here.com#nukcrow
 hy2://1ba59989-225e-4f1c-ab62-9bd7366009cb@194.135.34.130:443/?insecure=1&sni=194.135.34.130#nukcrow
 hy2://2vwMMy8t5Sjl5lfK9dNF1OrU9d0K25V2RNWLbTKwJ6o@pixelcast.wwwinternetvideo.click:443/?insecure=1&sni=pixelcast.wwwinternetvideo.click#nukcrow
 hy2://3b8c82ed-fe66-472d-915e-034ccb57103f@us.frkn.org:443/?insecure=1&sni=us.frkn.org#nukcrow
@@ -54,7 +55,6 @@ hysteria2://09e4b638945d44bfa60b4fd00edad131@assets.gateway-stream.com:52000?ins
 hysteria2://C91FbOXGY9XRymrcEebtax9R1Nj62UizoT8S6kCb7xwey8IE@fast.wwwinternetvideo.click:443?security=tls&insecure=1&sni=fast.wwwinternetvideo.click#nukcrow
 hysteria2://7e8825a4-86ac-486f-a06c-0917ced9dfcd@138.124.17.62:443?sni=wlh.moonshard.org#nukcrow
 hysteria2://gf1%3Agfhysteria2024@173.212.201.85:443?insecure=1&sni=www.docker.com#nukcrow
-hysteria2://54d2f622-fd71-4f5f-8813-832b68f4ca3b@45.145.43.56:8443?sni=speedtestmark.com#nukcrow
 hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-wien.unlimited-access.ru:8443?insecure=1&alpn=h3&sni=hy2-wien.unlimited-access.ru#nukcrow
 hysteria2://t8t2qojzsykqazfu@assets.gateway-stream.com:52057?security=tls&obfs=salamander&obfs-password=auw7lhtk2kxyq4g9&insecure=0&sni=assets.gateway-stream.com#nukcrow
 hysteria2://2b3e8750-b944-42fc-b36e-ec2c64b48a98@31.76.119.101:443/?Telegram=@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad&insecure=1&sni=de4.convert-cloud.guru#nukcrow
@@ -66,6 +66,7 @@ hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8682?sni=ndnd.nima
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8448?sni=testing5.nimarko.org#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8443?sni=pols2.nimarko.org#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8465?sni=itit.nimarko.org#nukcrow
+hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8589?sni=rgrg.nimarko.org#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8585?sni=swsw.nimarko.org#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8586?sni=spsp.nimarko.org#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8451?sni=testing7.nimarko.org#nukcrow
