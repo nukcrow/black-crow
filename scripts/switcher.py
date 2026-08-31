@@ -42,9 +42,19 @@ SOURCES = [
     "https://raw.githubusercontent.com/mehrdadmb2/V2ray_Sub/main/Mix.txt",
     "https://raw.githubusercontent.com/mosapase/v2ray-sub/main/sub.txt",
     "https://raw.githubusercontent.com/rasool083/v2ray-sub/main/sub.txt",
+    "https://raw.githubusercontent.com/amirkma/proxykma/main/mix.txt",
+    "https://raw.githubusercontent.com/Areral/ScarletDevil/main/sub_all.txt",
+    "https://raw.githubusercontent.com/Arianlavi/RebeldevConfig/main/RebelLink/all_subscriptions.txt",
+    "https://raw.githubusercontent.com/coloramamoe/vless-parser/main/githubmirror/whitelist-vless.txt",
+    "https://raw.githubusercontent.com/kasesm/Free-Config/main/all_sub.txt",
+    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
+    "https://raw.githubusercontent.com/vxiaov/free_proxies/main/links.txt",
+    "https://raw.githubusercontent.com/vpei/free-node-1/main/o/allnode.txt",
+    "https://raw.githubusercontent.com/whoahaow/rjsxrd/main/githubmirror/bypass-unsecure/bypass-unsecure-all.txt",
 ]
 
-REMARK = "nukcrow"
+REMARK = "github nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]  # ۵ دسته‌ی اصلی برای بخش تفکیک‌شده
 PROTOCOL_CAP = 200  # هر فایل تفکیک‌شده حداکثر این تعداد
