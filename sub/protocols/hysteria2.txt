@@ -33,7 +33,6 @@ hysteria2://m3bqxk03mg221yi2@95.217.96.131:52000?security=tls&obfs=salamander&ob
 hysteria2://ef18d810-719c-4bf1-83c6-615d01f217eb@jp.cryptoofarm.com:443?insecure=1&security=tls&sni=jp.cryptoofarm.com#nukcrow
 hysteria2://09e4b638945d44bfa60b4fd00edad131@assets.gateway-stream.com:52000?insecure=0&alpn=h3&sni=assets.gateway-stream.com&obfs=salamander&obfs-password=gu74jg3ym0e21zco#nukcrow
 hysteria2://7e8825a4-86ac-486f-a06c-0917ced9dfcd@138.124.17.62:443?sni=wlh.moonshard.org#nukcrow
-hysteria2://gf1%3Agfhysteria2024@173.212.201.85:443?insecure=1&sni=www.docker.com#nukcrow
 hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-wien.unlimited-access.ru:8443?insecure=1&alpn=h3&sni=hy2-wien.unlimited-access.ru#nukcrow
 hysteria2://d86efa900c2f4bb6bde662f1ef6413b8@assets.gateway-stream.com:52029?sni=assets.gateway-stream.com&obfs=salamander&obfs-password=v8h63irhnay97090#nukcrow
 hysteria2://1ba59989-225e-4f1c-ab62-9bd7366009cb@194.135.34.207:443/?Telegram=@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad,@GozargahAzad&insecure=1&sni=#nukcrow
@@ -46,7 +45,8 @@ hysteria2://netherlands_3_hysteria2_fastlane_om044zh63@93.183.89.56:443?insecure
 hysteria2://884c55a2-1be4-4555-9607-eb3aba62e238@2.27.22.245:8443?alpn=h3&sni=de2.lootopen.online#nukcrow
 hysteria2://1dcc3b89-0b45-3908-9120-19741361d55d@fg7xl1div.d33tqmk.cc:11173?sni=xk7qhk307.ckpfef.top&obfs=salamander&obfs-password=1ol3tasb90#nukcrow
 hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8465?sni=itit.nimarko.org#nukcrow
-hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8585?sni=swsw.nimarko.org#nukcrow
+hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8589?sni=rgrg.nimarko.org#nukcrow
+hysteria2://d4c41430-082e-4757-b22c-194998baddd2@91.185.83.48:8451?sni=testing7.nimarko.org#nukcrow
 hy2://1dcc3b89-0b45-3908-9120-19741361d55d@fg7xl1div.d33tqmk.cc:10030/?insecure=1&sni=xk7q3.ckpfef.top&obfs=salamander&obfs-password=1ol3tasb90#nukcrow
 hysteria2://sOiWCQ2AdIV0OWNuqQVyWp4JZnRxdyLROSjX@217.60.182.79:443/?insecure=1&sni=cabinet.wwwinternetvideo.click#nukcrow
 hysteria2://m3bqxk03mg221yi2@assets.gateway-stream.com:52009?security=tls&obfs=salamander&obfs-password=kf1lypzqidy6pimt&insecure=0&sni=assets.gateway-stream.com#nukcrow
@@ -61,7 +61,9 @@ hysteria2://hysteria2_fastlane_f6dt3q19m@87.239.111.109:443?insecure=0&sni=ru2.h
 hysteria2://b504a1c7-1bfe-461f-9329-cbc653deb3d7@144.31.217.201:443?sni=144-31-217-201.sslip.io#nukcrow
 hysteria2://cd74c0a406664a5bc0bac098220a2468@2.27.249.79:443?insecure=1&sni=nl1.sferavpn.pro&obfs=salamander&obfs-password=44f1c1e2f8b99e792ceed574627a1eb0#nukcrow
 hysteria2://QCgqi_I4EkV8UR-OgQ_tG4EnVTEVvIyR2GgRBzrIn2s@hy2-new.aspidnet.xyz:443?insecure=1&sni=hy2-new.aspidnet.xyz&obfs=salamander&obfs-password=c1b4086fea89914496c7e10967a419216566#nukcrow
+hysteria2://https%3A%2F%2Fxship.top@starlink-ft.251313.xyz:443?insecure=1&sni=xship.top#nukcrow
 hysteria2://GSPOBvG-ZwYcBFMr0ekFGO_Zga3wK6v_@hy2-latvia2.unlimited-access.ru:443?fp=chrome&insecure=1&sni=hy2-latvia2.unlimited-access.ru#nukcrow
 hysteria2://C91FbOXGY9XRymrcEebtax9R1Nj62UizoT8S6kCb7xwey8IE@31.76.30.97:443?insecure=1&sni=fast.wwwinternetvideo.click#nukcrow
 hysteria2://gf1%3Agfhysteria2024@5.129.235.85:443?allowInsecure=1&insecure=1&sni=www.linux.com#nukcrow
 hysteria2://6aab8efdf13945829ae3699c342be406@fiproxy1.lockdwn.com:443?insecure=0&sni=fiproxy1.lockdwn.com&obfs=salamander&obfs-password=uw9b2qq5rx#nukcrow
+hysteria2://1c06966e-dbf0-44c4-b504-fe2aaf923359@91.185.83.48:8444?insecure=1&sni=testing8.nimarko.org#nukcrow
