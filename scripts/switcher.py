@@ -54,7 +54,7 @@ SOURCES = [
     "https://raw.githubusercontent.com/whoahaow/rjsxrd/main/githubmirror/bypass-unsecure/bypass-unsecure-all.txt",
 ]
 
-REMARK = "github nukcrow"
+REMARK = "nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]  # ۵ دسته‌ی اصلی برای بخش تفکیک‌شده
 PROTOCOL_CAP = 200  # هر فایل تفکیک‌شده حداکثر این تعداد
