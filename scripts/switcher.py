@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import base64
 import socket
 from urllib.parse import urlparse, quote, parse_qs
@@ -9,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 os.makedirs("sub/general", exist_ok=True)
 os.makedirs("sub/protocols", exist_ok=True)
 
-# --- منابع (همه verified با curl) ---
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
@@ -56,8 +56,11 @@ SOURCES = [
 
 REMARK = "nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
-PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]  # ۵ دسته‌ی اصلی برای بخش تفکیک‌شده
-PROTOCOL_CAP = 200  # هر فایل تفکیک‌شده حداکثر این تعداد
+PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
+PROTOCOL_CAP = 200
+
+GEO_BATCH_SIZE = 100
+GEO_DELAY = 1.4
 
 
 def decode_base64_safe(data):
@@ -158,7 +161,6 @@ def detect_proto(config):
 
 
 def is_preferred(config, proto):
-    """Reality با هر type preferred‌ه؛ TLS فقط با ws/grpc/xhttp."""
     try:
         if proto == "vmess":
             data = json.loads(decode_base64_safe(config[8:]))
@@ -183,15 +185,47 @@ def is_preferred(config, proto):
         return False
 
 
-def rename_config(config, proto):
+def country_to_flag(country_code):
+    """تبدیل کد کشور دو حرفی (ISO 3166-1) به ایموجی پرچم."""
+    if not country_code or len(country_code) != 2:
+        return ""
+    try:
+        return "".join(chr(127397 + ord(c)) for c in country_code.upper())
+    except Exception:
+        return ""
+
+
+def geolocate_hosts(host_list):
+    """با ip-api.com (batch، رایگان) کد کشور هر host رو پیدا می‌کنه. host -> country_code"""
+    unique_hosts = list(set(host_list))
+    result = {}
+
+    for i in range(0, len(unique_hosts), GEO_BATCH_SIZE):
+        chunk = unique_hosts[i:i + GEO_BATCH_SIZE]
+        payload = [{"query": h, "fields": "query,countryCode,status"} for h in chunk]
+        try:
+            res = requests.post("http://ip-api.com/batch", json=payload, timeout=15)
+            if res.status_code == 200:
+                for item in res.json():
+                    if item.get("status") == "success":
+                        result[item["query"]] = item.get("countryCode", "")
+        except Exception:
+            pass
+        time.sleep(GEO_DELAY)
+
+    return result
+
+
+def rename_config(config, proto, flag=""):
+    label = f"{flag} {REMARK}".strip() if flag else REMARK
     try:
         if proto == "vmess":
             data = json.loads(decode_base64_safe(config[8:]))
-            data['ps'] = REMARK
+            data['ps'] = label
             return "vmess://" + base64.b64encode(json.dumps(data).encode('utf-8')).decode('utf-8')
         else:
             base_part = config.split("#")[0]
-            return f"{base_part}#{quote(REMARK)}"
+            return f"{base_part}#{quote(label)}"
     except Exception:
         return None
 
@@ -208,6 +242,15 @@ def main():
     alive = filter_alive(raw)
     print(f"Alive: {len(alive)}")
 
+    print("Geolocating servers (country flags)...")
+    hosts = []
+    for cfg in alive:
+        h, p = extract_ip_port(cfg)
+        if h:
+            hosts.append(h)
+    geo_map = geolocate_hosts(hosts)
+    print(f"Geolocated: {len(geo_map)} / {len(set(hosts))} unique hosts")
+
     preferred_all, fallback_all = [], []
     proto_buckets = {p: {"preferred": [], "fallback": []} for p in PROTO_LIST}
 
@@ -215,7 +258,12 @@ def main():
         proto = detect_proto(cfg)
         if proto == "unknown":
             continue
-        renamed = rename_config(cfg, proto)
+
+        host, _ = extract_ip_port(cfg)
+        country_code = geo_map.get(host, "")
+        flag = country_to_flag(country_code)
+
+        renamed = rename_config(cfg, proto, flag)
         if not renamed:
             continue
 
@@ -225,14 +273,12 @@ def main():
         else:
             fallback_all.append(renamed)
 
-        # برای بخش تفکیک‌شده - فقط ۵ پروتکل اصلی (tuic نادره، شامل نمیشه)
         if proto in proto_buckets:
             if pref:
                 proto_buckets[proto]["preferred"].append(renamed)
             else:
                 proto_buckets[proto]["fallback"].append(renamed)
 
-    # --- خروجی ۱: general/sub1..sub5 (preferred اول، هرکدوم ۱۰۰۰ تایی) ---
     all_formatted = preferred_all + fallback_all
     chunk_size = 1000
     for i in range(5):
@@ -242,13 +288,12 @@ def main():
         with open(f"sub/general/sub{i+1}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(chunk_data))
 
-    # --- خروجی ۲: protocols/ - تفکیک‌شده بر اساس نوع، هرکدوم حداکثر ۲۰۰ preferred اول ---
     for proto in PROTO_LIST:
         combined = proto_buckets[proto]["preferred"] + proto_buckets[proto]["fallback"]
         capped = combined[:PROTOCOL_CAP]
         with open(f"sub/protocols/{proto}.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(capped))
-        print(f"  {proto}: {len(capped)} (preferred: {len(proto_buckets[proto]['preferred'][:PROTOCOL_CAP])})")
+        print(f"  {proto}: {len(capped)}")
 
     print(f"Done. Preferred: {len(preferred_all)} | Fallback: {len(fallback_all)} | Total: {len(all_formatted)}")
 
