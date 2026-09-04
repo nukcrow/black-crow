@@ -1,4 +1,5 @@
 import os
+import ssl
 import json
 import time
 import base64
@@ -125,20 +126,50 @@ def dedupe_by_host_port(configs):
     return unique
 
 
+def get_sni(config):
+    try:
+        parsed = urlparse(config)
+        qs = parse_qs(parsed.query)
+        return qs.get("sni", [None])[0] or parsed.hostname
+    except Exception:
+        return None
+
+
 def check_tcp_alive(config):
+    """تست عمیق‌تر (به سبک BPB): علاوه بر TCP، اگه TLS/Reality بود، واقعاً هندشیک TLS رو هم چک می‌کنه.
+    خیلی از سرورهای مرده پورتشون باز می‌مونه (TCP alive) ولی هندشیک TLS واقعی نمیدن - این تست جلوشونو می‌گیره."""
     ip, port = extract_ip_port(config)
     if not ip or not port:
         return None
+
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1.0)
+        sock.settimeout(1.5)
         result = sock.connect_ex((ip, port))
-        sock.close()
-        if result == 0:
-            return config
+        if result != 0:
+            sock.close()
+            return None
+
+        # اگه TLS بود (نه Reality - چون Reality نیاز به pubkey واقعی داره که نداریم)، هندشیک واقعی رو چک کن
+        if "security=tls" in config:
+            try:
+                sni = get_sni(config)
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                tls_sock = ctx.wrap_socket(sock, server_hostname=sni)
+                tls_sock.settimeout(1.5)
+                tls_sock.do_handshake()
+                tls_sock.close()
+            except Exception:
+                sock.close()
+                return None
+        else:
+            sock.close()
+
+        return config
     except Exception:
-        pass
-    return None
+        return None
 
 
 def filter_alive(raw_configs):
