@@ -51,21 +51,18 @@ SOURCES = [
 REMARK = "nukcrow"
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
-PROTOCOL_CAP = 200
+PROTOCOL_CAP = 1000
 
-# Ranking settings. These are deliberately moderate so GitHub Actions does not
-# spend excessive time probing thousands of endpoints.
-RANKING_CAP = 100
-LATENCY_PROBES = 3
-CONNECT_TIMEOUT = 1.8
-TLS_TIMEOUT = 2.5
-RANK_WORKERS = 80
-GOOD_POOL_SIZE = 1200
-SUB_SIZE = 100
+# Fast, bounded collection settings. No per-config network probing is performed.
+GOOD_POOL_SIZE = 6000
+SUB_SIZE = 1000
 SUB_COUNT = 5
+FETCH_WORKERS = 24
+FETCH_TIMEOUT = 8
+MAX_SOURCE_BYTES = 8 * 1024 * 1024
 
 GEO_BATCH_SIZE = 100
-GEO_DELAY = 1.4
+GEO_DELAY = 0.25
 
 
 def decode_base64_safe(data):
@@ -93,33 +90,62 @@ def extract_base64_payload(text):
 
 
 def fetch_one(url):
-    headers = {"User-Agent": "Mozilla/5.0 nukcrow-collector/2.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 nukcrow-collector/3.0",
+        "Accept": "text/plain,text/*;q=0.9,*/*;q=0.1",
+        "Connection": "close",
+    }
     found = []
     try:
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code != 200:
-            return found
+        with requests.get(
+            url,
+            headers=headers,
+            timeout=(4, FETCH_TIMEOUT),
+            stream=True,
+        ) as res:
+            if res.status_code != 200:
+                print(f"[skip] HTTP {res.status_code}: {url}")
+                return found
 
-        content = extract_base64_payload(res.text)
-        valid_prefixes = (
-            "vless://", "vmess://", "trojan://", "ss://",
-            "hysteria2://", "hy2://", "tuic://"
-        )
+            chunks = []
+            total = 0
+            for chunk in res.iter_content(chunk_size=65536, decode_unicode=False):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > MAX_SOURCE_BYTES:
+                    break
+                chunks.append(chunk)
 
-        for line in content.splitlines():
-            line = line.strip()
-            if line.startswith(valid_prefixes):
-                found.append(line)
-    except Exception:
-        pass
+            raw = b"".join(chunks)
+            content = raw.decode("utf-8", errors="ignore")
+            content = extract_base64_payload(content)
+
+            valid_prefixes = (
+                "vless://", "vmess://", "trojan://", "ss://",
+                "hysteria2://", "hy2://", "tuic://"
+            )
+
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith(valid_prefixes):
+                    found.append(line)
+    except requests.RequestException as exc:
+        print(f"[skip] fetch failed: {url} ({type(exc).__name__})")
+    except Exception as exc:
+        print(f"[skip] parse failed: {url} ({type(exc).__name__})")
     return found
 
 
 def fetch_all():
     raw_list = []
-    with ThreadPoolExecutor(max_workers=25) as executor:
-        for result in executor.map(fetch_one, SOURCES):
-            raw_list.extend(result)
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as executor:
+        futures = [executor.submit(fetch_one, url) for url in SOURCES]
+        for future in futures:
+            try:
+                raw_list.extend(future.result(timeout=FETCH_TIMEOUT + 5))
+            except Exception as exc:
+                print(f"[skip] worker failed ({type(exc).__name__})")
     return raw_list
 
 
@@ -249,121 +275,6 @@ def get_security(config):
         return ""
 
 
-def check_endpoint(config, timeout=CONNECT_TIMEOUT):
-    """Measure TCP connect latency and optionally TLS handshake latency.
-
-    This is intentionally a network-quality benchmark, not a full VLESS/VMess
-    client handshake. Reality is therefore scored using TCP reachability only.
-    """
-    host, port = extract_host_port(config)
-    if not host or not port:
-        return None
-
-    start = time.perf_counter()
-    sock = None
-    try:
-        sock = socket.create_connection((host, port), timeout=timeout)
-        tcp_ms = (time.perf_counter() - start) * 1000.0
-
-        security = get_security(config)
-        tls_ms = None
-        if security == "tls":
-            sni = get_sni(config) or host
-            tls_start = time.perf_counter()
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            sock.settimeout(TLS_TIMEOUT)
-            tls_sock = ctx.wrap_socket(sock, server_hostname=sni)
-            tls_sock.do_handshake()
-            tls_ms = (time.perf_counter() - tls_start) * 1000.0
-            tls_sock.close()
-            sock = None
-
-        return {"tcp_ms": tcp_ms, "tls_ms": tls_ms}
-    except Exception:
-        return None
-    finally:
-        if sock is not None:
-            try:
-                sock.close()
-            except Exception:
-                pass
-
-
-def benchmark_config(config):
-    """Run repeated probes and return a stable ranking record."""
-    samples = []
-    tls_samples = []
-
-    for _ in range(LATENCY_PROBES):
-        result = check_endpoint(config)
-        if result:
-            samples.append(result["tcp_ms"])
-            if result["tls_ms"] is not None:
-                tls_samples.append(result["tls_ms"])
-
-    if not samples:
-        return None
-
-    median_tcp = statistics.median(samples)
-    minimum_tcp = min(samples)
-    jitter = statistics.pstdev(samples) if len(samples) > 1 else 0.0
-    success_rate = len(samples) / LATENCY_PROBES
-
-    median_tls = statistics.median(tls_samples) if tls_samples else None
-    transport_penalty = 0.0
-    if median_tls is not None:
-        # TLS handshake quality matters more than raw TCP when available.
-        transport_penalty = min(median_tls, 1000.0) * 0.15
-
-    # Lower is better. Stable, successful and fast endpoints rise to the top.
-    quality_score = (
-        median_tcp
-        + jitter * 0.50
-        + (1.0 - success_rate) * 250.0
-        + transport_penalty
-    )
-
-    return {
-        "config": config,
-        "tcp_median": median_tcp,
-        "tcp_min": minimum_tcp,
-        "jitter": jitter,
-        "success_rate": success_rate,
-        "tls_median": median_tls,
-        "quality_score": quality_score,
-    }
-
-
-def rank_configs(configs):
-    ranked = []
-    if not configs:
-        return ranked
-
-    with ThreadPoolExecutor(max_workers=RANK_WORKERS) as executor:
-        for result in executor.map(benchmark_config, configs):
-            if result:
-                ranked.append(result)
-
-    ranked.sort(key=lambda x: (
-        x["quality_score"],
-        x["tcp_median"],
-        -x["success_rate"],
-    ))
-    return ranked
-
-
-def filter_alive(raw_configs):
-    """Backward-compatible alive filter, now based on the benchmark itself."""
-    alive = []
-    with ThreadPoolExecutor(max_workers=RANK_WORKERS) as executor:
-        for result in executor.map(benchmark_config, raw_configs):
-            if result:
-                alive.append(result["config"])
-    return alive
-
-
 def detect_proto(config):
     if config.startswith("vless://"):
         return "vless"
@@ -480,81 +391,91 @@ def write_protocol_outputs(proto_buckets):
         write_lines(f"sub/protocols/{proto}.txt", combined[:PROTOCOL_CAP])
 
 
-def write_random_good_outputs(ranked_records, formatted_by_fp, proto_records):
-    """Fill the existing bot files from a quality-filtered pool, randomly.
+def write_random_good_outputs(configs, formatted_by_fp, proto_records):
+    """Write five random 1000-config subscriptions.
 
-    No /sub/best directory is created. The bot keeps its current paths and
-    continues to use random selection, but every candidate has already passed
-    repeated connectivity/latency checks.
+    There is deliberately no per-config TCP/TLS probing here: that was the
+    source of the GitHub Actions hangs. Sources are already curated/filtered,
+    and malformed/duplicate configs are removed before output.
     """
-    pool = ranked_records[:GOOD_POOL_SIZE]
-    rng = __import__("random")
-    pool = pool[:]
-    rng.shuffle(pool)
+    import random
 
-    # Prefer disjoint subscriptions when there are enough good configs.
-    selected = pool[:SUB_SIZE * SUB_COUNT]
-    if len(selected) < SUB_SIZE * SUB_COUNT and pool:
-        selected = [pool[i % len(pool)] for i in range(SUB_SIZE * SUB_COUNT)]
+    available = []
+    seen = set()
+
+    for cfg in configs:
+        fp = config_fingerprint(cfg)
+        formatted = formatted_by_fp.get(fp)
+        if formatted and fp not in seen:
+            seen.add(fp)
+            available.append(formatted)
+
+    random.shuffle(available)
+
+    needed = SUB_SIZE * SUB_COUNT
+    if not available:
+        raise RuntimeError("No usable configs available for subscriptions")
+
+    # If fewer than 5000 unique configs exist, recycle the available pool.
+    # This guarantees that every public sub file has exactly 1000 lines.
+    selected = [available[i % len(available)] for i in range(needed)]
 
     for i in range(SUB_COUNT):
         chunk = selected[i * SUB_SIZE:(i + 1) * SUB_SIZE]
-        lines = []
-        for record in chunk:
-            formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
-            if formatted:
-                lines.append(formatted)
-        write_lines(f"sub/general/sub{i + 1}.txt", lines)
+        write_lines(f"sub/general/sub{i + 1}.txt", chunk)
 
-    # Protocol subscriptions also contain only benchmarked configs.
     for proto in PROTO_LIST:
-        records = proto_records.get(proto, [])[:PROTOCOL_CAP]
-        rng.shuffle(records)
+        records = list(proto_records.get(proto, []))
+        random.shuffle(records)
         lines = []
-        for record in records[:PROTOCOL_CAP]:
-            formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
-            if formatted:
+        seen_proto = set()
+
+        for record in records:
+            fp = config_fingerprint(record)
+            formatted = formatted_by_fp.get(fp)
+            if formatted and fp not in seen_proto:
+                seen_proto.add(fp)
                 lines.append(formatted)
+            if len(lines) >= PROTOCOL_CAP:
+                break
+
         write_lines(f"sub/protocols/{proto}.txt", lines)
+
 
 def main():
     started = time.time()
-    print(f"Fetching from {len(SOURCES)} sources (parallel)...")
+
+    print(f"Fetching from {len(SOURCES)} sources (parallel, bounded)...")
     raw = fetch_all()
     print(f"Fetched (raw): {len(raw)}")
 
     raw = dedupe_configs(raw)
     print(f"After transport-aware dedupe: {len(raw)}")
+
     if not raw:
         raise RuntimeError("No configs were collected from the configured sources")
 
-    print("Benchmarking configs: repeated TCP/TLS probes...")
-    ranked = rank_configs(raw)
-    print(f"Reachable/benchmarked: {len(ranked)}")
-    if not ranked:
-        raise RuntimeError("No reachable configs after benchmark")
+    # Randomize before formatting so the public subscriptions stay random.
+    import random
+    random.shuffle(raw)
 
-    # Keep the good pool bounded so GitHub Actions stays fast and the five
-    # public subscriptions remain genuinely random among healthy configs.
-    ranked = ranked[:GOOD_POOL_SIZE]
+    # Keep a large pool so five 1000-line subscriptions have plenty of variety.
+    pool = raw[:GOOD_POOL_SIZE]
 
     hosts = []
-    for record in ranked:
-        host, _ = extract_host_port(record["config"])
+    for cfg in pool:
+        host, _ = extract_host_port(cfg)
         if host:
             hosts.append(host)
 
-    print("Geolocating servers (country flags)...")
+    print(f"Geolocating {len(set(hosts))} unique hosts (best effort)...")
     geo_map = geolocate_hosts(hosts)
     print(f"Geolocated: {len(geo_map)} / {len(set(hosts))} unique hosts")
 
-    preferred_all = []
-    fallback_all = []
     formatted_by_fp = {}
     proto_records = {p: [] for p in PROTO_LIST}
 
-    for record in ranked:
-        cfg = record["config"]
+    for cfg in pool:
         proto = detect_proto(cfg)
         if proto not in proto_records:
             continue
@@ -565,20 +486,21 @@ def main():
         if not renamed:
             continue
 
-        formatted_by_fp[config_fingerprint(cfg)] = renamed
-        proto_records[proto].append(record)
+        fp = config_fingerprint(cfg)
+        formatted_by_fp[fp] = renamed
+        proto_records[proto].append(cfg)
 
-        if is_preferred(cfg, proto):
-            preferred_all.append(renamed)
-        else:
-            fallback_all.append(renamed)
+    usable = list(formatted_by_fp.keys())
+    print(f"Usable configs: {len(usable)}")
 
-    # Existing Telegram bot paths are preserved exactly.
-    write_random_good_outputs(ranked, formatted_by_fp, proto_records)
+    if not usable:
+        raise RuntimeError("No usable configs after parsing/formatting")
+
+    write_random_good_outputs(pool, formatted_by_fp, proto_records)
 
     print(
-        f"Done. Good pool: {len(ranked)} | Preferred: {len(preferred_all)} | "
-        f"Fallback: {len(fallback_all)} | Elapsed: {time.time() - started:.1f}s"
+        f"Done. General subs: {SUB_COUNT} x {SUB_SIZE} | "
+        f"Pool: {len(pool)} | Elapsed: {time.time() - started:.1f}s"
     )
 
 
