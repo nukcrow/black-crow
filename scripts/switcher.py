@@ -54,12 +54,19 @@ PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 PROTOCOL_CAP = 1000
 
 # Fast, bounded collection settings. No per-config network probing is performed.
-GOOD_POOL_SIZE = 6000
+GOOD_POOL_SIZE = 7000
 SUB_SIZE = 1000
 SUB_COUNT = 5
 FETCH_WORKERS = 24
 FETCH_TIMEOUT = 8
 MAX_SOURCE_BYTES = 8 * 1024 * 1024
+
+# Quality selection: one bounded TCP probe per unique endpoint.
+# No repeated probes / TLS handshakes, so Actions stays fast.
+PING_WORKERS = 120
+PING_TIMEOUT = 1.5
+MAX_PING_CANDIDATES = 12000
+MAX_ACCEPTED_LATENCY_MS = 1200
 
 GEO_BATCH_SIZE = 100
 GEO_DELAY = 0.25
@@ -275,6 +282,79 @@ def get_security(config):
         return ""
 
 
+
+def tcp_probe(config):
+    host, port = extract_host_port(config)
+    if not host or not port:
+        return None
+
+    started = time.perf_counter()
+    sock = None
+    try:
+        sock = socket.create_connection((host, port), timeout=PING_TIMEOUT)
+        latency = (time.perf_counter() - started) * 1000.0
+        return latency
+    except Exception:
+        return None
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+
+def select_good_configs(configs):
+    """Fast quality gate: one TCP probe per endpoint, then randomize."""
+    import random
+
+    # First cap candidates after shuffle to avoid probing huge source dumps.
+    candidates = list(configs)
+    random.shuffle(candidates)
+    candidates = candidates[:MAX_PING_CANDIDATES]
+
+    # Probe each unique endpoint once; same endpoint configs reuse its result.
+    endpoint_to_configs = {}
+    for cfg in candidates:
+        host, port = extract_host_port(cfg)
+        if host and port:
+            endpoint_to_configs.setdefault((host, port), []).append(cfg)
+
+    endpoints = list(endpoint_to_configs.keys())
+    results = {}
+
+    def probe_endpoint(endpoint):
+        host, port = endpoint
+        started = time.perf_counter()
+        sock = None
+        try:
+            sock = socket.create_connection((host, port), timeout=PING_TIMEOUT)
+            return (time.perf_counter() - started) * 1000.0
+        except Exception:
+            return None
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+    with ThreadPoolExecutor(max_workers=PING_WORKERS) as executor:
+        for endpoint, latency in zip(endpoints, executor.map(probe_endpoint, endpoints)):
+            if latency is not None and latency <= MAX_ACCEPTED_LATENCY_MS:
+                results[endpoint] = latency
+
+    # Prefer lower latency, but shuffle ties/nearby results to preserve variety.
+    good = []
+    for endpoint, latency in results.items():
+        good.extend(endpoint_to_configs[endpoint])
+
+    random.shuffle(good)
+    good.sort(key=lambda cfg: results.get(extract_host_port(cfg), 999999) + random.random() * 80)
+
+    return good[:GOOD_POOL_SIZE], len(endpoints), len(results)
+
+
 def detect_proto(config):
     if config.startswith("vless://"):
         return "vless"
@@ -455,12 +535,15 @@ def main():
     if not raw:
         raise RuntimeError("No configs were collected from the configured sources")
 
-    # Randomize before formatting so the public subscriptions stay random.
-    import random
-    random.shuffle(raw)
+    print("Testing endpoints for low-latency reachable configs...")
+    pool, tested_endpoints, good_endpoints = select_good_configs(raw)
+    print(
+        f"TCP quality check: {good_endpoints}/{tested_endpoints} endpoints reachable "
+        f"under {MAX_ACCEPTED_LATENCY_MS}ms"
+    )
 
-    # Keep a large pool so five 1000-line subscriptions have plenty of variety.
-    pool = raw[:GOOD_POOL_SIZE]
+    if not pool:
+        raise RuntimeError("No reachable low-latency configs found")
 
     hosts = []
     for cfg in pool:
