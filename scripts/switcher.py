@@ -14,7 +14,6 @@ import requests
 # Keep the existing output tree because the Telegram bot depends on these paths.
 os.makedirs("sub/general", exist_ok=True)
 os.makedirs("sub/protocols", exist_ok=True)
-os.makedirs("sub/best", exist_ok=True)
 
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
@@ -545,27 +544,6 @@ def write_protocol_outputs(proto_buckets):
         write_lines(f"sub/protocols/{proto}.txt", combined[:PROTOCOL_CAP])
 
 
-def write_best_outputs(ranked_records, formatted_by_fp, proto_records):
-    """Create new best outputs without touching existing bot paths."""
-    best = ranked_records[:RANKING_CAP]
-    best_lines = []
-    for record in best:
-        formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
-        if formatted:
-            best_lines.append(formatted)
-
-    write_lines("sub/best/best100.txt", best_lines)
-
-    for proto in PROTO_LIST:
-        records = proto_records.get(proto, [])[:RANKING_CAP]
-        lines = []
-        for record in records:
-            formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
-            if formatted:
-                lines.append(formatted)
-        write_lines(f"sub/best/best-{proto}.txt", lines)
-
-
 def main():
     started = time.time()
     print(f"Fetching from {len(SOURCES)} sources (parallel)...")
@@ -629,19 +607,6 @@ def main():
     all_formatted = preferred_all + fallback_all
     write_general_outputs(all_formatted)
     write_protocol_outputs(proto_buckets)
-
-    # New ranked outputs for the upcoming Telegram bot change.
-    ranked_known = [r for r in ranked if detect_proto(r["config"]) in PROTO_LIST]
-    proto_records = {p: [] for p in PROTO_LIST}
-    for record in ranked_known:
-        proto_records[detect_proto(record["config"])].append(record)
-
-    write_best_outputs(ranked_known, formatted_by_fp, proto_records)
-
-    print("Best 100 created: sub/best/best100.txt")
-    for proto in PROTO_LIST:
-        count = len(proto_records[proto][:RANKING_CAP])
-        print(f"  best-{proto}: {count}")
 
     print(
         f"Done. Preferred: {len(preferred_all)} | "
