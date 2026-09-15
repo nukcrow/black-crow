@@ -2,35 +2,63 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # اجرای خودکار هر ۳ ساعت یک‌بار
-  workflow_dispatch:        # امکان اجرای دستی از تب Actions
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: auto-update-subscriptions
+  cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.12'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install --disable-pip-version-check requests
 
       - name: Run Subscriptions Switcher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-        run: python scripts/switcher.py
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python scripts/switcher.py
+
       - name: Commit and Push Changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+
           git add sub/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update subscriptions [$(date -u +'%Y-%m-%d %H:%M UTC')]" && git push)
+
+          if git diff --cached --quiet; then
+            echo "No subscription changes."
+            exit 0
+          fi
+
+          git commit -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+
+          git fetch origin main
+          git rebase origin/main || {
+            git rebase --abort
+            git pull --rebase origin main
+          }
+
+          git push origin HEAD:main
