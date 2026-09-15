@@ -72,16 +72,24 @@ PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 PROTOCOL_CAP = 200
 
-# Ranking settings. These are deliberately moderate so GitHub Actions does not
-# spend excessive time probing thousands of endpoints.
+# Ranking settings.
+# Keep the original behavior, but cap the expensive network benchmark stage
+# so GitHub Actions finishes reliably.
 RANKING_CAP = 100
 LATENCY_PROBES = 3
 CONNECT_TIMEOUT = 1.8
 TLS_TIMEOUT = 2.5
-RANK_WORKERS = 80
+RANK_WORKERS = 100
+
+# Expensive ranking guard: raw source count can become very large.
+# This does not change output paths, protocols, sources, or caps.
+MAX_RANK_INPUT = 3500
 
 GEO_BATCH_SIZE = 100
-GEO_DELAY = 1.4
+GEO_DELAY = 0.25
+
+# GeoIP only for the ranked configs that can actually contribute to output.
+MAX_GEO_HOSTS = 700
 
 
 def decode_base64_safe(data):
@@ -229,6 +237,47 @@ def dedupe_configs(configs):
             seen.add(fp)
             unique.append(cfg)
     return unique
+
+
+def prepare_rank_candidates(configs, limit=MAX_RANK_INPUT):
+    """
+    Keep ranking fast without changing the collector's source list or
+    output structure. Preserve protocol diversity before filling leftovers.
+    """
+    if len(configs) <= limit:
+        return configs
+
+    buckets = {proto: [] for proto in PROTO_LIST}
+
+    for cfg in configs:
+        proto = detect_proto(cfg)
+        if proto in buckets:
+            buckets[proto].append(cfg)
+
+    selected = []
+    seen = set()
+
+    # First give each supported protocol a fair share.
+    per_proto = max(1, limit // len(PROTO_LIST))
+
+    for proto in PROTO_LIST:
+        for cfg in buckets[proto][:per_proto]:
+            fp = config_fingerprint(cfg)
+            if fp not in seen:
+                seen.add(fp)
+                selected.append(cfg)
+
+    # Fill any remaining capacity in original order.
+    if len(selected) < limit:
+        for cfg in configs:
+            if len(selected) >= limit:
+                break
+            fp = config_fingerprint(cfg)
+            if fp not in seen:
+                seen.add(fp)
+                selected.append(cfg)
+
+    return selected[:limit]
 
 
 # Backward-compatible name; behavior is improved to preserve different transports.
@@ -526,20 +575,29 @@ def main():
     raw = dedupe_configs(raw)
     print(f"After transport-aware dedupe: {len(raw)}")
 
-    print("Benchmarking endpoints (3 probes each)...")
-    ranked = rank_configs(raw)
+    rank_candidates = prepare_rank_candidates(raw)
+    print(
+        f"Benchmarking {len(rank_candidates)} / {len(raw)} candidates "
+        f"({LATENCY_PROBES} probes each)..."
+    )
+
+    ranked = rank_configs(rank_candidates)
     print(f"Reachable/benchmarked: {len(ranked)}")
 
-    # Geolocation is performed for every reachable endpoint, as before.
-    hosts = []
-    for record in ranked:
-        host, _ = extract_host_port(record["config"])
-        if host:
-            hosts.append(host)
+    # Keep geolocation bounded so the workflow cannot stall on a huge pool.
+    # The output tree and naming behavior remain unchanged.
+    geo_hosts = []
+    seen_geo = set()
 
-    print("Geolocating servers (country flags)...")
-    geo_map = geolocate_hosts(hosts)
-    print(f"Geolocated: {len(geo_map)} / {len(set(hosts))} unique hosts")
+    for record in ranked[:MAX_GEO_HOSTS]:
+        host, _ = extract_host_port(record["config"])
+        if host and host not in seen_geo:
+            seen_geo.add(host)
+            geo_hosts.append(host)
+
+    print(f"Geolocating {len(geo_hosts)} useful hosts...")
+    geo_map = geolocate_hosts(geo_hosts)
+    print(f"Geolocated: {len(geo_map)} / {len(geo_hosts)} unique hosts")
 
     preferred_all = []
     fallback_all = []
