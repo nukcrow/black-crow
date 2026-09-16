@@ -14,6 +14,7 @@ import requests
 # Keep the existing output tree because the Telegram bot depends on these paths.
 os.makedirs("sub/general", exist_ok=True)
 os.makedirs("sub/protocols", exist_ok=True)
+os.makedirs("sub/best", exist_ok=True)
 
 SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
@@ -64,6 +65,9 @@ SOURCES = [
     "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/trojan",
     "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list_raw.txt",
+    "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/mix",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub1.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub2.txt",
 ]
 
 REMARK = "nukcrow"
@@ -71,24 +75,16 @@ PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 PROTOCOL_CAP = 200
 
-# Ranking settings.
-# Keep the original behavior, but cap the expensive network benchmark stage
-# so GitHub Actions finishes reliably.
+# Ranking settings. These are deliberately moderate so GitHub Actions does not
+# spend excessive time probing thousands of endpoints.
 RANKING_CAP = 100
 LATENCY_PROBES = 3
 CONNECT_TIMEOUT = 1.8
 TLS_TIMEOUT = 2.5
-RANK_WORKERS = 100
-
-# Expensive ranking guard: raw source count can become very large.
-# This does not change output paths, protocols, sources, or caps.
-MAX_RANK_INPUT = 3500
+RANK_WORKERS = 80
 
 GEO_BATCH_SIZE = 100
-GEO_DELAY = 0.25
-
-# GeoIP only for the ranked configs that can actually contribute to output.
-MAX_GEO_HOSTS = 700
+GEO_DELAY = 1.4
 
 
 def decode_base64_safe(data):
@@ -236,47 +232,6 @@ def dedupe_configs(configs):
             seen.add(fp)
             unique.append(cfg)
     return unique
-
-
-def prepare_rank_candidates(configs, limit=MAX_RANK_INPUT):
-    """
-    Keep ranking fast without changing the collector's source list or
-    output structure. Preserve protocol diversity before filling leftovers.
-    """
-    if len(configs) <= limit:
-        return configs
-
-    buckets = {proto: [] for proto in PROTO_LIST}
-
-    for cfg in configs:
-        proto = detect_proto(cfg)
-        if proto in buckets:
-            buckets[proto].append(cfg)
-
-    selected = []
-    seen = set()
-
-    # First give each supported protocol a fair share.
-    per_proto = max(1, limit // len(PROTO_LIST))
-
-    for proto in PROTO_LIST:
-        for cfg in buckets[proto][:per_proto]:
-            fp = config_fingerprint(cfg)
-            if fp not in seen:
-                seen.add(fp)
-                selected.append(cfg)
-
-    # Fill any remaining capacity in original order.
-    if len(selected) < limit:
-        for cfg in configs:
-            if len(selected) >= limit:
-                break
-            fp = config_fingerprint(cfg)
-            if fp not in seen:
-                seen.add(fp)
-                selected.append(cfg)
-
-    return selected[:limit]
 
 
 # Backward-compatible name; behavior is improved to preserve different transports.
@@ -530,18 +485,50 @@ def write_lines(path, lines):
 
 
 def write_general_outputs(all_formatted):
-    # Preserve the exact five public subscription files expected by the bot.
     chunk_size = 1000
-    for i in range(5):
+    total = len(all_formatted)
+    # داینامیک: هر چقدر کانفیگ زنده داشتیم همونقدر ساب (حداکثر 10، هیچ فایل خالی نمی‌مونه)
+    num_subs = min(10, max(1, (total + chunk_size - 1) // chunk_size))
+    for i in range(num_subs):
         start = i * chunk_size
         end = start + chunk_size
-        write_lines(f"sub/general/sub{i + 1}.txt", all_formatted[start:end])
+        chunk = all_formatted[start:end]
+        if chunk:
+            write_lines(f"sub/general/sub{i + 1}.txt", chunk)
+    # فایل‌های قدیمی‌ای که دیگه پر نمیشن رو پاک کن تا خالی نمونن
+    import os
+    for i in range(num_subs + 1, 11):
+        path = f"sub/general/sub{i}.txt"
+        if os.path.exists(path):
+            os.remove(path)
+    print(f"General subs written: {num_subs} x up to {chunk_size} configs")
 
 
 def write_protocol_outputs(proto_buckets):
     for proto in PROTO_LIST:
         combined = proto_buckets[proto]["preferred"] + proto_buckets[proto]["fallback"]
         write_lines(f"sub/protocols/{proto}.txt", combined[:PROTOCOL_CAP])
+
+
+def write_best_outputs(ranked_records, formatted_by_fp, proto_records):
+    """Create new best outputs without touching existing bot paths."""
+    best = ranked_records[:RANKING_CAP]
+    best_lines = []
+    for record in best:
+        formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
+        if formatted:
+            best_lines.append(formatted)
+
+    write_lines("sub/best/best100.txt", best_lines)
+
+    for proto in PROTO_LIST:
+        records = proto_records.get(proto, [])[:RANKING_CAP]
+        lines = []
+        for record in records:
+            formatted = formatted_by_fp.get(config_fingerprint(record["config"]))
+            if formatted:
+                lines.append(formatted)
+        write_lines(f"sub/best/best-{proto}.txt", lines)
 
 
 def main():
@@ -553,29 +540,20 @@ def main():
     raw = dedupe_configs(raw)
     print(f"After transport-aware dedupe: {len(raw)}")
 
-    rank_candidates = prepare_rank_candidates(raw)
-    print(
-        f"Benchmarking {len(rank_candidates)} / {len(raw)} candidates "
-        f"({LATENCY_PROBES} probes each)..."
-    )
-
-    ranked = rank_configs(rank_candidates)
+    print("Benchmarking endpoints (3 probes each)...")
+    ranked = rank_configs(raw)
     print(f"Reachable/benchmarked: {len(ranked)}")
 
-    # Keep geolocation bounded so the workflow cannot stall on a huge pool.
-    # The output tree and naming behavior remain unchanged.
-    geo_hosts = []
-    seen_geo = set()
-
-    for record in ranked[:MAX_GEO_HOSTS]:
+    # Geolocation is performed for every reachable endpoint, as before.
+    hosts = []
+    for record in ranked:
         host, _ = extract_host_port(record["config"])
-        if host and host not in seen_geo:
-            seen_geo.add(host)
-            geo_hosts.append(host)
+        if host:
+            hosts.append(host)
 
-    print(f"Geolocating {len(geo_hosts)} useful hosts...")
-    geo_map = geolocate_hosts(geo_hosts)
-    print(f"Geolocated: {len(geo_map)} / {len(geo_hosts)} unique hosts")
+    print("Geolocating servers (country flags)...")
+    geo_map = geolocate_hosts(hosts)
+    print(f"Geolocated: {len(geo_map)} / {len(set(hosts))} unique hosts")
 
     preferred_all = []
     fallback_all = []
@@ -607,6 +585,19 @@ def main():
     all_formatted = preferred_all + fallback_all
     write_general_outputs(all_formatted)
     write_protocol_outputs(proto_buckets)
+
+    # New ranked outputs for the upcoming Telegram bot change.
+    ranked_known = [r for r in ranked if detect_proto(r["config"]) in PROTO_LIST]
+    proto_records = {p: [] for p in PROTO_LIST}
+    for record in ranked_known:
+        proto_records[detect_proto(record["config"])].append(record)
+
+    write_best_outputs(ranked_known, formatted_by_fp, proto_records)
+
+    print("Best 100 created: sub/best/best100.txt")
+    for proto in PROTO_LIST:
+        count = len(proto_records[proto][:RANKING_CAP])
+        print(f"  best-{proto}: {count}")
 
     print(
         f"Done. Preferred: {len(preferred_all)} | "
