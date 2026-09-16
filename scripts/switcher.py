@@ -5,6 +5,7 @@ import base64
 import socket
 import hashlib
 import random
+import ipaddress
 from urllib.parse import urlparse, parse_qs, quote
 from concurrent.futures import ThreadPoolExecutor
 
@@ -13,28 +14,56 @@ import requests
 os.makedirs("sub/general", exist_ok=True)
 
 # ============================================================
-# SOURCES (all verified working)
+# SOURCES (all verified live at write-time)
 # ============================================================
 
-SOURCES = [
-    # Iran-focused
-    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
+# --- Iran-focused (actively maintained, updated frequently) ---
+SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/ss_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
+    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_2.txt",
+    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_3.txt",
+    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_4.txt",
+    "https://raw.githubusercontent.com/lagzian/IranConfigCollector/main/Base64.txt",
+    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/ir/all.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vmess.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/ss.txt",
+    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
+    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vmess.txt",
+    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/ss.txt",
+    "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/refs/heads/main/configs/Hysteria2.txt",
+]
 
-    # General high-volume (verified)
+# --- Russia-focused (actively maintained, health-checked against RU) ---
+SOURCES_RUSSIA = [
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS_mobile.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile-2.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/1.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/5.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/10.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/15.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/20.txt",
+    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/26.txt",
+]
+
+# --- General high-volume (verified) ---
+SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/mheidari98/.proxy/main/all",
     "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
     "https://raw.githubusercontent.com/wuqb2i4f/xray-config-toolkit/main/output/base64/mix-uri",
     "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config/vless.txt",
     "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config/vmess.txt",
-    "https://raw.githubusercontent.com/arshiacomplus/v2rayExtractor/main/mix/sub.html",
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/Eternity.txt",
     "https://raw.githubusercontent.com/Rayan-Config/C-Sub/main/configs/proxy.txt",
-    "https://raw.githubusercontent.com/ermaozi01/free_clash_vpn/main/subscribe/v2ray.txt",
-
-    # Added for volume (verified)
+    "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
     "https://raw.githubusercontent.com/DukeMehdi/FreeList-V2ray-Configs/main/Configs/All-DukeMehdi-Configs.txt",
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
     "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
@@ -42,24 +71,29 @@ SOURCES = [
     "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
-    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/refs/heads/main/all/vless.txt",
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
     "https://raw.githubusercontent.com/roosterkid/openproxylist/main/V2RAY_RAW.txt",
     "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list_raw.txt",
+    "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/refs/heads/main/all_extracted_configs.txt",
 ]
+
+SOURCES = SOURCES_IRAN + SOURCES_RUSSIA + SOURCES_GENERAL
 
 REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
 SUB_LIMIT = 1000
-MAX_SUBS = 10
-MAX_TEST = 30000
+MAX_SUBS = 15          # increased to fit the larger, higher-quality pool
+MAX_TEST = 40000
 WORKERS = 150
 FETCH_TIMEOUT = 10
 CONNECT_TIMEOUT = 2
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
+
+# Hostnames/IPs that are obviously junk and should never be tested/kept
+BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0")
 
 
 def decode64(x):
@@ -98,7 +132,7 @@ def fetch(url):
 
 def fetch_all():
     result = []
-    with ThreadPoolExecutor(max_workers=25) as ex:
+    with ThreadPoolExecutor(max_workers=40) as ex:
         for r in ex.map(fetch, SOURCES):
             result.extend(r)
     return result
@@ -128,6 +162,21 @@ def host_port(c):
         return None, None
 
 
+def is_junk_host(host):
+    if not host:
+        return True
+    h = host.lower()
+    if any(bad in h for bad in BAD_HOST_HINTS):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified:
+            return True
+    except ValueError:
+        pass  # not a raw IP, it's a hostname — fine
+    return False
+
+
 def fingerprint(c):
     try:
         u = urlparse(c)
@@ -150,6 +199,9 @@ def dedupe(items):
     seen = set()
     out = []
     for x in items:
+        h, _ = host_port(x)
+        if is_junk_host(h):
+            continue
         f = fingerprint(x)
         if f not in seen:
             seen.add(f)
@@ -233,7 +285,7 @@ def main():
     print("raw", len(configs))
 
     configs = dedupe(configs)
-    print("unique", len(configs))
+    print("unique (junk hosts removed)", len(configs))
 
     ranked = benchmark(configs)
     print("alive", len(ranked))
@@ -244,7 +296,7 @@ def main():
     # all_configs.txt — همه‌ی کانفیگ‌های زنده و رتبه‌بندی‌شده، یکجا
     write("sub/general/all_configs.txt", final)
 
-    # sub1..subN داینامیک (حداکثر 10 تا، هیچ فایل خالی نمی‌مونه)
+    # sub1..subN داینامیک (حداکثر MAX_SUBS تا، هیچ فایل خالی نمی‌مونه)
     total = len(final)
     num_subs = min(MAX_SUBS, max(1, (total + SUB_LIMIT - 1) // SUB_LIMIT))
     for i in range(num_subs):
