@@ -20,6 +20,7 @@ import requests
 # Keep the existing output tree because the Telegram bot depends on these paths.
 os.makedirs("sub/general", exist_ok=True)
 os.makedirs("sub/protocols", exist_ok=True)
+os.makedirs("sub/repository", exist_ok=True)
 
 
 # ============================================================
@@ -103,6 +104,14 @@ PROTO_LIST = [
 ]
 
 PROTOCOL_CAP = 200
+
+# The bot can expose only these five files.
+BOT_SUB_COUNT = 5
+
+# The collector creates ten subscription files in total.
+# sub1..sub5 go to the bot; sub6..sub10 stay in the repository.
+TOTAL_SUB_COUNT = 10
+SUB_CONFIG_CAP = 1000
 
 
 # ============================================================
@@ -537,6 +546,70 @@ def is_preferred(config, proto):
         return False
 
 
+def is_quality_candidate(config):
+    """
+    Discard malformed and low-confidence entries before benchmarking.
+
+    A reachable TCP port alone is not enough: the config must also have
+    the basic fields required by its protocol and a secure transport.
+    """
+
+    try:
+        proto = detect_proto(config)
+
+        if proto not in PROTO_LIST:
+            return False
+
+        if proto == "vmess":
+            data = vmess_data(config)
+
+            if not data:
+                return False
+
+            return bool(
+                str(data.get("add", "")).strip()
+                and str(data.get("id", "")).strip()
+                and int(data.get("port", 0)) > 0
+            )
+
+        host, port = extract_host_port(config)
+
+        if not host or not port or port < 1 or port > 65535:
+            return False
+
+        # VLESS and Trojan entries without TLS/Reality are intentionally
+        # ignored; they are usually lower quality or easily broken.
+        if proto in {"vless", "trojan"}:
+            qs = get_query(config)
+            security = qs.get(
+                "security",
+                [""]
+            )[0].lower()
+            transport = qs.get(
+                "type",
+                [""]
+            )[0].lower()
+
+            if security not in {"tls", "reality"}:
+                return False
+
+            if transport not in {
+                "",
+                "tcp",
+                "ws",
+                "grpc",
+                "xhttp",
+                "httpupgrade",
+                "h2",
+            }:
+                return False
+
+        return True
+
+    except Exception:
+        return False
+
+
 # ============================================================
 # FAST TCP BENCHMARK
 # ============================================================
@@ -775,54 +848,36 @@ def write_lines(path, lines):
 # ============================================================
 
 def write_general_outputs(all_formatted):
+    for i in range(TOTAL_SUB_COUNT):
+        start = i * SUB_CONFIG_CAP
+        end = start + SUB_CONFIG_CAP
+        chunk = all_formatted[start:end]
+        sub_number = i + 1
 
-    chunk_size = 1000
-    total = len(all_formatted)
+        if sub_number <= BOT_SUB_COUNT:
+            path = f"sub/general/sub{sub_number}.txt"
+        else:
+            path = f"sub/repository/sub{sub_number}.txt"
 
-    # Dynamic:
-    # however many live configs we have, create that many
-    # subscription files, maximum 10.
-    num_subs = min(
-        10,
-        max(
-            1,
-            (total + chunk_size - 1)
-            // chunk_size
-        )
-    )
+        write_lines(path, chunk)
 
-    for i in range(num_subs):
-
-        start = i * chunk_size
-        end = start + chunk_size
-
-        chunk = all_formatted[
-            start:end
-        ]
-
-        if chunk:
-
-            write_lines(
-                f"sub/general/sub{i + 1}.txt",
-                chunk
-            )
-
-    # Remove old files that are no longer needed.
-    for i in range(
-        num_subs + 1,
-        11
+    # These old paths must not remain, otherwise an old sixth-to-tenth
+    # subscription can accidentally be exposed by a future bot menu change.
+    for sub_number in range(
+        BOT_SUB_COUNT + 1,
+        TOTAL_SUB_COUNT + 1
     ):
+        old_path = f"sub/general/sub{sub_number}.txt"
 
-        path = (
-            f"sub/general/sub{i}.txt"
-        )
-
-        if os.path.exists(path):
-            os.remove(path)
+        if os.path.exists(old_path):
+            os.remove(old_path)
 
     print(
-        f"General subs written: "
-        f"{num_subs} x up to {chunk_size} configs"
+        f"Bot subs: {BOT_SUB_COUNT} x up to "
+        f"{SUB_CONFIG_CAP} configs | "
+        f"Repository-only subs: "
+        f"{TOTAL_SUB_COUNT - BOT_SUB_COUNT} x up to "
+        f"{SUB_CONFIG_CAP} configs"
     )
 
 
@@ -877,6 +932,17 @@ def main():
 
     print(
         f"After transport-aware dedupe: "
+        f"{len(raw)}"
+    )
+
+    raw = [
+        cfg
+        for cfg in raw
+        if is_quality_candidate(cfg)
+    ]
+
+    print(
+        f"After quality filter: "
         f"{len(raw)}"
     )
 
