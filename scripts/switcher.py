@@ -20,7 +20,6 @@ import requests
 # Keep the existing output tree because the Telegram bot depends on these paths.
 os.makedirs("sub/general", exist_ok=True)
 os.makedirs("sub/protocols", exist_ok=True)
-os.makedirs("sub/repository", exist_ok=True)
 
 
 # ============================================================
@@ -31,22 +30,11 @@ SOURCES = [
     "https://raw.githubusercontent.com/R3ZARAHIMI/tg-v2ray-configs-every2h/main/Config_jo.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
-    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/refs/heads/main/all/vless.txt",
-    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/main/domain/vless.txt",
-    "https://raw.githubusercontent.com/zxcursedzxc0721/vless-subscriptions/main/ru/vless.txt",
-    "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/Surfboardv2ray/Proxy-sorter/refs/heads/main/output/converted.txt",
     "https://raw.githubusercontent.com/jafarm83/ConfigV2Ray/main/jafar.txt",
     "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
-    "https://raw.githubusercontent.com/freefq/free/master/v2",
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix.txt",
-    "https://raw.githubusercontent.com/MrRabbitson/RabbitProxyz-proxy-list/main/sub.txt",
     "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
     "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no2.txt",
     "https://raw.githubusercontent.com/VP01596/vless-top15/main/All.txt",
-    "https://raw.githubusercontent.com/3nerg0n/vless-parser/refs/heads/main/sub_vless_3nerg0n_92sh81",
     "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/sub1.txt",
     "https://raw.githubusercontent.com/Alirewa/V2ray-Configs/main/sub2.txt",
     "https://raw.githubusercontent.com/AvenCores/goida-vpn-configs/main/githubmirror/1.txt",
@@ -55,30 +43,15 @@ SOURCES = [
     "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/base64/all_sub.txt",
     "https://raw.githubusercontent.com/miladtahanian/V2RayCFGDumper/main/sub.txt",
     "https://raw.githubusercontent.com/Kolandone/v2raycollector/main/config.txt",
-    "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/mehrdadmb2/V2ray_Sub/main/Mix.txt",
     "https://raw.githubusercontent.com/mosapase/v2ray-sub/main/sub.txt",
     "https://raw.githubusercontent.com/rasool083/v2ray-sub/main/sub.txt",
     "https://raw.githubusercontent.com/amirkma/proxykma/main/mix.txt",
-    "https://raw.githubusercontent.com/Areral/ScarletDevil/main/sub_all.txt",
     "https://raw.githubusercontent.com/Arianlavi/RebeldevConfig/main/RebelLink/all_subscriptions.txt",
-    "https://raw.githubusercontent.com/coloramamoe/vless-parser/main/githubmirror/whitelist-vless.txt",
     "https://raw.githubusercontent.com/kasesm/Free-Config/main/all_sub.txt",
     "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
-    "https://raw.githubusercontent.com/vxiaov/free_proxies/main/links.txt",
-    "https://raw.githubusercontent.com/vpei/free-node-1/main/o/allnode.txt",
-    "https://raw.githubusercontent.com/whoahaow/rjsxrd/main/githubmirror/bypass-unsecure/bypass-unsecure-all.txt",
     "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/V2RAY_RAW.txt",
-    "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vless",
-    "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/vmess",
-    "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/trojan",
-    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
-    "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list_raw.txt",
     "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/mix",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub1.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub2.txt",
 ]
 
 
@@ -108,9 +81,8 @@ PROTOCOL_CAP = 200
 # The bot can expose only these five files.
 BOT_SUB_COUNT = 5
 
-# The collector creates ten subscription files in total.
-# sub1..sub5 go to the bot; sub6..sub10 stay in the repository.
-TOTAL_SUB_COUNT = 10
+# The bot and repository use the same five subscription files.
+TOTAL_SUB_COUNT = 5
 SUB_CONFIG_CAP = 1000
 
 
@@ -854,29 +826,22 @@ def write_general_outputs(all_formatted):
         chunk = all_formatted[start:end]
         sub_number = i + 1
 
-        if sub_number <= BOT_SUB_COUNT:
-            path = f"sub/general/sub{sub_number}.txt"
-        else:
-            path = f"sub/repository/sub{sub_number}.txt"
+        write_lines(
+            f"sub/general/sub{sub_number}.txt",
+            chunk
+        )
 
-        write_lines(path, chunk)
-
-    # These old paths must not remain, otherwise an old sixth-to-tenth
-    # subscription can accidentally be exposed by a future bot menu change.
-    for sub_number in range(
-        BOT_SUB_COUNT + 1,
-        TOTAL_SUB_COUNT + 1
-    ):
-        old_path = f"sub/general/sub{sub_number}.txt"
-
-        if os.path.exists(old_path):
-            os.remove(old_path)
+    # Clean the old sixth-to-tenth files from earlier versions.
+    for sub_number in range(6, 11):
+        for path in (
+            f"sub/general/sub{sub_number}.txt",
+            f"sub/repository/sub{sub_number}.txt",
+        ):
+            if os.path.exists(path):
+                os.remove(path)
 
     print(
-        f"Bot subs: {BOT_SUB_COUNT} x up to "
-        f"{SUB_CONFIG_CAP} configs | "
-        f"Repository-only subs: "
-        f"{TOTAL_SUB_COUNT - BOT_SUB_COUNT} x up to "
+        f"General subs: {TOTAL_SUB_COUNT} x up to "
         f"{SUB_CONFIG_CAP} configs"
     )
 
