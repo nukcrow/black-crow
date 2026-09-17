@@ -14,7 +14,7 @@ import requests
 os.makedirs("sub/general", exist_ok=True)
 
 # ============================================================
-# SOURCES (Iran / Russia focused + verified general)
+# SOURCES (Iran / + verified general)
 # ============================================================
 
 SOURCES_IRAN = [
@@ -62,7 +62,7 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/refs/heads/main/all_extracted_configs.txt",
 ]
 
-SOURCES = SOURCES_IRAN + SOURCES_RUSSIA + SOURCES_GENERAL
+SOURCES = SOURCES_IRAN + SOURCES_GENERAL
 
 REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
