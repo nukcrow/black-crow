@@ -53,7 +53,7 @@ REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
 SUB_LIMIT = 1000
-MAX_SUBS = 10         # محدودسازی تعداد ساب‌ها به ۱۰ عدد
+MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۱۰ عدد
 MAX_TEST = 30000
 WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
 FETCH_TIMEOUT = 10
