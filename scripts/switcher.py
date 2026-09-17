@@ -14,10 +14,9 @@ import requests
 os.makedirs("sub/general", exist_ok=True)
 
 # ============================================================
-# SOURCES (all verified live at write-time)
+# SOURCES (Iran / Russia focused + verified general)
 # ============================================================
 
-# --- Iran-focused (actively maintained, updated frequently) ---
 SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
@@ -40,21 +39,6 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/refs/heads/main/configs/Hysteria2.txt",
 ]
 
-# --- Russia-focused (actively maintained, health-checked against RU) ---
-SOURCES_RUSSIA = [
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_VLESS_RUS_mobile.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile-2.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/1.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/5.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/10.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/15.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/20.txt",
-    "https://github.com/AvenCores/goida-vpn-configs/raw/refs/heads/main/githubmirror/26.txt",
-]
-
-# --- General high-volume (verified) ---
 SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/mheidari98/.proxy/main/all",
     "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
@@ -84,16 +68,19 @@ REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
 SUB_LIMIT = 1000
-MAX_SUBS = 15          # increased to fit the larger, higher-quality pool
+MAX_SUBS = 10          # ثابت: همیشه حداکثر ۱۰ فایل ساب
 MAX_TEST = 40000
 WORKERS = 150
 FETCH_TIMEOUT = 10
-CONNECT_TIMEOUT = 2
+CONNECT_TIMEOUT = 1.8  # سخت‌گیرانه‌تر برای پینگ بهتر
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
-
-# Hostnames/IPs that are obviously junk and should never be tested/kept
 BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0")
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 nukcrow-collector"
+}
 
 
 def decode64(x):
@@ -117,7 +104,7 @@ def extract(text):
 def fetch(url):
     out = []
     try:
-        r = requests.get(url, timeout=FETCH_TIMEOUT, headers={"User-Agent": "Mozilla/5.0 nukcrow"})
+        r = requests.get(url, timeout=FETCH_TIMEOUT, headers=HEADERS)
         if r.status_code != 200:
             return out
         data = extract(r.text)
@@ -219,21 +206,21 @@ def score_config(c, lat):
     port = host_port(c)[1]
 
     if port == 443:
-        score += 80
+        score += 90
     if security == "reality":
-        score += 200
+        score += 250
     if security == "tls":
-        score += 120
+        score += 130
     if typ in PREFERRED_TYPES:
-        score += 100
+        score += 110
     if p == "hysteria2":
-        score += 80
+        score += 100
     if p == "trojan":
-        score += 60
+        score += 70
     if p == "vmess":
         score += 20
     if security == "none":
-        score -= 80
+        score -= 100
 
     return score
 
@@ -280,23 +267,22 @@ def write(path, data):
 
 
 def main():
-    print("fetch")
+    print("Fetching raw configurations...")
     configs = fetch_all()
-    print("raw", len(configs))
+    print("Raw total:", len(configs))
 
     configs = dedupe(configs)
-    print("unique (junk hosts removed)", len(configs))
+    print("Unique (junk removed):", len(configs))
 
     ranked = benchmark(configs)
-    print("alive", len(ranked))
+    print("Alive & tested:", len(ranked))
 
     final = [rename(x["config"]) for x in ranked]
     final = [x for x in final if x]
 
-    # all_configs.txt — همه‌ی کانفیگ‌های زنده و رتبه‌بندی‌شده، یکجا
     write("sub/general/all_configs.txt", final)
 
-    # sub1..subN داینامیک (حداکثر MAX_SUBS تا، هیچ فایل خالی نمی‌مونه)
+    # همیشه دقیقاً حداکثر ۱۰ فایل ساب (sub1..sub10)
     total = len(final)
     num_subs = min(MAX_SUBS, max(1, (total + SUB_LIMIT - 1) // SUB_LIMIT))
     for i in range(num_subs):
@@ -309,7 +295,7 @@ def main():
         if os.path.exists(path):
             os.remove(path)
 
-    print("done", len(final), "subs:", num_subs)
+    print("Done! Total saved:", len(final), "Active sub files:", num_subs)
 
 
 if __name__ == "__main__":
