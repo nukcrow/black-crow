@@ -14,29 +14,23 @@ import requests
 os.makedirs("sub/general", exist_ok=True)
 
 # ============================================================
-# SOURCES (Iran / + verified general)
+# SOURCES (Optimized & Cleaned)
 # ============================================================
 
 SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/ss_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
     "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_2.txt",
     "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_3.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_4.txt",
     "https://raw.githubusercontent.com/lagzian/IranConfigCollector/main/Base64.txt",
     "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/ir/all.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
-    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vmess.txt",
-    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/ss.txt",
     "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
-    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vmess.txt",
-    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/ss.txt",
     "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/refs/heads/main/configs/Hysteria2.txt",
+
 ]
 
 SOURCES_GENERAL = [
@@ -44,22 +38,13 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
     "https://raw.githubusercontent.com/wuqb2i4f/xray-config-toolkit/main/output/base64/mix-uri",
     "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config/vless.txt",
-    "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config/vmess.txt",
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/Eternity.txt",
     "https://raw.githubusercontent.com/Rayan-Config/C-Sub/main/configs/proxy.txt",
     "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
-    "https://raw.githubusercontent.com/DukeMehdi/FreeList-V2ray-Configs/main/Configs/All-DukeMehdi-Configs.txt",
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/all/configs.txt",
     "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
-    "https://raw.githubusercontent.com/nyeinkokoaung404/V2ray-Configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
-    "https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/V2RAY_RAW.txt",
-    "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list_raw.txt",
-    "https://raw.githubusercontent.com/ebrasha/free-v2ray-public-list/refs/heads/main/all_extracted_configs.txt",
 ]
 
 SOURCES = SOURCES_IRAN + SOURCES_GENERAL
@@ -68,19 +53,14 @@ REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
 SUB_LIMIT = 1000
-MAX_SUBS = 10          # ثابت: همیشه حداکثر ۱۰ فایل ساب
-MAX_TEST = 40000
-WORKERS = 150
+MAX_SUBS = 10         # محدودسازی تعداد ساب‌ها به ۱۰ عدد
+MAX_TEST = 30000
+WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
 FETCH_TIMEOUT = 10
-CONNECT_TIMEOUT = 1.8  # سخت‌گیرانه‌تر برای پینگ بهتر
+CONNECT_TIMEOUT = 1.8 # سخت‌گیرانه‌تر برای پینگ‌های بهتر
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
-BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0")
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 nukcrow-collector"
-}
+BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0", "127.0.0.1")
 
 
 def decode64(x):
@@ -104,14 +84,22 @@ def extract(text):
 def fetch(url):
     out = []
     try:
-        r = requests.get(url, timeout=FETCH_TIMEOUT, headers=HEADERS)
+        # هدر استاندارد برای جلوگیری از بلاک شدن توسط Cloudflare یا گیت‌هاب
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 nukcrow-collector"
+        }
+        r = requests.get(url, timeout=FETCH_TIMEOUT, headers=headers)
         if r.status_code != 200:
             return out
+        
         data = extract(r.text)
         for line in data.splitlines():
             line = line.strip()
             if line.startswith(("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://")):
                 out.append(line)
+        
+        # تاخیر تصادفی بسیار کوتاه برای رعایت ریت‌کال گیت‌هاب و جلوگیری از بن IP
+        time.sleep(random.uniform(0.1, 0.4))
     except Exception:
         pass
     return out
@@ -119,7 +107,8 @@ def fetch(url):
 
 def fetch_all():
     result = []
-    with ThreadPoolExecutor(max_workers=40) as ex:
+    # محدود کردن تردهای دانلود برای امنیت بیشتر در برابر Rate Limit گیت‌هاب
+    with ThreadPoolExecutor(max_workers=10) as ex:
         for r in ex.map(fetch, SOURCES):
             result.extend(r)
     return result
@@ -160,7 +149,7 @@ def is_junk_host(host):
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified:
             return True
     except ValueError:
-        pass  # not a raw IP, it's a hostname — fine
+        pass
     return False
 
 
@@ -208,19 +197,19 @@ def score_config(c, lat):
     if port == 443:
         score += 90
     if security == "reality":
-        score += 250
+        score += 250  # افزایش امتیاز ریالیتی برای کیفیت بالاتر
     if security == "tls":
         score += 130
     if typ in PREFERRED_TYPES:
         score += 110
     if p == "hysteria2":
-        score += 100
+        score += 100  # ارزش بالا برای هایستاریا ۲
     if p == "trojan":
         score += 70
     if p == "vmess":
         score += 20
     if security == "none":
-        score -= 100
+        score -= 100  # جریمه سنگین‌تر برای کانفیگ‌های بدون امنیت
 
     return score
 
@@ -280,9 +269,10 @@ def main():
     final = [rename(x["config"]) for x in ranked]
     final = [x for x in final if x]
 
+    # ذخیره فایل اصلی کل کانفیگ‌ها
     write("sub/general/all_configs.txt", final)
 
-    # همیشه دقیقاً حداکثر ۱۰ فایل ساب (sub1..sub10)
+    # ایجاد دقیقاً ۱۰ فایل ساب‌لیست (sub1 تا sub10)
     total = len(final)
     num_subs = min(MAX_SUBS, max(1, (total + SUB_LIMIT - 1) // SUB_LIMIT))
     for i in range(num_subs):
@@ -290,12 +280,13 @@ def main():
         if part:
             write(f"sub/general/sub{i+1}.txt", part)
 
+    # پاکسازی فایل‌های اضافی اگر تعداد کمتر از ۱۰ شد
     for i in range(num_subs + 1, MAX_SUBS + 1):
         path = f"sub/general/sub{i}.txt"
         if os.path.exists(path):
             os.remove(path)
 
-    print("Done! Total saved:", len(final), "Active sub files:", num_subs)
+    print("Done! Total saved:", len(final), "Active Sub files:", num_subs)
 
 
 if __name__ == "__main__":
