@@ -14,45 +14,35 @@ import requests
 os.makedirs("sub/general", exist_ok=True)
 
 # ============================================================
-# SOURCES (Optimized & Cleaned)
+# SOURCES — لیست یکپارچه (بدون تفکیک ایران/جنرال)
+# فقط منابعی که مستقیم تست شدن و واقعاً محتوا برمی‌گردونن نگه داشته شدن
 # ============================================================
 
-SOURCES_IRAN = [
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_2.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/refs/heads/main/mci/sub_3.txt",
-    "https://raw.githubusercontent.com/lagzian/IranConfigCollector/main/Base64.txt",
-    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/ir/all.txt",
-    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
-    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
-    
-SOURCES_GENERAL = [
-    "https://raw.githubusercontent.com/mheidari98/.proxy/main/all",
-    "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
-    "https://raw.githubusercontent.com/wuqb2i4f/xray-config-toolkit/main/output/base64/mix-uri",
-    "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config/vless.txt",
-    "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/Eternity.txt",
-    "https://raw.githubusercontent.com/Rayan-Config/C-Sub/main/configs/proxy.txt",
-    "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
+SOURCES = [
+    # پرکاربردترین و پایدارترین منابع عمومی
     "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
-    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
-    "https://raw.githubusercontent.com/awesome-vpn/awesome-vpn/master/all",
-    "https://raw.githubusercontent.com/yebekhe/V2Hub/main/merged_base64",
     "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/refs/heads/main/config/all_configs.txt",
     "https://raw.githubusercontent.com/sakha1370/OpenRay/refs/heads/main/output/all_valid_proxies.txt",
-]
+    "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
+    "https://raw.githubusercontent.com/awesome-vpn/awesome-vpn/master/all",
 
-SOURCES = SOURCES_IRAN + SOURCES_GENERAL
+    # منابع تست‌شده با پروکسی واقعی (کیفیت بالا)
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/top100.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
+
+    # منابع معروف ایرانی
+    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
+    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/ir/all.txt",
+    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
+]
 
 REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
 SUB_LIMIT = 2000
-MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۱۰ عدد
+MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۵ عدد
 MAX_TEST = 30000
 WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
 FETCH_TIMEOUT = 10
@@ -271,7 +261,7 @@ def main():
     # ذخیره فایل اصلی کل کانفیگ‌ها
     write("sub/general/all_configs.txt", final)
 
-    # ایجاد دقیقاً ۱۰ فایل ساب‌لیست (sub1 تا sub10)
+    # ایجاد ساب‌لیست‌ها (sub1 تا sub5)
     total = len(final)
     num_subs = min(MAX_SUBS, max(1, (total + SUB_LIMIT - 1) // SUB_LIMIT))
     for i in range(num_subs):
@@ -279,7 +269,7 @@ def main():
         if part:
             write(f"sub/general/sub{i+1}.txt", part)
 
-    # پاکسازی فایل‌های اضافی اگر تعداد کمتر از ۱۰ شد
+    # پاکسازی فایل‌های اضافی اگر تعداد کمتر شد
     for i in range(num_subs + 1, MAX_SUBS + 1):
         path = f"sub/general/sub{i}.txt"
         if os.path.exists(path):
