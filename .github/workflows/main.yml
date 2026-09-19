@@ -2,7 +2,7 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -15,7 +15,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
