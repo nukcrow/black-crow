@@ -30,7 +30,12 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
     "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
     "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/refs/heads/main/configs/Hysteria2.txt",
-
+    # --- جدید: بقیه‌ی خروجی همون ریپو hamedcode (پروتکل‌های دیگه) ---
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vmess.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/trojan.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/ss.txt",
+    # --- جدید: کانفیگ‌های همون ریپو که واقعاً از پروکسی هم تست شدن (کیفیت بالاتر) ---
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/top100.txt",
 ]
 
 SOURCES_GENERAL = [
@@ -45,6 +50,11 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
+    # --- جدید: منابع قوی و پرکاربرد اضافه‌شده ---
+    "https://raw.githubusercontent.com/awesome-vpn/awesome-vpn/master/all",
+    "https://raw.githubusercontent.com/yebekhe/V2Hub/main/merged_base64",
+    "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/refs/heads/main/config/all_configs.txt",
+    "https://raw.githubusercontent.com/sakha1370/OpenRay/refs/heads/main/output/all_valid_proxies.txt",
 ]
 
 SOURCES = SOURCES_IRAN + SOURCES_GENERAL
@@ -91,13 +101,13 @@ def fetch(url):
         r = requests.get(url, timeout=FETCH_TIMEOUT, headers=headers)
         if r.status_code != 200:
             return out
-        
+
         data = extract(r.text)
         for line in data.splitlines():
             line = line.strip()
             if line.startswith(("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "hy2://")):
                 out.append(line)
-        
+
         # تاخیر تصادفی بسیار کوتاه برای رعایت ریت‌کال گیت‌هاب و جلوگیری از بن IP
         time.sleep(random.uniform(0.1, 0.4))
     except Exception:
