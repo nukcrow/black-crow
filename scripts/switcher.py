@@ -30,11 +30,9 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vless.txt",
     "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/filtered/subs/vless.txt",
     "https://raw.githubusercontent.com/Argh94/V2RayAutoConfig/refs/heads/main/configs/Hysteria2.txt",
-    # --- جدید: بقیه‌ی خروجی همون ریپو hamedcode (پروتکل‌های دیگه) ---
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/vmess.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/trojan.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/ss.txt",
-    # --- جدید: کانفیگ‌های همون ریپو که واقعاً از پروکسی هم تست شدن (کیفیت بالاتر) ---
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/top100.txt",
 ]
 
@@ -50,7 +48,6 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
     "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/all_servers.txt",
-    # --- جدید: منابع قوی و پرکاربرد اضافه‌شده ---
     "https://raw.githubusercontent.com/awesome-vpn/awesome-vpn/master/all",
     "https://raw.githubusercontent.com/yebekhe/V2Hub/main/merged_base64",
     "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/refs/heads/main/config/all_configs.txt",
@@ -62,7 +59,7 @@ SOURCES = SOURCES_IRAN + SOURCES_GENERAL
 REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
-SUB_LIMIT = 1000
+SUB_LIMIT = 2000
 MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۱۰ عدد
 MAX_TEST = 30000
 WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
