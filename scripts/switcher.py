@@ -13,11 +13,6 @@ import requests
 
 os.makedirs("sub/general", exist_ok=True)
 
-# ============================================================
-# SOURCES — لیست یکپارچه (بدون تفکیک ایران/جنرال)
-# فقط منابعی که مستقیم تست شدن و واقعاً محتوا برمی‌گردونن نگه داشته شدن
-# ============================================================
-
 SOURCES = [
     # پرکاربردترین و پایدارترین منابع عمومی
     "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
@@ -39,14 +34,14 @@ SOURCES = [
 ]
 
 REMARK = "nukcrow"
-PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
+PROTO_LIST = ["vless", "vmess", "trojan", "ss"]
 
 SUB_LIMIT = 1000
 MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۵ عدد
-MAX_TEST = 2000
+MAX_TEST = 35000
 WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
 FETCH_TIMEOUT = 10
-CONNECT_TIMEOUT = 1.5 # سخت‌گیرانه‌تر برای پینگ‌های بهتر
+CONNECT_TIMEOUT = 1.8 # سخت‌گیرانه‌تر برای پینگ‌های بهتر
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0", "127.0.0.1")
