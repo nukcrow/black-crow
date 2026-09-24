@@ -41,12 +41,12 @@ SOURCES = [
 REMARK = "nukcrow"
 PROTO_LIST = ["vless", "vmess", "trojan", "ss", "hysteria2"]
 
-SUB_LIMIT = 2000
+SUB_LIMIT = 1000
 MAX_SUBS = 5         # محدودسازی تعداد ساب‌ها به ۵ عدد
-MAX_TEST = 30000
+MAX_TEST = 2000
 WORKERS = 100         # کاهش تدریجی و امن‌تر workerها برای جلوگیری از فشار روی گیت‌هاب
 FETCH_TIMEOUT = 10
-CONNECT_TIMEOUT = 1.8 # سخت‌گیرانه‌تر برای پینگ‌های بهتر
+CONNECT_TIMEOUT = 1.5 # سخت‌گیرانه‌تر برای پینگ‌های بهتر
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade"}
 BAD_HOST_HINTS = ("example.com", "localhost", "test", "invalid", "0.0.0.0", "127.0.0.1")
