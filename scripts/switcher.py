@@ -35,11 +35,11 @@ PROTO_LIST = ("vless", "vmess", "trojan", "ss", "hysteria2")
 GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
 
-# Protocol outputs: 100 each.
-PROTOCOL_SUB_SIZE = 100
+# Protocol outputs: 200 each.
+PROTOCOL_SUB_SIZE = 200
 
-# Iran/operator outputs: 100 each.
-IRAN_SUB_SIZE = 100
+# Iran/operator outputs: 200 each.
+IRAN_SUB_SIZE = 200
 
 # Fetching GitHub/public sources. Keep this conservative; benchmark does not hit GitHub.
 FETCH_WORKERS = 8
@@ -51,7 +51,7 @@ FETCH_JITTER = (0.05, 0.25)
 # blindly opening hundreds of thousands of sockets. Increase only if the runner permits it.
 MAX_TEST = 80000
 TCP_WORKERS = 160
-CONNECT_TIMEOUT = 1.6
+CONNECT_TIMEOUT = 1.5
 
 # Second-stage benchmark: only the best candidates from each host/protocol bucket are
 # tested again for a tighter ranking. This is deliberately capped.
@@ -135,7 +135,7 @@ SOURCES_MCI = [
 ]
 SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/Bllare/V2ray-Configs/main/Irancell",
-    "https://raw.githubusercontent.com/mehrdadmb2/V2ray_Sub/main/Irancell.txt",
+    "https://github.com/miraali1372/mirsub/blob/main/subscription.txt",
 ]
 SOURCES_RIGHTEL = []
 
