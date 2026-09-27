@@ -49,8 +49,6 @@ RANDOM_200_SOURCES = [
 ]
 
 # =========================================================
-RANDOM_200_SOURCES = []
-
 RANDOM_200_LIMIT = 200
 
 
@@ -97,24 +95,12 @@ PREFERRED_TYPES = {
 # =========================================================
 
 SOURCES_GENERAL = [
-    "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/main/config.txt",
-    "https://raw.githubusercontent.com/sakha1370/OpenRay/main/Config/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/awesome-vpn/awesome-vpn/master/all",
-    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
-    "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/sub.txt",
-    "https://raw.githubusercontent.com/yebekhe/vpn-fail/main/sub/normal",
-    "https://raw.githubusercontent.com/Surfboardv2ray/TGParse/main/splitted/v2ray",
-    "https://raw.githubusercontent.com/itsyebekhe/PSG/main/subscriptions/xray",
-    "https://raw.githubusercontent.com/arshiacomplus/v2rayExtractor/main/configs.txt",
-    "https://raw.githubusercontent.com/Rayan-Config/C-Sub/main/sub/vless",
+    "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/sub/sub_merge.txt",
-    "https://raw.githubusercontent.com/MahsaNetConfigTopic/ConfigTopic/main/config",
-    "https://raw.githubusercontent.com/Joker-funland/V2ray-configs/main/All_Configs_Sub.txt",
-    "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config.txt",
-    "https://raw.githubusercontent.com/MahsaFreeConfig/MahsaFreeConfig/main/Config.txt",
+    "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
 ]
 
 
@@ -124,34 +110,21 @@ SOURCES_GENERAL = [
 
 SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/ss_iran.txt",
-
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
-
-    "https://raw.githubusercontent.com/ShatakVPN/ConfigForge-V2Ray/main/configs/iran.txt",
-    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/iran.txt",
-
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mci.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mtn.txt",
-
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/ss_iran.txt",
+    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
-
 
 # =========================================================
 # MCI
 # =========================================================
 
-SOURCES_MCI = [
-    "https://raw.githubusercontent.com/Bllare/V2ray-Configs/main/MCI.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mci.txt",
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mixt",
-]
+SOURCES_MCI = []
 
 
 # =========================================================
