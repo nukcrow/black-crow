@@ -154,15 +154,17 @@ def session():
     if not hasattr(_thread_local, "session"):
         s = requests.Session()
 
-        s.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/140.0 Safari/537.36"
-            )
-        })
+        s.headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) "
+                    "Chrome/140.0 Safari/537.36"
+                )
+            }
+        )
 
         _thread_local.session = s
 
@@ -190,10 +192,10 @@ def decode64(value):
 
         return base64.b64decode(
             value,
-            validate=False
+            validate=False,
         ).decode(
             "utf-8",
-            errors="ignore"
+            errors="ignore",
         )
 
     except Exception:
@@ -205,15 +207,8 @@ def decode64(value):
 # =========================================================
 
 URI_PATTERN = re.compile(
-    r"(?:"
-    r"vless|"
-    r"vmess|"
-    r"trojan|"
-    r"ss|"
-    r"hysteria2|"
-    r"hy2"
-    r")://[^\s<>[\]{}\"'`]+",
-    re.I
+    r"""(?:vless|vmess|trojan|ss|hysteria2|hy2)://[^\s<>\[\]{}"'`]+""",
+    re.IGNORECASE,
 )
 
 
@@ -229,13 +224,13 @@ def normalize_config(config):
 
     config = unquote(config)
 
-    # Remove source remark
+    # Remove source remark / fragment.
     config = config.split("#", 1)[0].strip()
 
-    # Remove spaces
+    # Remove spaces.
     config = config.replace(" ", "")
 
-    # Remove trailing punctuation
+    # Remove trailing punctuation.
     config = config.rstrip(".,;)]}>")
 
     return config
@@ -312,7 +307,7 @@ def fetch_source(url):
             response = session().get(
                 url,
                 timeout=FETCH_TIMEOUT,
-                allow_redirects=True
+                allow_redirects=True,
             )
 
             if response.ok and response.text:
@@ -352,7 +347,7 @@ def fetch_group(name, sources):
         futures = {
             executor.submit(
                 fetch_source,
-                url
+                url,
             ): url
             for url in sources
         }
@@ -388,27 +383,27 @@ def fetch_all():
     return {
         "general": fetch_group(
             "GENERAL",
-            SOURCES_GENERAL
+            SOURCES_GENERAL,
         ),
 
         "iran": fetch_group(
             "IRAN",
-            SOURCES_IRAN
+            SOURCES_IRAN,
         ),
 
         "mci": fetch_group(
             "MCI",
-            SOURCES_MCI
+            SOURCES_MCI,
         ),
 
         "irancell": fetch_group(
             "IRANCELL",
-            SOURCES_IRANCELL
+            SOURCES_IRANCELL,
         ),
 
         "rightel": fetch_group(
             "RIGHTEL",
-            SOURCES_RIGHTEL
+            SOURCES_RIGHTEL,
         ),
     }
 
@@ -449,7 +444,7 @@ def query(config):
     try:
         return parse_qs(
             p.query,
-            keep_blank_values=True
+            keep_blank_values=True,
         )
     except Exception:
         return {}
@@ -478,7 +473,7 @@ def vmess_data(config):
     try:
         payload = config.split(
             "://",
-            1
+            1,
         )[1]
     except Exception:
         return {}
@@ -523,6 +518,7 @@ def ss_data(config):
                     "username": p.username or "",
                     "password": p.password or "",
                 }
+
         except Exception:
             pass
 
@@ -533,14 +529,14 @@ def ss_data(config):
     try:
         payload = config.split(
             "://",
-            1
+            1,
         )[1]
     except Exception:
         return {}
 
     payload = payload.split(
         "#",
-        1
+        1,
     )[0]
 
     decoded = decode64(payload)
@@ -606,7 +602,7 @@ def endpoint(config):
 
         return (
             str(host).strip().lower(),
-            port
+            port,
         )
 
     # -----------------------------------------------------
@@ -629,7 +625,7 @@ def endpoint(config):
 
         return (
             host,
-            port
+            port,
         )
 
     # -----------------------------------------------------
@@ -650,7 +646,7 @@ def endpoint(config):
 
     return (
         host.lower().strip(),
-        port
+        port,
     )
 
 
@@ -890,44 +886,44 @@ def fingerprint(config):
     security = q1(
         q,
         "security",
-        q1(q, "tls")
+        q1(q, "tls"),
     )
 
     transport = q1(
         q,
         "type",
-        q1(q, "network")
+        q1(q, "network"),
     )
 
     sni = q1(
         q,
         "sni",
-        q1(q, "peer")
+        q1(q, "peer"),
     )
 
     host_header = q1(
         q,
-        "host"
+        "host",
     )
 
     path = q1(
         q,
-        "path"
+        "path",
     )
 
     service_name = q1(
         q,
-        "serviceName"
+        "serviceName",
     )
 
     pbk = q1(
         q,
-        "pbk"
+        "pbk",
     )
 
     sid = q1(
         q,
-        "sid"
+        "sid",
     )
 
     identity = config_identity(config)
@@ -1074,22 +1070,22 @@ def quality_score(config):
         transport = q1(
             q,
             "type",
-            q1(q, "network")
+            q1(q, "network"),
         ).lower()
 
         security = q1(
             q,
-            "security"
+            "security",
         ).lower()
 
         sni = q1(
             q,
-            "sni"
+            "sni",
         )
 
         path = q1(
             q,
-            "path"
+            "path",
         )
 
     # -----------------------------------------------------
@@ -1172,7 +1168,7 @@ def tcp_probe(item):
     try:
         with socket.create_connection(
             (host, port),
-            timeout=timeout
+            timeout=timeout,
         ):
             latency = (
                 time.perf_counter()
@@ -1181,7 +1177,7 @@ def tcp_probe(item):
 
             return (
                 config,
-                latency
+                latency,
             )
 
     except Exception:
@@ -1214,8 +1210,8 @@ def benchmark(configs):
                 tcp_probe,
                 (
                     config,
-                    BENCH_TIMEOUT
-                )
+                    BENCH_TIMEOUT,
+                ),
             )
             for config in candidates
         ]
@@ -1227,13 +1223,15 @@ def benchmark(configs):
                 if result:
                     config, latency = result
 
-                    results.append({
-                        "config": config,
-                        "latency": latency,
-                        "score": quality_score(
-                            config
-                        ),
-                    })
+                    results.append(
+                        {
+                            "config": config,
+                            "latency": latency,
+                            "score": quality_score(
+                                config
+                            ),
+                        }
+                    )
 
             except Exception:
                 pass
@@ -1243,12 +1241,14 @@ def benchmark(configs):
     # -----------------------------------------------------
 
     if len(results) < SECOND_PASS:
+
         remaining = configs[
             MAX_TEST:
             MAX_TEST + SECOND_PASS
         ]
 
         if remaining:
+
             print(
                 f"[BENCH] second pass: "
                 f"{len(remaining)} configs"
@@ -1263,8 +1263,8 @@ def benchmark(configs):
                         tcp_probe,
                         (
                             config,
-                            SECOND_PASS_TIMEOUT
-                        )
+                            SECOND_PASS_TIMEOUT,
+                        ),
                     )
                     for config in remaining
                 ]
@@ -1276,13 +1276,15 @@ def benchmark(configs):
                         if result:
                             config, latency = result
 
-                            results.append({
-                                "config": config,
-                                "latency": latency,
-                                "score": quality_score(
-                                    config
-                                ),
-                            })
+                            results.append(
+                                {
+                                    "config": config,
+                                    "latency": latency,
+                                    "score": quality_score(
+                                        config
+                                    ),
+                                }
+                            )
 
                     except Exception:
                         pass
@@ -1294,6 +1296,7 @@ def benchmark(configs):
     unique = {}
 
     for item in results:
+
         fp = fingerprint(
             item["config"]
         )
@@ -1306,10 +1309,10 @@ def benchmark(configs):
 
         if (
             item["score"],
-            -item["latency"]
+            -item["latency"],
         ) > (
             old["score"],
-            -old["latency"]
+            -old["latency"],
         ):
             unique[fp] = item
 
@@ -1320,7 +1323,7 @@ def benchmark(configs):
     results.sort(
         key=lambda x: (
             -x["score"],
-            x["latency"]
+            x["latency"],
         )
     )
 
@@ -1357,7 +1360,7 @@ def records_from_configs(configs):
 
 def merge_records(
     alive_records,
-    valid_configs
+    valid_configs,
 ):
     output = []
     seen = set()
@@ -1367,6 +1370,7 @@ def merge_records(
     # -----------------------------------------------------
 
     for item in alive_records:
+
         config = item["config"]
 
         fp = fingerprint(config)
@@ -1382,6 +1386,7 @@ def merge_records(
     # -----------------------------------------------------
 
     if ALLOW_VALID_FALLBACK:
+
         fallback_records = records_from_configs(
             valid_configs
         )
@@ -1391,6 +1396,7 @@ def merge_records(
         )
 
         for item in fallback_records:
+
             config = item["config"]
 
             fp = fingerprint(config)
@@ -1411,7 +1417,7 @@ def merge_records(
 def select_records(
     results,
     limit,
-    predicate=None
+    predicate=None,
 ):
     if not results or limit <= 0:
         return []
@@ -1420,13 +1426,13 @@ def select_records(
     seen = set()
 
     # -----------------------------------------------------
-    # PASS 1
-    # Host diversity
+    # PASS 1 - HOST DIVERSITY
     # -----------------------------------------------------
 
     host_count = {}
 
     for item in results:
+
         if len(selected) >= limit:
             break
 
@@ -1444,7 +1450,7 @@ def select_records(
 
         if host_count.get(
             host,
-            0
+            0,
         ) >= MAX_PER_HOST:
             continue
 
@@ -1457,12 +1463,13 @@ def select_records(
         )
 
     # -----------------------------------------------------
-    # PASS 2
-    # Fill remaining quantity
+    # PASS 2 - FILL
     # -----------------------------------------------------
 
     if len(selected) < limit:
+
         for item in results:
+
             if len(selected) >= limit:
                 break
 
@@ -1479,6 +1486,7 @@ def select_records(
             selected.append(item)
             seen.add(fp)
 
+    # HARD LIMIT
     return selected[:limit]
 
 
@@ -1490,17 +1498,17 @@ def select_subscription(
     alive_records,
     valid_configs,
     limit,
-    predicate=None
+    predicate=None,
 ):
     combined = merge_records(
         alive_records,
-        valid_configs
+        valid_configs,
     )
 
     return select_records(
         combined,
         limit,
-        predicate=predicate
+        predicate=predicate,
     )
 
 
@@ -1509,9 +1517,15 @@ def select_subscription(
 # =========================================================
 
 def config_line(config):
+    config = normalize_config(config)
+
+    if not config:
+        return ""
+
+    # Remove any old fragment.
     config = config.split(
         "#",
-        1
+        1,
     )[0].strip()
 
     if not config:
@@ -1531,32 +1545,40 @@ def config_line(config):
 def write_file(
     path,
     records,
-    limit=None
+    limit=None,
 ):
     os.makedirs(
         os.path.dirname(path),
-        exist_ok=True
+        exist_ok=True,
     )
 
-    if limit is not None:
-        records = records[:limit]
-
     lines = []
+    seen = set()
+
+    # -----------------------------------------------------
+    # HARD LIMIT WHILE BUILDING
+    # -----------------------------------------------------
 
     for item in records:
-        config = item.get(
-            "config",
-            ""
-        )
 
-        if not config:
-            continue
+        if isinstance(item, dict):
+            config = item.get(
+                "config",
+                "",
+            )
+        else:
+            config = str(item)
 
         line = config_line(config)
 
         if not line:
             continue
 
+        # Final-line dedupe.
+        if line in seen:
+            continue
+
+        seen.add(line)
         lines.append(line)
 
         if (
@@ -1565,15 +1587,27 @@ def write_file(
         ):
             break
 
-    # Final hard limit
+    # -----------------------------------------------------
+    # ABSOLUTE HARD CAP
+    # -----------------------------------------------------
+
     if limit is not None:
         lines = lines[:limit]
 
+    # -----------------------------------------------------
+    # ATOMIC WRITE
+    # -----------------------------------------------------
+
+    temp_path = (
+        path
+        + ".tmp"
+    )
+
     with open(
-        path,
+        temp_path,
         "w",
         encoding="utf-8",
-        newline="\n"
+        newline="\n",
     ) as f:
 
         if lines:
@@ -1582,10 +1616,25 @@ def write_file(
             )
             f.write("\n")
 
-    print(
-        f"[WRITE] {os.path.basename(path)} "
-        f"-> {len(lines)}"
+    os.replace(
+        temp_path,
+        path,
     )
+
+    actual_count = len(lines)
+
+    print(
+        f"[WRITE] "
+        f"{os.path.basename(path)} "
+        f"-> {actual_count}"
+        + (
+            f"/{limit}"
+            if limit is not None
+            else ""
+        )
+    )
+
+    return actual_count
 
 
 # =========================================================
@@ -1595,18 +1644,19 @@ def write_file(
 def clear_old_subscriptions():
     os.makedirs(
         OUT_DIR,
-        exist_ok=True
+        exist_ok=True,
     )
 
     for filename in os.listdir(
         OUT_DIR
     ):
+
         if not filename.endswith(".txt"):
             continue
 
         path = os.path.join(
             OUT_DIR,
-            filename
+            filename,
         )
 
         try:
@@ -1630,34 +1680,38 @@ def clear_old_subscriptions():
 
 def write_general(
     alive_all,
-    all_unique
+    all_unique,
 ):
     selected = select_subscription(
         alive_all,
         all_unique,
-        GENERAL_TOTAL
+        GENERAL_TOTAL,
     )
 
+    # Absolute cap.
+    selected = selected[:GENERAL_TOTAL]
+
     # -----------------------------------------------------
-    # all_configs.txt
+    # ALL CONFIGS
     # -----------------------------------------------------
 
     write_file(
         os.path.join(
             OUT_DIR,
-            "all_configs.txt"
+            "all_configs.txt",
         ),
         selected,
-        limit=GENERAL_TOTAL
+        limit=GENERAL_TOTAL,
     )
 
     # -----------------------------------------------------
-    # sub1 ... sub10
+    # 10 × 1000
     # -----------------------------------------------------
 
     for i in range(
         GENERAL_SUB_COUNT
     ):
+
         start = (
             i
             * GENERAL_SUB_SIZE
@@ -1675,10 +1729,10 @@ def write_general(
         write_file(
             os.path.join(
                 OUT_DIR,
-                f"sub{i + 1}.txt"
+                f"sub{i + 1}.txt",
             ),
             chunk,
-            limit=GENERAL_SUB_SIZE
+            limit=GENERAL_SUB_SIZE,
         )
 
     print(
@@ -1693,7 +1747,7 @@ def write_general(
 
 def write_protocols(
     alive_all,
-    all_unique
+    all_unique,
 ):
     protocols = (
         "vless",
@@ -1703,7 +1757,9 @@ def write_protocols(
         "hysteria2",
     )
 
-    print("\n[PROTOCOLS]")
+    print(
+        "\n[PROTOCOLS]"
+    )
 
     for ptype in protocols:
 
@@ -1712,21 +1768,34 @@ def write_protocols(
             all_unique,
             PROTOCOL_SUB_SIZE,
             predicate=lambda c, p=ptype:
-                proto(c) == p
+                proto(c) == p,
         )
+
+        # Never mix protocols.
+        selected = [
+            item
+            for item in selected
+            if proto(item["config"]) == ptype
+        ]
+
+        # Absolute cap.
+        selected = selected[
+            :PROTOCOL_SUB_SIZE
+        ]
 
         write_file(
             os.path.join(
                 OUT_DIR,
-                f"{ptype}.txt"
+                f"{ptype}.txt",
             ),
             selected,
-            limit=PROTOCOL_SUB_SIZE
+            limit=PROTOCOL_SUB_SIZE,
         )
 
         print(
             f"  {ptype:<10} "
-            f"{len(selected):>4}/{PROTOCOL_SUB_SIZE}"
+            f"{len(selected):>4}/"
+            f"{PROTOCOL_SUB_SIZE}"
         )
 
 
@@ -1744,9 +1813,8 @@ def write_iran(
     rightel_alive,
     rightel_unique,
     all_alive,
-    all_unique
+    all_unique,
 ):
-
     # -----------------------------------------------------
     # BEST IRAN
     # -----------------------------------------------------
@@ -1754,14 +1822,15 @@ def write_iran(
     best_iran = select_subscription(
         iran_alive,
         iran_unique,
-        IRAN_SUB_SIZE
+        IRAN_SUB_SIZE,
     )
 
-    # fallback global if Iran pool is short
+    # Global fallback only if Iran pool is short.
     if len(best_iran) < IRAN_SUB_SIZE:
+
         global_records = merge_records(
             all_alive,
-            all_unique
+            all_unique,
         )
 
         existing = {
@@ -1770,6 +1839,7 @@ def write_iran(
         }
 
         for item in global_records:
+
             if len(best_iran) >= IRAN_SUB_SIZE:
                 break
 
@@ -1783,13 +1853,17 @@ def write_iran(
             existing.add(fp)
             best_iran.append(item)
 
+    best_iran = best_iran[
+        :IRAN_SUB_SIZE
+    ]
+
     write_file(
         os.path.join(
             OUT_DIR,
-            "best_iran.txt"
+            "best_iran.txt",
         ),
         best_iran,
-        limit=IRAN_SUB_SIZE
+        limit=IRAN_SUB_SIZE,
     )
 
     # -----------------------------------------------------
@@ -1798,12 +1872,12 @@ def write_iran(
 
     mix_combined = merge_records(
         iran_alive,
-        iran_unique
+        iran_unique,
     )
 
     global_fallback = merge_records(
         all_alive,
-        all_unique
+        all_unique,
     )
 
     random.shuffle(
@@ -1821,16 +1895,20 @@ def write_iran(
 
     mix_iran = select_records(
         mix_records,
-        IRAN_SUB_SIZE
+        IRAN_SUB_SIZE,
     )
+
+    mix_iran = mix_iran[
+        :IRAN_SUB_SIZE
+    ]
 
     write_file(
         os.path.join(
             OUT_DIR,
-            "mix_iran.txt"
+            "mix_iran.txt",
         ),
         mix_iran,
-        limit=IRAN_SUB_SIZE
+        limit=IRAN_SUB_SIZE,
     )
 
     # -----------------------------------------------------
@@ -1839,19 +1917,25 @@ def write_iran(
 
     mci = select_subscription(
         mci_alive,
-        mci_unique
-        + iran_unique
-        + all_unique,
-        IRAN_SUB_SIZE
+        (
+            mci_unique
+            + iran_unique
+            + all_unique
+        ),
+        IRAN_SUB_SIZE,
     )
+
+    mci = mci[
+        :IRAN_SUB_SIZE
+    ]
 
     write_file(
         os.path.join(
             OUT_DIR,
-            "mci.txt"
+            "mci.txt",
         ),
         mci,
-        limit=IRAN_SUB_SIZE
+        limit=IRAN_SUB_SIZE,
     )
 
     # -----------------------------------------------------
@@ -1860,19 +1944,25 @@ def write_iran(
 
     irancell = select_subscription(
         irancell_alive,
-        irancell_unique
-        + iran_unique
-        + all_unique,
-        IRAN_SUB_SIZE
+        (
+            irancell_unique
+            + iran_unique
+            + all_unique
+        ),
+        IRAN_SUB_SIZE,
     )
+
+    irancell = irancell[
+        :IRAN_SUB_SIZE
+    ]
 
     write_file(
         os.path.join(
             OUT_DIR,
-            "irancell.txt"
+            "irancell.txt",
         ),
         irancell,
-        limit=IRAN_SUB_SIZE
+        limit=IRAN_SUB_SIZE,
     )
 
     # -----------------------------------------------------
@@ -1881,23 +1971,29 @@ def write_iran(
 
     rightel = select_subscription(
         rightel_alive,
-        rightel_unique
-        + iran_unique
-        + all_unique,
-        IRAN_SUB_SIZE
+        (
+            rightel_unique
+            + iran_unique
+            + all_unique
+        ),
+        IRAN_SUB_SIZE,
     )
+
+    rightel = rightel[
+        :IRAN_SUB_SIZE
+    ]
 
     write_file(
         os.path.join(
             OUT_DIR,
-            "rightel.txt"
+            "rightel.txt",
         ),
         rightel,
-        limit=IRAN_SUB_SIZE
+        limit=IRAN_SUB_SIZE,
     )
 
     print(
-        f"\n[IRAN]"
+        "\n[IRAN]"
     )
 
     print(
@@ -1923,6 +2019,180 @@ def write_iran(
     print(
         f"  rightel   : "
         f"{len(rightel)}/{IRAN_SUB_SIZE}"
+    )
+
+
+# =========================================================
+# VERIFY OUTPUTS
+# =========================================================
+
+def verify_output_file(
+    path,
+    expected_max=None,
+    expected_exact=None,
+):
+    if not os.path.isfile(path):
+        raise RuntimeError(
+            f"Missing output file: {path}"
+        )
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8",
+    ) as f:
+        lines = [
+            line.strip()
+            for line in f
+            if line.strip()
+        ]
+
+    count = len(lines)
+
+    if expected_exact is not None:
+        if count != expected_exact:
+            raise RuntimeError(
+                f"{path}: expected "
+                f"{expected_exact}, got {count}"
+            )
+
+    if expected_max is not None:
+        if count > expected_max:
+            raise RuntimeError(
+                f"{path}: maximum "
+                f"{expected_max}, got {count}"
+            )
+
+    # Check duplicates.
+    if len(lines) != len(set(lines)):
+        raise RuntimeError(
+            f"{path}: duplicate config detected"
+        )
+
+    # Check remark.
+    for line in lines:
+        if not line.endswith(
+            f"#{REMARK}"
+        ):
+            raise RuntimeError(
+                f"{path}: invalid remark"
+            )
+
+    return count
+
+
+def verify_outputs():
+    print(
+        "\n[VERIFY OUTPUTS]"
+    )
+
+    # -----------------------------------------------------
+    # Random must NOT exist.
+    # -----------------------------------------------------
+
+    random_path = os.path.join(
+        OUT_DIR,
+        "random_200.txt",
+    )
+
+    if os.path.exists(random_path):
+        raise RuntimeError(
+            "random_200.txt must not exist"
+        )
+
+    # -----------------------------------------------------
+    # General.
+    # -----------------------------------------------------
+
+    verify_output_file(
+        os.path.join(
+            OUT_DIR,
+            "all_configs.txt",
+        ),
+        expected_exact=GENERAL_TOTAL,
+    )
+
+    for i in range(
+        1,
+        GENERAL_SUB_COUNT + 1,
+    ):
+        verify_output_file(
+            os.path.join(
+                OUT_DIR,
+                f"sub{i}.txt",
+            ),
+            expected_exact=GENERAL_SUB_SIZE,
+        )
+
+    # -----------------------------------------------------
+    # Protocols.
+    # -----------------------------------------------------
+
+    for ptype in (
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+        "hysteria2",
+    ):
+        path = os.path.join(
+            OUT_DIR,
+            f"{ptype}.txt",
+        )
+
+        count = verify_output_file(
+            path,
+            expected_max=PROTOCOL_SUB_SIZE,
+        )
+
+        if count < 1:
+            raise RuntimeError(
+                f"{ptype}.txt is empty"
+            )
+
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            for line in f:
+                config = line.strip()
+
+                if not config:
+                    continue
+
+                clean = config.rsplit(
+                    "#",
+                    1,
+                )[0]
+
+                if proto(clean) != ptype:
+                    raise RuntimeError(
+                        f"{ptype}.txt contains "
+                        f"another protocol"
+                    )
+
+    # -----------------------------------------------------
+    # Iran.
+    # -----------------------------------------------------
+
+    for filename in (
+        "best_iran.txt",
+        "mix_iran.txt",
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
+    ):
+        verify_output_file(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            ),
+            expected_exact=IRAN_SUB_SIZE,
+        )
+
+    print(
+        "[VERIFY] all output files are valid"
     )
 
 
@@ -1958,18 +2228,18 @@ def print_summary():
             files.append(filename)
 
     for filename in sorted(files):
+
         path = os.path.join(
             OUT_DIR,
-            filename
+            filename,
         )
 
         try:
             with open(
                 path,
                 "r",
-                encoding="utf-8"
+                encoding="utf-8",
             ) as f:
-
                 count = sum(
                     1
                     for line in f
@@ -2010,7 +2280,7 @@ def main():
 
     os.makedirs(
         OUT_DIR,
-        exist_ok=True
+        exist_ok=True,
     )
 
     # -----------------------------------------------------
@@ -2130,7 +2400,7 @@ def main():
     )
 
     # -----------------------------------------------------
-    # CLEAR OLD
+    # CLEAR OLD OUTPUTS
     # -----------------------------------------------------
 
     clear_old_subscriptions()
@@ -2141,7 +2411,7 @@ def main():
 
     write_general(
         alive_all,
-        all_unique
+        all_unique,
     )
 
     # -----------------------------------------------------
@@ -2150,7 +2420,7 @@ def main():
 
     write_protocols(
         alive_all,
-        all_unique
+        all_unique,
     )
 
     # -----------------------------------------------------
@@ -2171,8 +2441,14 @@ def main():
         rightel_unique,
 
         alive_all,
-        all_unique
+        all_unique,
     )
+
+    # -----------------------------------------------------
+    # VERIFY
+    # -----------------------------------------------------
+
+    verify_outputs()
 
     # -----------------------------------------------------
     # SUMMARY
