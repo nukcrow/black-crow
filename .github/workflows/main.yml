@@ -4,7 +4,6 @@ on:
   schedule:
     # Every 3 hours
     - cron: "17 */3 * * *"
-
   workflow_dispatch:
 
 # جلوگیری از اجرای همزمان چند Collector
@@ -18,7 +17,6 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     timeout-minutes: 20
 
     steps:
@@ -64,9 +62,7 @@ jobs:
           echo "=========================================="
 
           git fetch origin main
-
           git checkout main
-
           git reset --hard origin/main
 
           echo ""
@@ -119,6 +115,10 @@ jobs:
           echo "Files:"
           find sub/general -maxdepth 1 -type f -name "*.txt" | sort
 
+          # ==================================================
+          # LINE COUNTS
+          # ==================================================
+
           echo ""
           echo "=========================================="
           echo "LINE COUNTS"
@@ -127,9 +127,127 @@ jobs:
           for file in sub/general/*.txt; do
             if [ -f "$file" ]; then
               count=$(grep -cve '^[[:space:]]*$' "$file" || true)
-              printf "%-30s %6s configs\n" "$file" "$count"
+              printf "%-35s %6s configs\n" "$file" "$count"
             fi
           done
+
+          # ==================================================
+          # GENERAL SUBSCRIPTIONS
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "GENERAL SUBSCRIPTIONS CHECK"
+          echo "=========================================="
+
+          EXPECTED_GENERAL=1000
+
+          for i in $(seq 1 10); do
+            file="sub/general/sub${i}.txt"
+
+            if [ ! -f "$file" ]; then
+              echo "ERROR: $file does not exist!"
+              exit 1
+            fi
+
+            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+
+            echo "$file: $count configs"
+
+            if [ "$count" -ne "$EXPECTED_GENERAL" ]; then
+              echo "ERROR: $file must contain exactly 1000 configs!"
+              exit 1
+            fi
+          done
+
+          echo "OK: sub1.txt - sub10.txt are exactly 1000 configs each."
+
+          # ==================================================
+          # ALL CONFIGS
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "ALL CONFIGS CHECK"
+          echo "=========================================="
+
+          all_count=$(grep -cve '^[[:space:]]*$' \
+            sub/general/all_configs.txt || true)
+
+          echo "all_configs.txt: $all_count configs"
+
+          if [ "$all_count" -ne 10000 ]; then
+            echo "ERROR: all_configs.txt must contain exactly 10000 configs!"
+            exit 1
+          fi
+
+          echo "OK: all_configs.txt contains exactly 10000 configs."
+
+          # ==================================================
+          # PROTOCOL SUBSCRIPTIONS
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "PROTOCOL SUBSCRIPTIONS CHECK"
+          echo "=========================================="
+
+          for proto in vless vmess trojan ss hysteria2; do
+            file="sub/general/${proto}.txt"
+
+            if [ ! -f "$file" ]; then
+              echo "ERROR: $file does not exist!"
+              exit 1
+            fi
+
+            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+
+            echo "$file: $count configs"
+
+            if [ "$count" -ne 200 ]; then
+              echo "ERROR: $file must contain exactly 200 configs!"
+              exit 1
+            fi
+          done
+
+          echo "OK: all protocol subscriptions contain exactly 200 configs."
+
+          # ==================================================
+          # IRAN SUBSCRIPTIONS
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "IRAN SUBSCRIPTIONS CHECK"
+          echo "=========================================="
+
+          for file in \
+            sub/general/best_iran.txt \
+            sub/general/mix_iran.txt \
+            sub/general/mci.txt \
+            sub/general/irancell.txt \
+            sub/general/rightel.txt
+          do
+            if [ ! -f "$file" ]; then
+              echo "ERROR: $file does not exist!"
+              exit 1
+            fi
+
+            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+
+            echo "$file: $count configs"
+
+            if [ "$count" -ne 200 ]; then
+              echo "ERROR: $file must contain exactly 200 configs!"
+              exit 1
+            fi
+          done
+
+          echo "OK: all Iran subscriptions contain exactly 200 configs."
+
+          # ==================================================
+          # RANDOM 200
+          # ==================================================
 
           echo ""
           echo "=========================================="
@@ -144,14 +262,29 @@ jobs:
           random_count=$(grep -cve '^[[:space:]]*$' \
             sub/general/random_200.txt || true)
 
-          echo "random_200.txt configs: $random_count"
+          echo "random_200.txt: $random_count configs"
 
-          if [ "$random_count" -ne 0 ]; then
-            echo "ERROR: random_200.txt must remain EMPTY!"
+          if [ "$random_count" -ne 200 ]; then
+            echo "ERROR: random_200.txt must contain exactly 200 configs!"
             exit 1
           fi
 
-          echo "OK: random_200.txt is empty."
+          echo "OK: random_200.txt contains exactly 200 configs."
+
+          # ==================================================
+          # FINAL VALIDATION
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "VALIDATION SUCCESSFUL"
+          echo "=========================================="
+
+          echo "General:     10 × 1000"
+          echo "All configs: 10000"
+          echo "Protocols:   5 × 200"
+          echo "Iran:        5 × 200"
+          echo "Random:      200"
 
       # ==================================================
       # CHECK GIT STATUS
@@ -219,7 +352,6 @@ jobs:
           echo "=========================================="
 
           git fetch origin main
-
           git rebase origin/main
 
       # ==================================================
