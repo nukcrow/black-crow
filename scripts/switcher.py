@@ -19,7 +19,6 @@ import requests
 # =========================================================
 
 OUT_DIR = "sub/general"
-
 REMARK = "nukcrow"
 
 SUPPORTED_PROTOCOLS = {
@@ -31,12 +30,18 @@ SUPPORTED_PROTOCOLS = {
     "hy2",
 }
 
+# General
 GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
+GENERAL_TOTAL = GENERAL_SUB_SIZE * GENERAL_SUB_COUNT
 
-PROTOCOL_SUB_SIZE = 200
+# Protocol
+PROTOCOL_SUB_SIZE = 100
+
+# Iran
 IRAN_SUB_SIZE = 200
 
+# Maximum configs from one host
 MAX_PER_HOST = 8
 
 
@@ -47,7 +52,6 @@ MAX_PER_HOST = 8
 FETCH_WORKERS = 10
 FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
-
 MAX_PER_SOURCE = 20000
 
 
@@ -69,8 +73,6 @@ SECOND_PASS_TIMEOUT = 2.0
 # FALLBACK
 # =========================================================
 
-# اگر کانفیگ Alive کمتر از تعداد موردنیاز باشد،
-# از کانفیگ‌های valid/unique استفاده می‌شود.
 ALLOW_VALID_FALLBACK = True
 
 
@@ -210,7 +212,7 @@ URI_PATTERN = re.compile(
     r"ss|"
     r"hysteria2|"
     r"hy2"
-    r")://[^\s<>\[\]{}\"'`]+",
+    r")://[^\s<>[\]{}\"'`]+",
     re.I
 )
 
@@ -227,13 +229,13 @@ def normalize_config(config):
 
     config = unquote(config)
 
-    # حذف remark منبع
+    # Remove source remark
     config = config.split("#", 1)[0].strip()
 
-    # حذف فاصله
+    # Remove spaces
     config = config.replace(" ", "")
 
-    # حذف punctuation انتهایی
+    # Remove trailing punctuation
     config = config.rstrip(".,;)]}>")
 
     return config
@@ -369,10 +371,10 @@ def fetch_group(name, sources):
                     f"| {url}"
                 )
 
-            except Exception:
+            except Exception as exc:
                 print(
-                    f"  [-] "
-                    f"{url}"
+                    f"  [-] {url} "
+                    f"| {type(exc).__name__}"
                 )
 
     return results
@@ -888,28 +890,19 @@ def fingerprint(config):
     security = q1(
         q,
         "security",
-        q1(
-            q,
-            "tls"
-        )
+        q1(q, "tls")
     )
 
     transport = q1(
         q,
         "type",
-        q1(
-            q,
-            "network"
-        )
+        q1(q, "network")
     )
 
     sni = q1(
         q,
         "sni",
-        q1(
-            q,
-            "peer"
-        )
+        q1(q, "peer")
     )
 
     host_header = q1(
@@ -1049,7 +1042,7 @@ def quality_score(config):
         score += 15
 
     # -----------------------------------------------------
-    # VMESS specific
+    # VMESS
     # -----------------------------------------------------
 
     if ptype == "vmess":
@@ -1081,10 +1074,7 @@ def quality_score(config):
         transport = q1(
             q,
             "type",
-            q1(
-                q,
-                "network"
-            )
+            q1(q, "network")
         ).lower()
 
         security = q1(
@@ -1110,7 +1100,7 @@ def quality_score(config):
         score += 20
 
     # -----------------------------------------------------
-    # TLS
+    # TLS / Reality
     # -----------------------------------------------------
 
     if security in {
@@ -1343,7 +1333,7 @@ def benchmark(configs):
 
 
 # =========================================================
-# RAW CONFIG -> RECORD
+# RECORD
 # =========================================================
 
 def config_record(config):
@@ -1362,7 +1352,7 @@ def records_from_configs(configs):
 
 
 # =========================================================
-# MERGE ALIVE + VALID FALLBACK
+# MERGE
 # =========================================================
 
 def merge_records(
@@ -1431,7 +1421,7 @@ def select_records(
 
     # -----------------------------------------------------
     # PASS 1
-    # Diverse hosts
+    # Host diversity
     # -----------------------------------------------------
 
     host_count = {}
@@ -1468,7 +1458,7 @@ def select_records(
 
     # -----------------------------------------------------
     # PASS 2
-    # Fill quantity
+    # Fill remaining quantity
     # -----------------------------------------------------
 
     if len(selected) < limit:
@@ -1493,7 +1483,7 @@ def select_records(
 
 
 # =========================================================
-# SELECT ALIVE + VALID
+# SELECT SUBSCRIPTION
 # =========================================================
 
 def select_subscription(
@@ -1515,7 +1505,7 @@ def select_subscription(
 
 
 # =========================================================
-# ONLY NUKCROW REMARK
+# REMARK
 # =========================================================
 
 def config_line(config):
@@ -1523,6 +1513,9 @@ def config_line(config):
         "#",
         1
     )[0].strip()
+
+    if not config:
+        return ""
 
     return (
         config
@@ -1548,36 +1541,55 @@ def write_file(
     if limit is not None:
         records = records[:limit]
 
+    lines = []
+
+    for item in records:
+        config = item.get(
+            "config",
+            ""
+        )
+
+        if not config:
+            continue
+
+        line = config_line(config)
+
+        if not line:
+            continue
+
+        lines.append(line)
+
+        if (
+            limit is not None
+            and len(lines) >= limit
+        ):
+            break
+
+    # Final hard limit
+    if limit is not None:
+        lines = lines[:limit]
+
     with open(
         path,
         "w",
-        encoding="utf-8"
+        encoding="utf-8",
+        newline="\n"
     ) as f:
 
-        written = 0
-
-        for item in records:
-            config = item.get(
-                "config",
-                ""
-            )
-
-            if not config:
-                continue
-
+        if lines:
             f.write(
-                config_line(config)
-                + "\n"
+                "\n".join(lines)
             )
+            f.write("\n")
 
-            written += 1
-
-            if limit is not None and written >= limit:
-                break
+    print(
+        f"[WRITE] {os.path.basename(path)} "
+        f"-> {len(lines)}"
+    )
 
 
 # =========================================================
-# CLEAR OLD
+# CLEAR OLD SUBSCRIPTIONS
 # =========================================================
 
 def clear_old_subscriptions():
@@ -1589,9 +1601,7 @@ def clear_old_subscriptions():
     for filename in os.listdir(
         OUT_DIR
     ):
-        if not filename.endswith(
-            ".txt"
-        ):
+        if not filename.endswith(".txt"):
             continue
 
         path = os.path.join(
@@ -1601,8 +1611,17 @@ def clear_old_subscriptions():
 
         try:
             os.remove(path)
-        except Exception:
-            pass
+
+            print(
+                f"[DELETE] {filename}"
+            )
+
+        except Exception as exc:
+            print(
+                f"[DELETE ERROR] "
+                f"{filename}: "
+                f"{type(exc).__name__}"
+            )
 
 
 # =========================================================
@@ -1613,15 +1632,10 @@ def write_general(
     alive_all,
     all_unique
 ):
-    total = (
-        GENERAL_SUB_SIZE
-        * GENERAL_SUB_COUNT
-    )
-
     selected = select_subscription(
         alive_all,
         all_unique,
-        total
+        GENERAL_TOTAL
     )
 
     # -----------------------------------------------------
@@ -1634,7 +1648,7 @@ def write_general(
             "all_configs.txt"
         ),
         selected,
-        limit=total
+        limit=GENERAL_TOTAL
     )
 
     # -----------------------------------------------------
@@ -1654,20 +1668,22 @@ def write_general(
             + GENERAL_SUB_SIZE
         )
 
+        chunk = selected[
+            start:end
+        ]
+
         write_file(
             os.path.join(
                 OUT_DIR,
                 f"sub{i + 1}.txt"
             ),
-            selected[
-                start:end
-            ],
+            chunk,
             limit=GENERAL_SUB_SIZE
         )
 
     print(
         f"\n[GENERAL] "
-        f"{len(selected)}/{total}"
+        f"{len(selected)}/{GENERAL_TOTAL}"
     )
 
 
@@ -1687,7 +1703,10 @@ def write_protocols(
         "hysteria2",
     )
 
+    print("\n[PROTOCOLS]")
+
     for ptype in protocols:
+
         selected = select_subscription(
             alive_all,
             all_unique,
@@ -1706,8 +1725,8 @@ def write_protocols(
         )
 
         print(
-            f"[{ptype.upper():>9}] "
-            f"{len(selected)}/{PROTOCOL_SUB_SIZE}"
+            f"  {ptype:<10} "
+            f"{len(selected):>4}/{PROTOCOL_SUB_SIZE}"
         )
 
 
@@ -1734,9 +1753,35 @@ def write_iran(
 
     best_iran = select_subscription(
         iran_alive,
-        iran_unique + all_unique,
+        iran_unique,
         IRAN_SUB_SIZE
     )
+
+    # fallback global if Iran pool is short
+    if len(best_iran) < IRAN_SUB_SIZE:
+        global_records = merge_records(
+            all_alive,
+            all_unique
+        )
+
+        existing = {
+            fingerprint(item["config"])
+            for item in best_iran
+        }
+
+        for item in global_records:
+            if len(best_iran) >= IRAN_SUB_SIZE:
+                break
+
+            fp = fingerprint(
+                item["config"]
+            )
+
+            if fp in existing:
+                continue
+
+            existing.add(fp)
+            best_iran.append(item)
 
     write_file(
         os.path.join(
@@ -1745,11 +1790,6 @@ def write_iran(
         ),
         best_iran,
         limit=IRAN_SUB_SIZE
-    )
-
-    print(
-        f"[BEST IRAN] "
-        f"{len(best_iran)}/{IRAN_SUB_SIZE}"
     )
 
     # -----------------------------------------------------
@@ -1793,11 +1833,6 @@ def write_iran(
         limit=IRAN_SUB_SIZE
     )
 
-    print(
-        f"[MIX IRAN] "
-        f"{len(mix_iran)}/{IRAN_SUB_SIZE}"
-    )
-
     # -----------------------------------------------------
     # MCI
     # -----------------------------------------------------
@@ -1819,11 +1854,6 @@ def write_iran(
         limit=IRAN_SUB_SIZE
     )
 
-    print(
-        f"[MCI] "
-        f"{len(mci)}/{IRAN_SUB_SIZE}"
-    )
-
     # -----------------------------------------------------
     # IRANCELL
     # -----------------------------------------------------
@@ -1843,11 +1873,6 @@ def write_iran(
         ),
         irancell,
         limit=IRAN_SUB_SIZE
-    )
-
-    print(
-        f"[IRANCELL] "
-        f"{len(irancell)}/{IRAN_SUB_SIZE}"
     )
 
     # -----------------------------------------------------
@@ -1872,7 +1897,31 @@ def write_iran(
     )
 
     print(
-        f"[RIGHTEL] "
+        f"\n[IRAN]"
+    )
+
+    print(
+        f"  best_iran : "
+        f"{len(best_iran)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"  mix_iran  : "
+        f"{len(mix_iran)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"  mci       : "
+        f"{len(mci)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"  irancell  : "
+        f"{len(irancell)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"  rightel   : "
         f"{len(rightel)}/{IRAN_SUB_SIZE}"
     )
 
@@ -1905,9 +1954,7 @@ def print_summary():
     for filename in os.listdir(
         OUT_DIR
     ):
-        if filename.endswith(
-            ".txt"
-        ):
+        if filename.endswith(".txt"):
             files.append(filename)
 
     for filename in sorted(files):
@@ -1922,6 +1969,7 @@ def print_summary():
                 "r",
                 encoding="utf-8"
             ) as f:
+
                 count = sum(
                     1
                     for line in f
@@ -1975,7 +2023,9 @@ def main():
     # DEDUPE SOURCE POOLS
     # -----------------------------------------------------
 
-    print("\n[DEDUPE]")
+    print(
+        "\n[DEDUPE]"
+    )
 
     general_unique = dedupe(
         raw["general"]
@@ -1998,27 +2048,32 @@ def main():
     )
 
     print(
-        f"GENERAL  : {len(general_unique)}"
+        f"GENERAL  : "
+        f"{len(general_unique)}"
     )
 
     print(
-        f"IRAN     : {len(iran_unique)}"
+        f"IRAN     : "
+        f"{len(iran_unique)}"
     )
 
     print(
-        f"MCI      : {len(mci_unique)}"
+        f"MCI      : "
+        f"{len(mci_unique)}"
     )
 
     print(
-        f"IRANCELL : {len(irancell_unique)}"
+        f"IRANCELL : "
+        f"{len(irancell_unique)}"
     )
 
     print(
-        f"RIGHTEL  : {len(rightel_unique)}"
+        f"RIGHTEL  : "
+        f"{len(rightel_unique)}"
     )
 
     # -----------------------------------------------------
-    # GLOBAL
+    # GLOBAL UNIQUE
     # -----------------------------------------------------
 
     all_unique = dedupe(
