@@ -41,19 +41,6 @@ MAX_PER_HOST = 8
 
 
 # =========================================================
-# RANDOM 200
-# =========================================================
-
-RANDOM_200_SOURCES = [
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mixt",
-    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/all",
-]
-
-RANDOM_200_LIMIT = 200
-
-
-# =========================================================
 # FETCH
 # =========================================================
 
@@ -83,8 +70,7 @@ SECOND_PASS_TIMEOUT = 2.0
 # =========================================================
 
 # اگر کانفیگ Alive کمتر از تعداد موردنیاز باشد،
-# از کانفیگ‌های valid/unique استفاده می‌شود تا فایل تا
-# حد ممکن پر شود.
+# از کانفیگ‌های valid/unique استفاده می‌شود.
 ALLOW_VALID_FALLBACK = True
 
 
@@ -422,11 +408,6 @@ def fetch_all():
             "RIGHTEL",
             SOURCES_RIGHTEL
         ),
-
-        "random": fetch_group(
-            "RANDOM 200",
-            RANDOM_200_SOURCES
-        ),
     }
 
 
@@ -493,7 +474,10 @@ def vmess_data(config):
         return {}
 
     try:
-        payload = config.split("://", 1)[1]
+        payload = config.split(
+            "://",
+            1
+        )[1]
     except Exception:
         return {}
 
@@ -545,11 +529,17 @@ def ss_data(config):
     # -----------------------------------------------------
 
     try:
-        payload = config.split("://", 1)[1]
+        payload = config.split(
+            "://",
+            1
+        )[1]
     except Exception:
         return {}
 
-    payload = payload.split("#", 1)[0]
+    payload = payload.split(
+        "#",
+        1
+    )[0]
 
     decoded = decode64(payload)
 
@@ -778,21 +768,6 @@ def valid_config(config):
         if not 1 <= port <= 65535:
             return False
 
-        # SS باید user/password یا encoded payload داشته باشد
-        if not (
-            data.get("username")
-            or data.get("password")
-        ):
-            # بعضی فرمت‌های SS اطلاعات را داخل payload دارند.
-            # اگر endpoint معتبر است، اجازه می‌دهیم.
-            raw_payload = config.split(
-                "://",
-                1
-            )[1] if "://" in config else ""
-
-            if not raw_payload:
-                return False
-
         return True
 
     # -----------------------------------------------------
@@ -864,7 +839,9 @@ def config_identity(config):
                 data.get("id")
                 or data.get("uuid")
                 or ""
-            ).strip().lower()
+            )
+            .strip()
+            .lower()
         )
 
     # SS
@@ -876,7 +853,9 @@ def config_identity(config):
                 data.get("username")
                 or data.get("password")
                 or ""
-            ).strip().lower()
+            )
+            .strip()
+            .lower()
         )
 
     # Normal URL protocols
@@ -1323,7 +1302,7 @@ def benchmark(configs):
     # -----------------------------------------------------
 
     unique = {}
-    
+
     for item in results:
         fp = fingerprint(
             item["config"]
@@ -1344,7 +1323,9 @@ def benchmark(configs):
         ):
             unique[fp] = item
 
-    results = list(unique.values())
+    results = list(
+        unique.values()
+    )
 
     results.sort(
         key=lambda x: (
@@ -1415,7 +1396,6 @@ def merge_records(
             valid_configs
         )
 
-        # کیفیت بهتر اول
         fallback_records.sort(
             key=lambda x: -x["score"]
         )
@@ -1443,7 +1423,7 @@ def select_records(
     limit,
     predicate=None
 ):
-    if not results:
+    if not results or limit <= 0:
         return []
 
     selected = []
@@ -1555,17 +1535,26 @@ def config_line(config):
 # WRITE FILE
 # =========================================================
 
-def write_file(path, records):
+def write_file(
+    path,
+    records,
+    limit=None
+):
     os.makedirs(
         os.path.dirname(path),
         exist_ok=True
     )
+
+    if limit is not None:
+        records = records[:limit]
 
     with open(
         path,
         "w",
         encoding="utf-8"
     ) as f:
+
+        written = 0
 
         for item in records:
             config = item.get(
@@ -1581,6 +1570,11 @@ def write_file(path, records):
                 + "\n"
             )
 
+            written += 1
+
+            if limit is not None and written >= limit:
+                break
+
 
 # =========================================================
 # CLEAR OLD
@@ -1592,8 +1586,12 @@ def clear_old_subscriptions():
         exist_ok=True
     )
 
-    for filename in os.listdir(OUT_DIR):
-        if not filename.endswith(".txt"):
+    for filename in os.listdir(
+        OUT_DIR
+    ):
+        if not filename.endswith(
+            ".txt"
+        ):
             continue
 
         path = os.path.join(
@@ -1626,16 +1624,23 @@ def write_general(
         total
     )
 
+    # -----------------------------------------------------
     # all_configs.txt
+    # -----------------------------------------------------
+
     write_file(
         os.path.join(
             OUT_DIR,
             "all_configs.txt"
         ),
-        selected
+        selected,
+        limit=total
     )
 
+    # -----------------------------------------------------
     # sub1 ... sub10
+    # -----------------------------------------------------
+
     for i in range(
         GENERAL_SUB_COUNT
     ):
@@ -1656,7 +1661,8 @@ def write_general(
             ),
             selected[
                 start:end
-            ]
+            ],
+            limit=GENERAL_SUB_SIZE
         )
 
     print(
@@ -1695,7 +1701,8 @@ def write_protocols(
                 OUT_DIR,
                 f"{ptype}.txt"
             ),
-            selected
+            selected,
+            limit=PROTOCOL_SUB_SIZE
         )
 
         print(
@@ -1727,8 +1734,7 @@ def write_iran(
 
     best_iran = select_subscription(
         iran_alive,
-        iran_unique
-        + all_unique,
+        iran_unique + all_unique,
         IRAN_SUB_SIZE
     )
 
@@ -1737,7 +1743,8 @@ def write_iran(
             OUT_DIR,
             "best_iran.txt"
         ),
-        best_iran
+        best_iran,
+        limit=IRAN_SUB_SIZE
     )
 
     print(
@@ -1759,7 +1766,6 @@ def write_iran(
         all_unique
     )
 
-    # alive/valid Iran first
     random.shuffle(
         mix_combined
     )
@@ -1783,7 +1789,8 @@ def write_iran(
             OUT_DIR,
             "mix_iran.txt"
         ),
-        mix_iran
+        mix_iran,
+        limit=IRAN_SUB_SIZE
     )
 
     print(
@@ -1808,7 +1815,8 @@ def write_iran(
             OUT_DIR,
             "mci.txt"
         ),
-        mci
+        mci,
+        limit=IRAN_SUB_SIZE
     )
 
     print(
@@ -1833,7 +1841,8 @@ def write_iran(
             OUT_DIR,
             "irancell.txt"
         ),
-        irancell
+        irancell,
+        limit=IRAN_SUB_SIZE
     )
 
     print(
@@ -1858,84 +1867,13 @@ def write_iran(
             OUT_DIR,
             "rightel.txt"
         ),
-        rightel
+        rightel,
+        limit=IRAN_SUB_SIZE
     )
 
     print(
         f"[RIGHTEL] "
         f"{len(rightel)}/{IRAN_SUB_SIZE}"
-    )
-
-
-# =========================================================
-# RANDOM 200
-# =========================================================
-
-def write_random_200(
-    random_alive,
-    random_unique,
-    all_alive,
-    all_unique
-):
-    # -----------------------------------------------------
-    # Random source priority
-    # -----------------------------------------------------
-
-    selected = select_subscription(
-        random_alive,
-        random_unique,
-        RANDOM_200_LIMIT
-    )
-
-    # اگر منابع Random کمتر از 200 بود،
-    # از global فقط برای تکمیل استفاده می‌شود.
-    if len(selected) < RANDOM_200_LIMIT:
-        used = {
-            fingerprint(
-                item["config"]
-            )
-            for item in selected
-        }
-
-        global_pool = merge_records(
-            all_alive,
-            all_unique
-        )
-
-        random.shuffle(global_pool)
-
-        for item in global_pool:
-            if len(selected) >= RANDOM_200_LIMIT:
-                break
-
-            fp = fingerprint(
-                item["config"]
-            )
-
-            if fp in used:
-                continue
-
-            selected.append(item)
-            used.add(fp)
-
-    # shuffle نهایی
-    random.shuffle(selected)
-
-    selected = selected[
-        :RANDOM_200_LIMIT
-    ]
-
-    write_file(
-        os.path.join(
-            OUT_DIR,
-            "random_200.txt"
-        ),
-        selected
-    )
-
-    print(
-        f"[RANDOM 200] "
-        f"{len(selected)}/{RANDOM_200_LIMIT}"
     )
 
 
@@ -1957,13 +1895,19 @@ def print_summary():
         "=" * 65
     )
 
-    if not os.path.isdir(OUT_DIR):
+    if not os.path.isdir(
+        OUT_DIR
+    ):
         return
 
     files = []
 
-    for filename in os.listdir(OUT_DIR):
-        if filename.endswith(".txt"):
+    for filename in os.listdir(
+        OUT_DIR
+    ):
+        if filename.endswith(
+            ".txt"
+        ):
             files.append(filename)
 
     for filename in sorted(files):
@@ -2053,10 +1997,6 @@ def main():
         raw["rightel"]
     )
 
-    random_unique = dedupe(
-        raw["random"]
-    )
-
     print(
         f"GENERAL  : {len(general_unique)}"
     )
@@ -2075,10 +2015,6 @@ def main():
 
     print(
         f"RIGHTEL  : {len(rightel_unique)}"
-    )
-
-    print(
-        f"RANDOM   : {len(random_unique)}"
     )
 
     # -----------------------------------------------------
@@ -2139,14 +2075,6 @@ def main():
     )
 
     # -----------------------------------------------------
-    # BENCHMARK RANDOM
-    # -----------------------------------------------------
-
-    alive_random = benchmark(
-        random_unique
-    )
-
-    # -----------------------------------------------------
     # CLEAR OLD
     # -----------------------------------------------------
 
@@ -2187,17 +2115,6 @@ def main():
         alive_rightel,
         rightel_unique,
 
-        alive_all,
-        all_unique
-    )
-
-    # -----------------------------------------------------
-    # RANDOM 200
-    # -----------------------------------------------------
-
-    write_random_200(
-        alive_random,
-        random_unique,
         alive_all,
         all_unique
     )
