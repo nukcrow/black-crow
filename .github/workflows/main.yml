@@ -2,12 +2,15 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    - cron: '17 */3 * * *'
+    # Every 3 hours
+    - cron: "17 */3 * * *"
+
   workflow_dispatch:
 
+# جلوگیری از اجرای همزمان چند Collector
 concurrency:
   group: auto-update-subscriptions
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -15,51 +18,247 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+
+    timeout-minutes: 20
 
     steps:
+
+      # ==================================================
+      # CHECKOUT
+      # ==================================================
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+          persist-credentials: true
+
+      # ==================================================
+      # PYTHON
+      # ==================================================
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          python-version: "3.12"
+          cache: "pip"
+
+      # ==================================================
+      # DEPENDENCIES
+      # ==================================================
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --disable-pip-version-check requests
 
-      - name: Run Subscriptions Switcher
+      # ==================================================
+      # SYNC MAIN
+      # ==================================================
+
+      - name: Sync with main
+        run: |
+          echo "=========================================="
+          echo "Syncing repository with origin/main"
+          echo "=========================================="
+
+          git fetch origin main
+
+          git checkout main
+
+          git reset --hard origin/main
+
+          echo ""
+          echo "Current commit:"
+          git log -1 --oneline
+
+      # ==================================================
+      # RUN COLLECTOR
+      # ==================================================
+
+      - name: Run NukCrow Collector
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONUNBUFFERED: "1"
         run: |
+          echo "=========================================="
+          echo "NUKCROW COLLECTOR"
+          echo "=========================================="
+
+          echo ""
+          echo "UTC time:"
           date -u
+
+          echo ""
+          echo "Python:"
+          python --version
+
+          echo ""
+          echo "Running collector..."
+          echo "=========================================="
+
           python scripts/switcher.py
 
-      - name: Commit and Push Changes
+      # ==================================================
+      # VERIFY OUTPUT
+      # ==================================================
+
+      - name: Verify Subscription Files
         run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          echo "=========================================="
+          echo "SUBSCRIPTION FILES"
+          echo "=========================================="
+
+          if [ ! -d "sub/general" ]; then
+            echo "ERROR: sub/general does not exist!"
+            exit 1
+          fi
+
+          echo ""
+          echo "Files:"
+          find sub/general -maxdepth 1 -type f -name "*.txt" | sort
+
+          echo ""
+          echo "=========================================="
+          echo "LINE COUNTS"
+          echo "=========================================="
+
+          for file in sub/general/*.txt; do
+            if [ -f "$file" ]; then
+              count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+              printf "%-30s %6s configs\n" "$file" "$count"
+            fi
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "RANDOM 200 CHECK"
+          echo "=========================================="
+
+          if [ ! -f "sub/general/random_200.txt" ]; then
+            echo "ERROR: random_200.txt was not created!"
+            exit 1
+          fi
+
+          random_count=$(grep -cve '^[[:space:]]*$' \
+            sub/general/random_200.txt || true)
+
+          echo "random_200.txt configs: $random_count"
+
+          if [ "$random_count" -ne 0 ]; then
+            echo "ERROR: random_200.txt must remain EMPTY!"
+            exit 1
+          fi
+
+          echo "OK: random_200.txt is empty."
+
+      # ==================================================
+      # CHECK GIT STATUS
+      # ==================================================
+
+      - name: Check Changes
+        run: |
+          echo "=========================================="
+          echo "GIT STATUS"
+          echo "=========================================="
+
+          git status --short
+
+          echo ""
+          echo "Changed files:"
+          git diff --name-only
+
+      # ==================================================
+      # COMMIT
+      # ==================================================
+
+      - name: Commit Changes
+        id: commit
+        run: |
+          git config --local user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git config --local user.name \
+            "github-actions[bot]"
 
           git add sub/
 
           if git diff --cached --quiet; then
-            echo "No subscription changes."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+
+            echo ""
+            echo "=========================================="
+            echo "NO CHANGES"
+            echo "=========================================="
+
             exit 0
           fi
 
-          git commit -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          echo ""
+          echo "=========================================="
+          echo "CHANGES DETECTED"
+          echo "=========================================="
+
+          git diff --cached --stat
+
+          git commit \
+            -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # ==================================================
+      # REBASE
+      # ==================================================
+
+      - name: Rebase Latest Main
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          echo "=========================================="
+          echo "REBASING WITH LATEST MAIN"
+          echo "=========================================="
 
           git fetch origin main
-          git rebase origin/main || {
-            git rebase --abort
-            git pull --rebase origin main
-          }
+
+          git rebase origin/main
+
+      # ==================================================
+      # PUSH
+      # ==================================================
+
+      - name: Push Changes
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          echo "=========================================="
+          echo "PUSHING TO MAIN"
+          echo "=========================================="
 
           git push origin HEAD:main
+
+          echo ""
+          echo "=========================================="
+          echo "PUSH SUCCESSFUL"
+          echo "=========================================="
+
+      # ==================================================
+      # FINAL
+      # ==================================================
+
+      - name: Final Status
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "WORKFLOW FINISHED"
+          echo "=========================================="
+
+          echo "UTC:"
+          date -u
+
+          echo ""
+          echo "Commit:"
+          git log -1 --oneline
+
+          echo ""
+          echo "Repository status:"
+          git status --short
