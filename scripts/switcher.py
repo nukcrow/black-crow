@@ -20,7 +20,6 @@ import requests
 
 OUT_DIR = "sub/general"
 
-# فقط همین تگ روی همه کانفیگ‌ها
 REMARK = "nukcrow"
 
 SUPPORTED_PROTOCOLS = {
@@ -37,9 +36,12 @@ GENERAL_SUB_COUNT = 10
 
 PROTOCOL_SUB_SIZE = 200
 IRAN_SUB_SIZE = 200
+
 MAX_PER_HOST = 8
+
+
 # =========================================================
-# RANDOM 200 SOURCES
+# RANDOM 200
 # =========================================================
 
 RANDOM_200_SOURCES = [
@@ -48,12 +50,11 @@ RANDOM_200_SOURCES = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/all",
 ]
 
-# =========================================================
 RANDOM_200_LIMIT = 200
 
 
 # =========================================================
-# FETCH CONFIG
+# FETCH
 # =========================================================
 
 FETCH_WORKERS = 10
@@ -75,6 +76,16 @@ BENCH_TIMEOUT = 1.8
 SECOND_PASS = 25000
 SECOND_PASS_WORKERS = 100
 SECOND_PASS_TIMEOUT = 2.0
+
+
+# =========================================================
+# FALLBACK
+# =========================================================
+
+# اگر کانفیگ Alive کمتر از تعداد موردنیاز باشد،
+# از کانفیگ‌های valid/unique استفاده می‌شود تا فایل تا
+# حد ممکن پر شود.
+ALLOW_VALID_FALLBACK = True
 
 
 # =========================================================
@@ -120,6 +131,7 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
+
 # =========================================================
 # MCI
 # =========================================================
@@ -132,8 +144,6 @@ SOURCES_MCI = []
 # =========================================================
 
 SOURCES_IRANCELL = [
-    "https://raw.githubusercontent.com/Bllare/V2ray-Configs/main/Irancell.txt",
-    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mtn.txt",
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
@@ -146,19 +156,14 @@ SOURCES_RIGHTEL = []
 
 
 # =========================================================
-# SESSION
+# THREAD LOCAL SESSION
 # =========================================================
 
 _thread_local = threading.local()
 
 
 def session():
-
-    if not hasattr(
-        _thread_local,
-        "session"
-    ):
-
+    if not hasattr(_thread_local, "session"):
         s = requests.Session()
 
         s.headers.update({
@@ -181,32 +186,19 @@ def session():
 # =========================================================
 
 def decode64(value):
-
     if not value:
         return ""
 
     value = value.strip()
 
     try:
+        value = value.replace("-", "+")
+        value = value.replace("_", "/")
 
-        value = value.replace(
-            "-",
-            "+"
-        )
-
-        value = value.replace(
-            "_",
-            "/"
-        )
-
-        padding = (
-            len(value) % 4
-        )
+        padding = len(value) % 4
 
         if padding:
-            value += "=" * (
-                4 - padding
-            )
+            value += "=" * (4 - padding)
 
         return base64.b64decode(
             value,
@@ -232,107 +224,71 @@ URI_PATTERN = re.compile(
     r"ss|"
     r"hysteria2|"
     r"hy2"
-    r")://[^\s\]\[<>)\"'`]+",
+    r")://[^\s<>\[\]{}\"'`]+",
     re.I
 )
 
 
-def normalize_config(
-    config
-):
-
+def normalize_config(config):
     if not config:
         return ""
 
     config = (
         config
         .strip()
-        .replace(
-            "\\/",
-            "/"
-        )
+        .replace("\\/", "/")
     )
 
-    config = unquote(
-        config
-    )
+    config = unquote(config)
 
-    # حذف تگ قبلی اگر منبع روی کانفیگ
-    # remark گذاشته باشد
-    config = config.split(
-        "#",
-        1
-    )[0].strip()
+    # حذف remark منبع
+    config = config.split("#", 1)[0].strip()
 
-    # حذف فاصله‌های اضافی
-    config = config.replace(
-        " ",
-        ""
-    )
+    # حذف فاصله
+    config = config.replace(" ", "")
+
+    # حذف punctuation انتهایی
+    config = config.rstrip(".,;)]}>")
 
     return config
 
 
-def extract_payload(
-    text
-):
-
+def extract_payload(text):
     if not text:
         return []
 
-    text = text.replace(
-        "\r",
-        ""
-    )
+    text = text.replace("\r", "")
 
     output = []
 
     # -----------------------------------------------------
-    # مستقیم
+    # DIRECT
     # -----------------------------------------------------
 
-    for match in URI_PATTERN.findall(
-        text
-    ):
-
-        config = normalize_config(
-            match
-        )
+    for match in URI_PATTERN.findall(text):
+        config = normalize_config(match)
 
         if config:
-            output.append(
-                config
-            )
+            output.append(config)
 
     # -----------------------------------------------------
-    # Base64 کل فایل
+    # BASE64 WHOLE FILE
     # -----------------------------------------------------
 
-    decoded = decode64(
-        text
-    )
+    decoded = decode64(text)
 
     if decoded:
-
-        for match in URI_PATTERN.findall(
-            decoded
-        ):
-
-            config = normalize_config(
-                match
-            )
+        for match in URI_PATTERN.findall(decoded):
+            config = normalize_config(match)
 
             if config:
-                output.append(
-                    config
-                )
+                output.append(config)
 
     # -----------------------------------------------------
-    # Base64 هر خط
+    # BASE64 PER LINE
     # -----------------------------------------------------
 
     for line in text.splitlines():
-
         line = line.strip()
 
         if not line:
@@ -344,25 +300,16 @@ def extract_payload(
         if len(line) < 20:
             continue
 
-        decoded_line = decode64(
-            line
-        )
+        decoded_line = decode64(line)
 
         if not decoded_line:
             continue
 
-        for match in URI_PATTERN.findall(
-            decoded_line
-        ):
-
-            config = normalize_config(
-                match
-            )
+        for match in URI_PATTERN.findall(decoded_line):
+            config = normalize_config(match)
 
             if config:
-                output.append(
-                    config
-                )
+                output.append(config)
 
     return output
 
@@ -371,41 +318,25 @@ def extract_payload(
 # FETCH SOURCE
 # =========================================================
 
-def fetch_source(
-    url
-):
-
-    for attempt in range(
-        FETCH_RETRIES + 1
-    ):
-
+def fetch_source(url):
+    for attempt in range(FETCH_RETRIES + 1):
         try:
-
             response = session().get(
                 url,
                 timeout=FETCH_TIMEOUT,
                 allow_redirects=True
             )
 
-            if (
-                response.ok
-                and response.text
-            ):
-
+            if response.ok and response.text:
                 return extract_payload(
                     response.text
-                )[
-                    :MAX_PER_SOURCE
-                ]
+                )[:MAX_PER_SOURCE]
 
         except Exception:
             pass
 
         if attempt < FETCH_RETRIES:
-
-            time.sleep(
-                0.5
-            )
+            time.sleep(0.5)
 
     return []
 
@@ -414,12 +345,9 @@ def fetch_source(
 # FETCH GROUP
 # =========================================================
 
-def fetch_group(
-    name,
-    sources
-):
-
+def fetch_group(name, sources):
     if not sources:
+        print(f"\n[FETCH] {name} (0 sources)")
         return []
 
     results = []
@@ -438,25 +366,16 @@ def fetch_group(
                 fetch_source,
                 url
             ): url
-
             for url in sources
         }
 
-        for future in as_completed(
-            futures
-        ):
-
-            url = futures[
-                future
-            ]
+        for future in as_completed(futures):
+            url = futures[future]
 
             try:
-
                 configs = future.result()
 
-                results.extend(
-                    configs
-                )
+                results.extend(configs)
 
                 print(
                     f"  [+] "
@@ -465,7 +384,6 @@ def fetch_group(
                 )
 
             except Exception:
-
                 print(
                     f"  [-] "
                     f"{url}"
@@ -479,7 +397,6 @@ def fetch_group(
 # =========================================================
 
 def fetch_all():
-
     return {
         "general": fetch_group(
             "GENERAL",
@@ -505,6 +422,11 @@ def fetch_all():
             "RIGHTEL",
             SOURCES_RIGHTEL
         ),
+
+        "random": fetch_group(
+            "RANDOM 200",
+            RANDOM_200_SOURCES
+        ),
     }
 
 
@@ -512,22 +434,14 @@ def fetch_all():
 # PROTOCOL
 # =========================================================
 
-def proto(
-    config
-):
-
+def proto(config):
     try:
-
         return (
             config
-            .split(
-                "://",
-                1
-            )[0]
+            .split("://", 1)[0]
             .lower()
             .strip()
         )
-
     except Exception:
         return ""
 
@@ -536,83 +450,209 @@ def proto(
 # PARSE
 # =========================================================
 
-def parsed(
-    config
-):
-
+def parsed(config):
     try:
-        return urlparse(
-            config
-        )
+        return urlparse(config)
     except Exception:
         return None
 
 
-def query(
-    config
-):
-
-    p = parsed(
-        config
-    )
+def query(config):
+    p = parsed(config)
 
     if not p:
         return {}
 
     try:
-
         return parse_qs(
             p.query,
             keep_blank_values=True
         )
-
     except Exception:
         return {}
 
 
-def q1(
-    q,
-    key,
-    default=""
-):
-
-    value = q.get(
-        key
-    )
+def q1(q, key, default=""):
+    value = q.get(key)
 
     if not value:
         return default
 
-    if isinstance(
-        value,
-        list
-    ):
+    if isinstance(value, list):
         return value[0]
 
     return str(value)
 
 
-def host_port(
-    config
-):
+# =========================================================
+# VMESS DATA
+# =========================================================
 
-    p = parsed(
-        config
-    )
+def vmess_data(config):
+    if proto(config) != "vmess":
+        return {}
+
+    try:
+        payload = config.split("://", 1)[1]
+    except Exception:
+        return {}
+
+    decoded = decode64(payload)
+
+    if not decoded:
+        return {}
+
+    try:
+        data = json.loads(decoded)
+
+        if not isinstance(data, dict):
+            return {}
+
+        return data
+
+    except Exception:
+        return {}
+
+
+# =========================================================
+# SS DATA
+# =========================================================
+
+def ss_data(config):
+    if proto(config) != "ss":
+        return {}
+
+    p = parsed(config)
+
+    # -----------------------------------------------------
+    # SIP002 / normal SS
+    # -----------------------------------------------------
+
+    if p:
+        try:
+            if p.hostname and p.port:
+                return {
+                    "host": p.hostname,
+                    "port": p.port,
+                    "username": p.username or "",
+                    "password": p.password or "",
+                }
+        except Exception:
+            pass
+
+    # -----------------------------------------------------
+    # BASE64 SS
+    # -----------------------------------------------------
+
+    try:
+        payload = config.split("://", 1)[1]
+    except Exception:
+        return {}
+
+    payload = payload.split("#", 1)[0]
+
+    decoded = decode64(payload)
+
+    if not decoded:
+        return {}
+
+    decoded = decoded.strip()
+
+    try:
+        if "://" not in decoded:
+            decoded = "ss://" + decoded
+
+        p2 = urlparse(decoded)
+
+        host = p2.hostname or ""
+
+        try:
+            port = p2.port or 0
+        except Exception:
+            port = 0
+
+        if host and port:
+            return {
+                "host": host,
+                "port": port,
+                "username": p2.username or "",
+                "password": p2.password or "",
+            }
+
+    except Exception:
+        pass
+
+    return {}
+
+
+# =========================================================
+# ENDPOINT
+# =========================================================
+
+def endpoint(config):
+    ptype = proto(config)
+
+    # -----------------------------------------------------
+    # VMESS
+    # -----------------------------------------------------
+
+    if ptype == "vmess":
+        data = vmess_data(config)
+
+        host = (
+            data.get("add")
+            or data.get("address")
+            or ""
+        )
+
+        port = data.get("port") or 0
+
+        try:
+            port = int(port)
+        except Exception:
+            port = 0
+
+        return (
+            str(host).strip().lower(),
+            port
+        )
+
+    # -----------------------------------------------------
+    # SS
+    # -----------------------------------------------------
+
+    if ptype == "ss":
+        data = ss_data(config)
+
+        host = str(
+            data.get("host", "")
+        ).strip().lower()
+
+        try:
+            port = int(
+                data.get("port", 0)
+            )
+        except Exception:
+            port = 0
+
+        return (
+            host,
+            port
+        )
+
+    # -----------------------------------------------------
+    # VLESS / TROJAN / HY2
+    # -----------------------------------------------------
+
+    p = parsed(config)
 
     if not p:
         return "", 0
 
-    host = (
-        p.hostname
-        or ""
-    )
+    host = p.hostname or ""
 
     try:
-        port = (
-            p.port
-            or 0
-        )
+        port = p.port or 0
     except Exception:
         port = 0
 
@@ -626,10 +666,7 @@ def host_port(
 # HOST CHECK
 # =========================================================
 
-def is_junk_host(
-    host
-):
-
+def is_junk_host(host):
     if not host:
         return True
 
@@ -644,10 +681,7 @@ def is_junk_host(
         return True
 
     try:
-
-        ip = ipaddress.ip_address(
-            h
-        )
+        ip = ipaddress.ip_address(h)
 
         if (
             ip.is_private
@@ -661,113 +695,153 @@ def is_junk_host(
     except Exception:
         pass
 
-    return h.endswith(
-        ".local"
-    )
+    return h.endswith(".local")
 
 
 # =========================================================
 # VALID CONFIG
 # =========================================================
 
-def valid_config(
-    config
-):
-
+def valid_config(config):
     if not config:
         return False
 
-    ptype = proto(
-        config
-    )
+    ptype = proto(config)
 
     if ptype not in SUPPORTED_PROTOCOLS:
         return False
 
-    p = parsed(
-        config
-    )
+    # -----------------------------------------------------
+    # VMESS
+    # -----------------------------------------------------
+
+    if ptype == "vmess":
+        data = vmess_data(config)
+
+        if not data:
+            return False
+
+        host = (
+            data.get("add")
+            or data.get("address")
+            or ""
+        )
+
+        port = data.get("port") or 0
+
+        try:
+            port = int(port)
+        except Exception:
+            return False
+
+        if not host:
+            return False
+
+        if is_junk_host(host):
+            return False
+
+        if not 1 <= port <= 65535:
+            return False
+
+        vmess_id = (
+            data.get("id")
+            or data.get("uuid")
+            or ""
+        )
+
+        if not vmess_id:
+            return False
+
+        return True
+
+    # -----------------------------------------------------
+    # SS
+    # -----------------------------------------------------
+
+    if ptype == "ss":
+        data = ss_data(config)
+
+        host = data.get("host", "")
+        port = data.get("port", 0)
+
+        if not host:
+            return False
+
+        if is_junk_host(host):
+            return False
+
+        try:
+            port = int(port)
+        except Exception:
+            return False
+
+        if not 1 <= port <= 65535:
+            return False
+
+        # SS باید user/password یا encoded payload داشته باشد
+        if not (
+            data.get("username")
+            or data.get("password")
+        ):
+            # بعضی فرمت‌های SS اطلاعات را داخل payload دارند.
+            # اگر endpoint معتبر است، اجازه می‌دهیم.
+            raw_payload = config.split(
+                "://",
+                1
+            )[1] if "://" in config else ""
+
+            if not raw_payload:
+                return False
+
+        return True
+
+    # -----------------------------------------------------
+    # OTHER PROTOCOLS
+    # -----------------------------------------------------
+
+    p = parsed(config)
 
     if not p:
         return False
 
-    host, port = host_port(
-        config
-    )
+    host, port = endpoint(config)
 
     if not host:
         return False
 
-    if is_junk_host(
-        host
-    ):
+    if is_junk_host(host):
         return False
 
-    if not (
-        1 <= port <= 65535
-    ):
+    if not 1 <= port <= 65535:
         return False
+
+    # -----------------------------------------------------
+    # VLESS
+    # -----------------------------------------------------
 
     if ptype == "vless":
-
         if not p.username:
             return False
 
-        if len(
-            p.username
-        ) < 8:
+        if len(p.username) < 8:
             return False
 
-    elif ptype == "vmess":
-
-        decoded = decode64(
-            config[8:]
-        )
-
-        if not decoded:
-            return False
-
-        try:
-
-            data = json.loads(
-                decoded
-            )
-
-            address = (
-                data.get("add")
-                or data.get("address")
-                or ""
-            )
-
-            vmess_port = (
-                data.get("port")
-                or ""
-            )
-
-            if not address:
-                return False
-
-            if not vmess_port:
-                return False
-
-        except Exception:
-            return False
+    # -----------------------------------------------------
+    # TROJAN
+    # -----------------------------------------------------
 
     elif ptype == "trojan":
-
         if not p.username:
             return False
 
-    elif ptype == "ss":
-
-        if not p.username:
-            return False
+    # -----------------------------------------------------
+    # HYSTERIA2
+    # -----------------------------------------------------
 
     elif ptype in {
         "hysteria2",
         "hy2",
     }:
-
         if not p.username:
             return False
 
@@ -775,24 +849,62 @@ def valid_config(
 
 
 # =========================================================
+# IDENTITY
+# =========================================================
+
+def config_identity(config):
+    ptype = proto(config)
+
+    # VMESS
+    if ptype == "vmess":
+        data = vmess_data(config)
+
+        return (
+            str(
+                data.get("id")
+                or data.get("uuid")
+                or ""
+            ).strip().lower()
+        )
+
+    # SS
+    if ptype == "ss":
+        data = ss_data(config)
+
+        return (
+            str(
+                data.get("username")
+                or data.get("password")
+                or ""
+            ).strip().lower()
+        )
+
+    # Normal URL protocols
+    p = parsed(config)
+
+    if not p:
+        return ""
+
+    return (
+        str(
+            p.username
+            or ""
+        )
+        .strip()
+        .lower()
+    )
+
+
+# =========================================================
 # FINGERPRINT
 # =========================================================
 
-def fingerprint(
-    config
-):
+def fingerprint(config):
+    ptype = proto(config)
 
-    ptype = proto(
-        config
-    )
+    q = query(config)
 
-    q = query(
-        config
-    )
-
-    host, port = host_port(
-        config
-    )
+    host, port = endpoint(config)
 
     security = q1(
         q,
@@ -846,6 +958,38 @@ def fingerprint(
         "sid"
     )
 
+    identity = config_identity(config)
+
+    # VMESS fields
+    if ptype == "vmess":
+        data = vmess_data(config)
+
+        transport = (
+            data.get("net")
+            or data.get("type")
+            or transport
+            or ""
+        )
+
+        security = (
+            data.get("tls")
+            or security
+            or ""
+        )
+
+        sni = (
+            data.get("sni")
+            or data.get("host")
+            or sni
+            or ""
+        )
+
+        path = (
+            data.get("path")
+            or path
+            or ""
+        )
+
     return "|".join(
         str(x)
         .strip()
@@ -854,6 +998,7 @@ def fingerprint(
             ptype,
             host,
             port,
+            identity,
             security,
             transport,
             sni,
@@ -870,38 +1015,23 @@ def fingerprint(
 # DEDUPE
 # =========================================================
 
-def dedupe(
-    configs
-):
-
+def dedupe(configs):
     seen = set()
     output = []
 
     for config in configs:
+        config = normalize_config(config)
 
-        config = normalize_config(
-            config
-        )
-
-        if not valid_config(
-            config
-        ):
+        if not valid_config(config):
             continue
 
-        fp = fingerprint(
-            config
-        )
+        fp = fingerprint(config)
 
         if fp in seen:
             continue
 
-        seen.add(
-            fp
-        )
-
-        output.append(
-            config
-        )
+        seen.add(fp)
+        output.append(config)
 
     return output
 
@@ -910,23 +1040,18 @@ def dedupe(
 # QUALITY SCORE
 # =========================================================
 
-def quality_score(
-    config
-):
-
+def quality_score(config):
     score = 0
 
-    ptype = proto(
-        config
-    )
+    ptype = proto(config)
 
-    q = query(
-        config
-    )
+    q = query(config)
 
-    host, port = host_port(
-        config
-    )
+    host, port = endpoint(config)
+
+    # -----------------------------------------------------
+    # Protocol
+    # -----------------------------------------------------
 
     if ptype in {
         "vless",
@@ -944,31 +1069,83 @@ def quality_score(
     elif ptype == "ss":
         score += 15
 
-    transport = q1(
-        q,
-        "type",
-        q1(
-            q,
-            "network"
+    # -----------------------------------------------------
+    # VMESS specific
+    # -----------------------------------------------------
+
+    if ptype == "vmess":
+        data = vmess_data(config)
+
+        transport = str(
+            data.get("net")
+            or data.get("type")
+            or ""
+        ).lower()
+
+        security = str(
+            data.get("tls")
+            or ""
+        ).lower()
+
+        sni = str(
+            data.get("sni")
+            or data.get("host")
+            or ""
         )
-    ).lower()
+
+        path = str(
+            data.get("path")
+            or ""
+        )
+
+    else:
+        transport = q1(
+            q,
+            "type",
+            q1(
+                q,
+                "network"
+            )
+        ).lower()
+
+        security = q1(
+            q,
+            "security"
+        ).lower()
+
+        sni = q1(
+            q,
+            "sni"
+        )
+
+        path = q1(
+            q,
+            "path"
+        )
+
+    # -----------------------------------------------------
+    # Transport
+    # -----------------------------------------------------
 
     if transport in PREFERRED_TYPES:
         score += 20
 
-    security = q1(
-        q,
-        "security"
-    ).lower()
+    # -----------------------------------------------------
+    # TLS
+    # -----------------------------------------------------
 
-    if security == "tls":
+    if security in {
+        "tls",
+        "reality",
+    }:
         score += 15
 
-    if q1(
-        q,
-        "sni"
-    ):
+    if sni:
         score += 10
+
+    # -----------------------------------------------------
+    # Ports
+    # -----------------------------------------------------
 
     if port == 443:
         score += 12
@@ -983,31 +1160,27 @@ def quality_score(
     }:
         score += 8
 
+    # -----------------------------------------------------
+    # Host
+    # -----------------------------------------------------
+
     if host:
-
         try:
-
-            ipaddress.ip_address(
-                host
-            )
-
+            ipaddress.ip_address(host)
             score += 2
 
         except Exception:
-
             if "." in host:
                 score += 8
 
-    if q1(
-        q,
-        "path"
-    ):
+    # -----------------------------------------------------
+    # Path
+    # -----------------------------------------------------
+
+    if path:
         score += 5
 
-    if q1(
-        q,
-        "serviceName"
-    ):
+    if q1(q, "serviceName"):
         score += 4
 
     return score
@@ -1017,15 +1190,10 @@ def quality_score(
 # TCP PROBE
 # =========================================================
 
-def tcp_probe(
-    item
-):
-
+def tcp_probe(item):
     config, timeout = item
 
-    host, port = host_port(
-        config
-    )
+    host, port = endpoint(config)
 
     if not host or not port:
         return None
@@ -1033,15 +1201,10 @@ def tcp_probe(
     start = time.perf_counter()
 
     try:
-
         with socket.create_connection(
-            (
-                host,
-                port
-            ),
+            (host, port),
             timeout=timeout
         ):
-
             latency = (
                 time.perf_counter()
                 - start
@@ -1060,18 +1223,18 @@ def tcp_probe(
 # BENCHMARK
 # =========================================================
 
-def benchmark(
-    configs
-):
-
+def benchmark(configs):
     if not configs:
         return []
 
-    candidates = configs[
-        :MAX_TEST
-    ]
+    candidates = configs[:MAX_TEST]
 
     results = []
+
+    print(
+        f"\n[BENCH] testing "
+        f"{len(candidates)} configs..."
+    )
 
     with ThreadPoolExecutor(
         max_workers=BENCH_WORKERS
@@ -1085,20 +1248,14 @@ def benchmark(
                     BENCH_TIMEOUT
                 )
             )
-
             for config in candidates
         ]
 
-        for future in as_completed(
-            futures
-        ):
-
+        for future in as_completed(futures):
             try:
-
                 result = future.result()
 
                 if result:
-
                     config, latency = result
 
                     results.append({
@@ -1113,54 +1270,81 @@ def benchmark(
                 pass
 
     # -----------------------------------------------------
-    # Second pass
+    # SECOND PASS
     # -----------------------------------------------------
 
     if len(results) < SECOND_PASS:
-
         remaining = configs[
             MAX_TEST:
             MAX_TEST + SECOND_PASS
         ]
 
-        with ThreadPoolExecutor(
-            max_workers=SECOND_PASS_WORKERS
-        ) as executor:
+        if remaining:
+            print(
+                f"[BENCH] second pass: "
+                f"{len(remaining)} configs"
+            )
 
-            futures = [
-                executor.submit(
-                    tcp_probe,
-                    (
-                        config,
-                        SECOND_PASS_TIMEOUT
+            with ThreadPoolExecutor(
+                max_workers=SECOND_PASS_WORKERS
+            ) as executor:
+
+                futures = [
+                    executor.submit(
+                        tcp_probe,
+                        (
+                            config,
+                            SECOND_PASS_TIMEOUT
+                        )
                     )
-                )
+                    for config in remaining
+                ]
 
-                for config in remaining
-            ]
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
 
-            for future in as_completed(
-                futures
-            ):
+                        if result:
+                            config, latency = result
 
-                try:
+                            results.append({
+                                "config": config,
+                                "latency": latency,
+                                "score": quality_score(
+                                    config
+                                ),
+                            })
 
-                    result = future.result()
+                    except Exception:
+                        pass
 
-                    if result:
+    # -----------------------------------------------------
+    # DEDUPE ALIVE
+    # -----------------------------------------------------
 
-                        config, latency = result
+    unique = {}
+    
+    for item in results:
+        fp = fingerprint(
+            item["config"]
+        )
 
-                        results.append({
-                            "config": config,
-                            "latency": latency,
-                            "score": quality_score(
-                                config
-                            ),
-                        })
+        old = unique.get(fp)
 
-                except Exception:
-                    pass
+        if old is None:
+            unique[fp] = item
+            continue
+
+        if (
+            item["score"],
+            -item["latency"]
+        ) > (
+            old["score"],
+            -old["latency"]
+        ):
+            unique[fp] = item
+
+    results = list(unique.values())
 
     results.sort(
         key=lambda x: (
@@ -1169,28 +1353,85 @@ def benchmark(
         )
     )
 
+    print(
+        f"[BENCH] alive: "
+        f"{len(results)}"
+    )
+
     return results
 
 
 # =========================================================
-# ONLY NUKCROW REMARK
+# RAW CONFIG -> RECORD
 # =========================================================
 
-def config_line(
-    config
+def config_record(config):
+    return {
+        "config": config,
+        "latency": 999.0,
+        "score": quality_score(config),
+    }
+
+
+def records_from_configs(configs):
+    return [
+        config_record(config)
+        for config in configs
+    ]
+
+
+# =========================================================
+# MERGE ALIVE + VALID FALLBACK
+# =========================================================
+
+def merge_records(
+    alive_records,
+    valid_configs
 ):
+    output = []
+    seen = set()
 
-    # هر چیزی بعد # از منبع حذف شده
-    config = config.split(
-        "#",
-        1
-    )[0].strip()
+    # -----------------------------------------------------
+    # ALIVE FIRST
+    # -----------------------------------------------------
 
-    # فقط #nukcrow
-    return (
-        config
-        + "#nukcrow"
-    )
+    for item in alive_records:
+        config = item["config"]
+
+        fp = fingerprint(config)
+
+        if fp in seen:
+            continue
+
+        seen.add(fp)
+        output.append(item)
+
+    # -----------------------------------------------------
+    # VALID FALLBACK
+    # -----------------------------------------------------
+
+    if ALLOW_VALID_FALLBACK:
+        fallback_records = records_from_configs(
+            valid_configs
+        )
+
+        # کیفیت بهتر اول
+        fallback_records.sort(
+            key=lambda x: -x["score"]
+        )
+
+        for item in fallback_records:
+            config = item["config"]
+
+            fp = fingerprint(config)
+
+            if fp in seen:
+                continue
+
+            seen.add(fp)
+            output.append(item)
+
+    return output
 
 
 # =========================================================
@@ -1202,7 +1443,6 @@ def select_records(
     limit,
     predicate=None
 ):
-
     if not results:
         return []
 
@@ -1217,31 +1457,20 @@ def select_records(
     host_count = {}
 
     for item in results:
-
-        if len(
-            selected
-        ) >= limit:
+        if len(selected) >= limit:
             break
 
-        config = item[
-            "config"
-        ]
+        config = item["config"]
 
-        if predicate and not predicate(
-            config
-        ):
+        if predicate and not predicate(config):
             continue
 
-        fp = fingerprint(
-            config
-        )
+        fp = fingerprint(config)
 
         if fp in seen:
             continue
 
-        host, _ = host_port(
-            config
-        )
+        host, _ = endpoint(config)
 
         if host_count.get(
             host,
@@ -1249,19 +1478,12 @@ def select_records(
         ) >= MAX_PER_HOST:
             continue
 
-        selected.append(
-            item
-        )
-
-        seen.add(
-            fp
-        )
+        selected.append(item)
+        seen.add(fp)
 
         host_count[host] = (
-            host_count.get(
-                host,
-                0
-            ) + 1
+            host_count.get(host, 0)
+            + 1
         )
 
     # -----------------------------------------------------
@@ -1269,112 +1491,71 @@ def select_records(
     # Fill quantity
     # -----------------------------------------------------
 
-    if len(
-        selected
-    ) < limit:
-
+    if len(selected) < limit:
         for item in results:
-
-            if len(
-                selected
-            ) >= limit:
+            if len(selected) >= limit:
                 break
 
-            config = item[
-                "config"
-            ]
+            config = item["config"]
 
-            if predicate and not predicate(
-                config
-            ):
+            if predicate and not predicate(config):
                 continue
 
-            fp = fingerprint(
-                config
-            )
+            fp = fingerprint(config)
 
             if fp in seen:
                 continue
 
-            selected.append(
-                item
-            )
+            selected.append(item)
+            seen.add(fp)
 
-            seen.add(
-                fp
-            )
-
-    return selected[
-        :limit
-    ]
+    return selected[:limit]
 
 
 # =========================================================
-# FILL SUB
+# SELECT ALIVE + VALID
 # =========================================================
 
-def fill_subscription(
-    primary,
-    fallback,
-    limit
+def select_subscription(
+    alive_records,
+    valid_configs,
+    limit,
+    predicate=None
 ):
-
-    selected = select_records(
-        primary,
-        limit
+    combined = merge_records(
+        alive_records,
+        valid_configs
     )
 
-    if len(
-        selected
-    ) >= limit:
+    return select_records(
+        combined,
+        limit,
+        predicate=predicate
+    )
 
-        return selected[
-            :limit
-        ]
 
-    used = {
-        fingerprint(
-            x["config"]
-        )
-        for x in selected
-    }
+# =========================================================
+# ONLY NUKCROW REMARK
+# =========================================================
 
-    for item in fallback:
+def config_line(config):
+    config = config.split(
+        "#",
+        1
+    )[0].strip()
 
-        if len(
-            selected
-        ) >= limit:
-            break
-
-        fp = fingerprint(
-            item["config"]
-        )
-
-        if fp in used:
-            continue
-
-        selected.append(
-            item
-        )
-
-        used.add(
-            fp
-        )
-
-    return selected[
-        :limit
-    ]
+    return (
+        config
+        + "#"
+        + REMARK
+    )
 
 
 # =========================================================
 # WRITE FILE
 # =========================================================
 
-def write_file(
-    path,
-    records
-):
-
+def write_file(path, records):
     os.makedirs(
         os.path.dirname(path),
         exist_ok=True
@@ -1387,11 +1568,16 @@ def write_file(
     ) as f:
 
         for item in records:
+            config = item.get(
+                "config",
+                ""
+            )
+
+            if not config:
+                continue
 
             f.write(
-                config_line(
-                    item["config"]
-                )
+                config_line(config)
                 + "\n"
             )
 
@@ -1401,30 +1587,22 @@ def write_file(
 # =========================================================
 
 def clear_old_subscriptions():
-
     os.makedirs(
         OUT_DIR,
         exist_ok=True
     )
 
-    for filename in os.listdir(
-        OUT_DIR
-    ):
-
-        if not filename.endswith(
-            ".txt"
-        ):
+    for filename in os.listdir(OUT_DIR):
+        if not filename.endswith(".txt"):
             continue
 
+        path = os.path.join(
+            OUT_DIR,
+            filename
+        )
+
         try:
-
-            os.remove(
-                os.path.join(
-                    OUT_DIR,
-                    filename
-                )
-            )
-
+            os.remove(path)
         except Exception:
             pass
 
@@ -1434,19 +1612,21 @@ def clear_old_subscriptions():
 # =========================================================
 
 def write_general(
-    results
+    alive_all,
+    all_unique
 ):
-
     total = (
         GENERAL_SUB_SIZE
         * GENERAL_SUB_COUNT
     )
 
-    selected = select_records(
-        results,
+    selected = select_subscription(
+        alive_all,
+        all_unique,
         total
     )
 
+    # all_configs.txt
     write_file(
         os.path.join(
             OUT_DIR,
@@ -1455,10 +1635,10 @@ def write_general(
         selected
     )
 
+    # sub1 ... sub10
     for i in range(
         GENERAL_SUB_COUNT
     ):
-
         start = (
             i
             * GENERAL_SUB_SIZE
@@ -1479,15 +1659,20 @@ def write_general(
             ]
         )
 
+    print(
+        f"\n[GENERAL] "
+        f"{len(selected)}/{total}"
+    )
+
 
 # =========================================================
 # PROTOCOLS
 # =========================================================
 
 def write_protocols(
-    results
+    alive_all,
+    all_unique
 ):
-
     protocols = (
         "vless",
         "vmess",
@@ -1497,9 +1682,9 @@ def write_protocols(
     )
 
     for ptype in protocols:
-
-        selected = select_records(
-            results,
+        selected = select_subscription(
+            alive_all,
+            all_unique,
             PROTOCOL_SUB_SIZE,
             predicate=lambda c, p=ptype:
                 proto(c) == p
@@ -1513,26 +1698,37 @@ def write_protocols(
             selected
         )
 
+        print(
+            f"[{ptype.upper():>9}] "
+            f"{len(selected)}/{PROTOCOL_SUB_SIZE}"
+        )
+
 
 # =========================================================
-# IRAN SUBS
+# IRAN
 # =========================================================
 
 def write_iran(
-    iran_results,
-    mci_results,
-    irancell_results,
-    rightel_results,
-    all_results
+    iran_alive,
+    iran_unique,
+    mci_alive,
+    mci_unique,
+    irancell_alive,
+    irancell_unique,
+    rightel_alive,
+    rightel_unique,
+    all_alive,
+    all_unique
 ):
 
     # -----------------------------------------------------
     # BEST IRAN
     # -----------------------------------------------------
 
-    best_iran = fill_subscription(
-        iran_results,
-        all_results,
+    best_iran = select_subscription(
+        iran_alive,
+        iran_unique
+        + all_unique,
         IRAN_SUB_SIZE
     )
 
@@ -1544,28 +1740,41 @@ def write_iran(
         best_iran
     )
 
+    print(
+        f"[BEST IRAN] "
+        f"{len(best_iran)}/{IRAN_SUB_SIZE}"
+    )
+
     # -----------------------------------------------------
     # MIX IRAN
     # -----------------------------------------------------
 
-    mix_pool = list(
-        iran_results
+    mix_combined = merge_records(
+        iran_alive,
+        iran_unique
     )
 
-    if len(
-        mix_pool
-    ) < IRAN_SUB_SIZE:
+    global_fallback = merge_records(
+        all_alive,
+        all_unique
+    )
 
-        mix_pool.extend(
-            all_results
-        )
+    # alive/valid Iran first
+    random.shuffle(
+        mix_combined
+    )
 
     random.shuffle(
-        mix_pool
+        global_fallback
+    )
+
+    mix_records = (
+        mix_combined
+        + global_fallback
     )
 
     mix_iran = select_records(
-        mix_pool,
+        mix_records,
         IRAN_SUB_SIZE
     )
 
@@ -1577,23 +1786,22 @@ def write_iran(
         mix_iran
     )
 
+    print(
+        f"[MIX IRAN] "
+        f"{len(mix_iran)}/{IRAN_SUB_SIZE}"
+    )
+
     # -----------------------------------------------------
     # MCI
     # -----------------------------------------------------
 
-    mci = fill_subscription(
-        mci_results,
-        iran_results,
+    mci = select_subscription(
+        mci_alive,
+        mci_unique
+        + iran_unique
+        + all_unique,
         IRAN_SUB_SIZE
     )
-
-    if len(mci) < IRAN_SUB_SIZE:
-
-        mci = fill_subscription(
-            mci,
-            all_results,
-            IRAN_SUB_SIZE
-        )
 
     write_file(
         os.path.join(
@@ -1603,25 +1811,22 @@ def write_iran(
         mci
     )
 
+    print(
+        f"[MCI] "
+        f"{len(mci)}/{IRAN_SUB_SIZE}"
+    )
+
     # -----------------------------------------------------
     # IRANCELL
     # -----------------------------------------------------
 
-    irancell = fill_subscription(
-        irancell_results,
-        iran_results,
+    irancell = select_subscription(
+        irancell_alive,
+        irancell_unique
+        + iran_unique
+        + all_unique,
         IRAN_SUB_SIZE
     )
-
-    if len(
-        irancell
-    ) < IRAN_SUB_SIZE:
-
-        irancell = fill_subscription(
-            irancell,
-            all_results,
-            IRAN_SUB_SIZE
-        )
 
     write_file(
         os.path.join(
@@ -1631,25 +1836,22 @@ def write_iran(
         irancell
     )
 
+    print(
+        f"[IRANCELL] "
+        f"{len(irancell)}/{IRAN_SUB_SIZE}"
+    )
+
     # -----------------------------------------------------
     # RIGHTEL
     # -----------------------------------------------------
 
-    rightel = fill_subscription(
-        rightel_results,
-        iran_results,
+    rightel = select_subscription(
+        rightel_alive,
+        rightel_unique
+        + iran_unique
+        + all_unique,
         IRAN_SUB_SIZE
     )
-
-    if len(
-        rightel
-    ) < IRAN_SUB_SIZE:
-
-        rightel = fill_subscription(
-            rightel,
-            all_results,
-            IRAN_SUB_SIZE
-        )
 
     write_file(
         os.path.join(
@@ -1659,28 +1861,82 @@ def write_iran(
         rightel
     )
 
-
-# =========================================================
-# RANDOM 200 PLACEHOLDER
-# =========================================================
-
-def create_random_200_placeholder():
-
-    path = os.path.join(
-        OUT_DIR,
-        "random_200.txt"
+    print(
+        f"[RIGHTEL] "
+        f"{len(rightel)}/{IRAN_SUB_SIZE}"
     )
 
-    # فعلاً عمداً خالی
-    # ربات بعداً Repositoryهای بخش
-    # RANDOM_200_SOURCES را می‌خواند.
 
-    with open(
-        path,
-        "w",
-        encoding="utf-8"
-    ):
-        pass
+# =========================================================
+# RANDOM 200
+# =========================================================
+
+def write_random_200(
+    random_alive,
+    random_unique,
+    all_alive,
+    all_unique
+):
+    # -----------------------------------------------------
+    # Random source priority
+    # -----------------------------------------------------
+
+    selected = select_subscription(
+        random_alive,
+        random_unique,
+        RANDOM_200_LIMIT
+    )
+
+    # اگر منابع Random کمتر از 200 بود،
+    # از global فقط برای تکمیل استفاده می‌شود.
+    if len(selected) < RANDOM_200_LIMIT:
+        used = {
+            fingerprint(
+                item["config"]
+            )
+            for item in selected
+        }
+
+        global_pool = merge_records(
+            all_alive,
+            all_unique
+        )
+
+        random.shuffle(global_pool)
+
+        for item in global_pool:
+            if len(selected) >= RANDOM_200_LIMIT:
+                break
+
+            fp = fingerprint(
+                item["config"]
+            )
+
+            if fp in used:
+                continue
+
+            selected.append(item)
+            used.add(fp)
+
+    # shuffle نهایی
+    random.shuffle(selected)
+
+    selected = selected[
+        :RANDOM_200_LIMIT
+    ]
+
+    write_file(
+        os.path.join(
+            OUT_DIR,
+            "random_200.txt"
+        ),
+        selected
+    )
+
+    print(
+        f"[RANDOM 200] "
+        f"{len(selected)}/{RANDOM_200_LIMIT}"
+    )
 
 
 # =========================================================
@@ -1688,10 +1944,9 @@ def create_random_200_placeholder():
 # =========================================================
 
 def print_summary():
-
     print(
         "\n"
-        + "=" * 60
+        + "=" * 65
     )
 
     print(
@@ -1699,38 +1954,30 @@ def print_summary():
     )
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
-    if not os.path.isdir(
-        OUT_DIR
-    ):
+    if not os.path.isdir(OUT_DIR):
         return
 
-    for filename in sorted(
-        os.listdir(
-            OUT_DIR
-        )
-    ):
+    files = []
 
-        if not filename.endswith(
-            ".txt"
-        ):
-            continue
+    for filename in os.listdir(OUT_DIR):
+        if filename.endswith(".txt"):
+            files.append(filename)
 
+    for filename in sorted(files):
         path = os.path.join(
             OUT_DIR,
             filename
         )
 
         try:
-
             with open(
                 path,
                 "r",
                 encoding="utf-8"
             ) as f:
-
                 count = sum(
                     1
                     for line in f
@@ -1746,7 +1993,7 @@ def print_summary():
             pass
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
 
@@ -1755,11 +2002,10 @@ def print_summary():
 # =========================================================
 
 def main():
-
     started = time.time()
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
     print(
@@ -1767,7 +2013,7 @@ def main():
     )
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
     os.makedirs(
@@ -1784,6 +2030,8 @@ def main():
     # -----------------------------------------------------
     # DEDUPE SOURCE POOLS
     # -----------------------------------------------------
+
+    print("\n[DEDUPE]")
 
     general_unique = dedupe(
         raw["general"]
@@ -1805,6 +2053,34 @@ def main():
         raw["rightel"]
     )
 
+    random_unique = dedupe(
+        raw["random"]
+    )
+
+    print(
+        f"GENERAL  : {len(general_unique)}"
+    )
+
+    print(
+        f"IRAN     : {len(iran_unique)}"
+    )
+
+    print(
+        f"MCI      : {len(mci_unique)}"
+    )
+
+    print(
+        f"IRANCELL : {len(irancell_unique)}"
+    )
+
+    print(
+        f"RIGHTEL  : {len(rightel_unique)}"
+    )
+
+    print(
+        f"RANDOM   : {len(random_unique)}"
+    )
+
     # -----------------------------------------------------
     # GLOBAL
     # -----------------------------------------------------
@@ -1823,31 +2099,55 @@ def main():
     )
 
     # -----------------------------------------------------
-    # BENCHMARK
+    # BENCHMARK GLOBAL
     # -----------------------------------------------------
 
     alive_all = benchmark(
         all_unique
     )
 
+    # -----------------------------------------------------
+    # BENCHMARK IRAN
+    # -----------------------------------------------------
+
     alive_iran = benchmark(
         iran_unique
     )
+
+    # -----------------------------------------------------
+    # BENCHMARK MCI
+    # -----------------------------------------------------
 
     alive_mci = benchmark(
         mci_unique
     )
 
+    # -----------------------------------------------------
+    # BENCHMARK IRANCELL
+    # -----------------------------------------------------
+
     alive_irancell = benchmark(
         irancell_unique
     )
+
+    # -----------------------------------------------------
+    # BENCHMARK RIGHTEL
+    # -----------------------------------------------------
 
     alive_rightel = benchmark(
         rightel_unique
     )
 
     # -----------------------------------------------------
-    # CLEAR
+    # BENCHMARK RANDOM
+    # -----------------------------------------------------
+
+    alive_random = benchmark(
+        random_unique
+    )
+
+    # -----------------------------------------------------
+    # CLEAR OLD
     # -----------------------------------------------------
 
     clear_old_subscriptions()
@@ -1857,15 +2157,17 @@ def main():
     # -----------------------------------------------------
 
     write_general(
-        alive_all
+        alive_all,
+        all_unique
     )
 
     # -----------------------------------------------------
-    # PROTOCOL
+    # PROTOCOLS
     # -----------------------------------------------------
 
     write_protocols(
-        alive_all
+        alive_all,
+        all_unique
     )
 
     # -----------------------------------------------------
@@ -1874,17 +2176,31 @@ def main():
 
     write_iran(
         alive_iran,
+        iran_unique,
+
         alive_mci,
+        mci_unique,
+
         alive_irancell,
+        irancell_unique,
+
         alive_rightel,
-        alive_all
+        rightel_unique,
+
+        alive_all,
+        all_unique
     )
 
     # -----------------------------------------------------
     # RANDOM 200
     # -----------------------------------------------------
 
-    create_random_200_placeholder()
+    write_random_200(
+        alive_random,
+        random_unique,
+        alive_all,
+        all_unique
+    )
 
     # -----------------------------------------------------
     # SUMMARY
