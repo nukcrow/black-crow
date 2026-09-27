@@ -30,50 +30,28 @@ SUPPORTED_PROTOCOLS = {
     "hy2",
 }
 
-# =========================================================
-# SUBSCRIPTION SIZES
-# =========================================================
-
 GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
 
 PROTOCOL_SUB_SIZE = 200
 IRAN_SUB_SIZE = 200
-
-# Reserved for Telegram Bot.
-# Collector creates this file EMPTY.
 RANDOM_SUB_SIZE = 200
 
-# =========================================================
-# FETCH
-# =========================================================
+FETCH_WORKERS = 10
+FETCH_TIMEOUT = 15
+FETCH_RETRIES = 3
 
-FETCH_WORKERS = 8
-FETCH_TIMEOUT = 12
-FETCH_RETRIES = 2
+MAX_TEST = 100000
+BENCH_WORKERS = 180
+BENCH_TIMEOUT = 1.8
 
-# =========================================================
-# BENCHMARK
-# =========================================================
+SECOND_PASS = 25000
+SECOND_PASS_WORKERS = 100
+SECOND_PASS_TIMEOUT = 2.0
 
-MAX_TEST = 80000
-BENCH_WORKERS = 160
-BENCH_TIMEOUT = 1.5
+MAX_PER_SOURCE = 20000
 
-SECOND_PASS = 18000
-SECOND_PASS_WORKERS = 80
-SECOND_PASS_TIMEOUT = 1.8
-
-# =========================================================
-# SOURCE LIMITS
-# =========================================================
-
-MAX_PER_SOURCE = 12000
 MAX_PER_HOST = 8
-
-# =========================================================
-# PREFERRED TRANSPORT TYPES
-# =========================================================
 
 PREFERRED_TYPES = {
     "ws",
@@ -85,7 +63,7 @@ PREFERRED_TYPES = {
 
 
 # =========================================================
-# SOURCES
+# SOURCES - GENERAL
 # =========================================================
 
 SOURCES_GENERAL = [
@@ -104,11 +82,15 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/Rayan-Config/C-Sub/main/sub/vless",
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/MahsaNetConfigTopic/ConfigTopic/main/config",
-    "https://github.com/iboxz/free-v2ray-collector/blob/main/main/mix",
+    "https://raw.githubusercontent.com/Joker-funland/V2ray-configs/main/All_Configs_Sub.txt",
     "https://raw.githubusercontent.com/V2RayRoot/V2RayConfig/main/Config.txt",
     "https://raw.githubusercontent.com/MahsaFreeConfig/MahsaFreeConfig/main/Config.txt",
 ]
 
+
+# =========================================================
+# SOURCES - IRAN
+# =========================================================
 
 SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
@@ -116,7 +98,7 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/ss_iran.txt",
 
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
-    "https://github.com/iboxz/free-v2ray-collector/blob/main/main/mixt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
@@ -126,27 +108,42 @@ SOURCES_IRAN = [
 
     "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mci.txt",
     "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mtn.txt",
+
+    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
+
+# =========================================================
+# SOURCES - MCI
+# =========================================================
 
 SOURCES_MCI = [
     "https://raw.githubusercontent.com/Bllare/V2ray-Configs/main/MCI.txt",
-    "https://github.com/iboxz/free-v2ray-collector/blob/main/main/mixt",
+    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mci.txt",
+    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mixt",
 ]
 
+
+# =========================================================
+# SOURCES - IRANCELL
+# =========================================================
 
 SOURCES_IRANCELL = [
-    "https://github.com/iboxz/free-v2ray-collector/blob/main/main/mix",
+    "https://raw.githubusercontent.com/Bllare/V2ray-Configs/main/Irancell.txt",
+    "https://raw.githubusercontent.com/mahsanet/MahsaFreeConfig/main/mtn.txt",
+    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
 
-# فعلاً خالی نگه داشته شده چون URL معتبر raw برای Rightel
-# در کد قبلی مشخص نبود.
+# =========================================================
+# SOURCES - RIGHTEL
+# =========================================================
+
 SOURCES_RIGHTEL = []
 
 
 # =========================================================
-# THREAD LOCAL SESSION
+# THREAD SESSION
 # =========================================================
 
 _thread_local = threading.local()
@@ -176,6 +173,7 @@ def session():
 # =========================================================
 
 def decode64(value):
+
     if not value:
         return ""
 
@@ -190,12 +188,10 @@ def decode64(value):
         if padding:
             value += "=" * (4 - padding)
 
-        decoded = base64.b64decode(
+        return base64.b64decode(
             value,
             validate=False
-        )
-
-        return decoded.decode(
+        ).decode(
             "utf-8",
             errors="ignore"
         )
@@ -205,10 +201,11 @@ def decode64(value):
 
 
 # =========================================================
-# EXTRACT CONFIG PAYLOAD
+# EXTRACT CONFIGS
 # =========================================================
 
 def extract_payload(text):
+
     if not text:
         return []
 
@@ -222,60 +219,42 @@ def extract_payload(text):
 
     output = []
 
-    # -----------------------------------------------------
-    # Direct URI lines
-    # -----------------------------------------------------
+    pattern = re.compile(
+        r"(?:vless|vmess|trojan|ss|hysteria2|hy2)://[^\s\]\[<>)\"']+",
+        re.I
+    )
 
     for line in lines:
 
-        if line.startswith((
-            "vless://",
-            "vmess://",
-            "trojan://",
-            "ss://",
-            "hysteria2://",
-            "hy2://",
-        )):
-            output.append(line)
-            continue
+        matches = pattern.findall(line)
 
-        # Markdown links containing a config
-        match = re.search(
-            r"(?:vless|vmess|trojan|ss|hysteria2|hy2)://[^\s\])]+",
-            line,
-            re.I
-        )
+        for item in matches:
 
-        if match:
-            output.append(
-                match.group(0).rstrip(")")
+            item = item.rstrip(
+                ".,;:)"
             )
 
-    # -----------------------------------------------------
-    # Whole file base64
-    # -----------------------------------------------------
+            if item:
+                output.append(item)
 
-    decoded = decode64(text)
+    decoded_whole = decode64(text)
 
-    if decoded and "://" in decoded:
+    if decoded_whole:
 
-        for line in decoded.splitlines():
+        for line in decoded_whole.splitlines():
 
             line = line.strip()
 
-            if line.startswith((
-                "vless://",
-                "vmess://",
-                "trojan://",
-                "ss://",
-                "hysteria2://",
-                "hy2://",
-            )):
-                output.append(line)
+            matches = pattern.findall(line)
 
-    # -----------------------------------------------------
-    # Individual base64 lines
-    # -----------------------------------------------------
+            for item in matches:
+
+                item = item.rstrip(
+                    ".,;:)"
+                )
+
+                if item:
+                    output.append(item)
 
     for line in lines:
 
@@ -287,21 +266,23 @@ def extract_payload(text):
 
         decoded_line = decode64(line)
 
-        if decoded_line and "://" in decoded_line:
+        if not decoded_line:
+            continue
 
-            for item in decoded_line.splitlines():
+        for item in decoded_line.splitlines():
 
-                item = item.strip()
+            item = item.strip()
 
-                if item.startswith((
-                    "vless://",
-                    "vmess://",
-                    "trojan://",
-                    "ss://",
-                    "hysteria2://",
-                    "hy2://",
-                )):
-                    output.append(item)
+            matches = pattern.findall(item)
+
+            for config in matches:
+
+                config = config.rstrip(
+                    ".,;:)"
+                )
+
+                if config:
+                    output.append(config)
 
     return output
 
@@ -312,27 +293,38 @@ def extract_payload(text):
 
 def fetch_source(url):
 
-    for attempt in range(FETCH_RETRIES + 1):
+    for attempt in range(
+        FETCH_RETRIES + 1
+    ):
 
         try:
 
-            r = session().get(
+            response = session().get(
                 url,
                 timeout=FETCH_TIMEOUT,
                 allow_redirects=True,
             )
 
-            if r.ok and r.text:
+            if (
+                response.ok
+                and response.text
+            ):
 
-                return extract_payload(
-                    r.text
-                )[:MAX_PER_SOURCE]
+                configs = extract_payload(
+                    response.text
+                )
+
+                return configs[
+                    :MAX_PER_SOURCE
+                ]
 
         except Exception:
             pass
 
         if attempt < FETCH_RETRIES:
-            time.sleep(0.3)
+            time.sleep(
+                0.5
+            )
 
     return []
 
@@ -341,15 +333,19 @@ def fetch_source(url):
 # FETCH GROUP
 # =========================================================
 
-def fetch_group(name, sources):
+def fetch_group(
+    name,
+    sources
+):
+
+    if not sources:
+        return []
 
     results = []
 
-    if not sources:
-        return results
-
     print(
-        f"\n[FETCH] {name}: {len(sources)} sources"
+        f"\n[FETCH] {name}: "
+        f"{len(sources)} sources"
     )
 
     with ThreadPoolExecutor(
@@ -365,25 +361,32 @@ def fetch_group(name, sources):
             for url in sources
         }
 
-        for future in as_completed(futures):
+        for future in as_completed(
+            futures
+        ):
 
             url = futures[future]
 
             try:
 
-                items = future.result()
+                configs = future.result()
 
-                if items:
-                    results.extend(items)
+                results.extend(
+                    configs
+                )
 
                 print(
-                    f"  [+] {len(items):>6} | {url}"
+                    f"  [+] "
+                    f"{len(configs):>6} "
+                    f"| {url}"
                 )
 
             except Exception as e:
 
                 print(
-                    f"  [-] failed | {url} | {e}"
+                    f"  [-] "
+                    f"{url} "
+                    f"| {e}"
                 )
 
     return results
@@ -395,37 +398,31 @@ def fetch_group(name, sources):
 
 def fetch_all():
 
-    general = fetch_group(
-        "GENERAL",
-        SOURCES_GENERAL
-    )
-
-    iran = fetch_group(
-        "IRAN",
-        SOURCES_IRAN
-    )
-
-    mci = fetch_group(
-        "MCI",
-        SOURCES_MCI
-    )
-
-    irancell = fetch_group(
-        "IRANCELL",
-        SOURCES_IRANCELL
-    )
-
-    rightel = fetch_group(
-        "RIGHTEL",
-        SOURCES_RIGHTEL
-    )
-
     return {
-        "general": general,
-        "iran": iran,
-        "mci": mci,
-        "irancell": irancell,
-        "rightel": rightel,
+        "general": fetch_group(
+            "GENERAL",
+            SOURCES_GENERAL
+        ),
+
+        "iran": fetch_group(
+            "IRAN",
+            SOURCES_IRAN
+        ),
+
+        "mci": fetch_group(
+            "MCI",
+            SOURCES_MCI
+        ),
+
+        "irancell": fetch_group(
+            "IRANCELL",
+            SOURCES_IRANCELL
+        ),
+
+        "rightel": fetch_group(
+            "RIGHTEL",
+            SOURCES_RIGHTEL
+        ),
     }
 
 
@@ -436,7 +433,6 @@ def fetch_all():
 def proto(config):
 
     try:
-
         return (
             config
             .split("://", 1)[0]
@@ -449,13 +445,15 @@ def proto(config):
 
 
 # =========================================================
-# PARSE
+# URL PARSE
 # =========================================================
 
 def parsed(config):
 
     try:
-        return urlparse(config)
+        return urlparse(
+            config
+        )
     except Exception:
         return None
 
@@ -478,14 +476,21 @@ def query(config):
         return {}
 
 
-def q1(q, key, default=""):
+def q1(
+    q,
+    key,
+    default=""
+):
 
     value = q.get(key)
 
     if not value:
         return default
 
-    if isinstance(value, list):
+    if isinstance(
+        value,
+        list
+    ):
         return value[0]
 
     return str(value)
@@ -522,14 +527,12 @@ def is_junk_host(host):
 
     h = host.lower().strip()
 
-    junk = {
+    if h in {
         "localhost",
         "127.0.0.1",
         "0.0.0.0",
         "::1",
-    }
-
-    if h in junk:
+    }:
         return True
 
     try:
@@ -548,14 +551,16 @@ def is_junk_host(host):
     except Exception:
         pass
 
-    if h.endswith(".local"):
+    if h.endswith(
+        ".local"
+    ):
         return True
 
     return False
 
 
 # =========================================================
-# CONFIG VALIDATION
+# VALID CONFIG
 # =========================================================
 
 def valid_config(config):
@@ -565,57 +570,65 @@ def valid_config(config):
 
     config = config.strip()
 
-    ptype = proto(config)
+    ptype = proto(
+        config
+    )
 
     if ptype not in SUPPORTED_PROTOCOLS:
         return False
 
-    p = parsed(config)
+    p = parsed(
+        config
+    )
 
     if not p:
         return False
 
-    host, port = host_port(config)
+    host, port = host_port(
+        config
+    )
 
     if not host:
         return False
 
-    if is_junk_host(host):
-        return False
-
-    if not port or not (
-        1 <= port <= 65535
+    if is_junk_host(
+        host
     ):
         return False
 
-    # -----------------------------------------------------
-    # VLESS
-    # -----------------------------------------------------
+    if not (
+        1 <= port <= 65535
+    ):
+        return False
 
     if ptype == "vless":
 
         if not p.username:
             return False
 
-        if len(p.username) < 8:
+        if len(
+            p.username
+        ) < 8:
             return False
-
-    # -----------------------------------------------------
-    # VMESS
-    # -----------------------------------------------------
 
     elif ptype == "vmess":
 
-        raw = config[8:]
+        raw = config[
+            8:
+        ]
 
-        decoded = decode64(raw)
+        decoded = decode64(
+            raw
+        )
 
         if not decoded:
             return False
 
         try:
 
-            data = json.loads(decoded)
+            data = json.loads(
+                decoded
+            )
 
             address = (
                 data.get("add")
@@ -623,7 +636,7 @@ def valid_config(config):
                 or ""
             )
 
-            port_value = (
+            vmess_port = (
                 data.get("port")
                 or ""
             )
@@ -631,33 +644,21 @@ def valid_config(config):
             if not address:
                 return False
 
-            if not port_value:
+            if not vmess_port:
                 return False
 
         except Exception:
             return False
-
-    # -----------------------------------------------------
-    # TROJAN
-    # -----------------------------------------------------
 
     elif ptype == "trojan":
 
         if not p.username:
             return False
 
-    # -----------------------------------------------------
-    # SS
-    # -----------------------------------------------------
-
     elif ptype == "ss":
 
         if not p.username:
             return False
-
-    # -----------------------------------------------------
-    # HYSTERIA2
-    # -----------------------------------------------------
 
     elif ptype in {
         "hysteria2",
@@ -676,27 +677,43 @@ def valid_config(config):
 
 def fingerprint(config):
 
-    ptype = proto(config)
-    q = query(config)
+    ptype = proto(
+        config
+    )
 
-    host, port = host_port(config)
+    q = query(
+        config
+    )
+
+    host, port = host_port(
+        config
+    )
 
     security = q1(
         q,
         "security",
-        q1(q, "tls")
+        q1(
+            q,
+            "tls"
+        )
     )
 
     transport = q1(
         q,
         "type",
-        q1(q, "network")
+        q1(
+            q,
+            "network"
+        )
     )
 
     sni = q1(
         q,
         "sni",
-        q1(q, "peer")
+        q1(
+            q,
+            "peer"
+        )
     )
 
     host_header = q1(
@@ -724,23 +741,21 @@ def fingerprint(config):
         "sid"
     )
 
-    values = [
-        ptype,
-        host,
-        str(port),
-        security,
-        transport,
-        sni,
-        host_header,
-        path,
-        service_name,
-        pbk,
-        sid,
-    ]
-
     return "|".join(
-        x.strip().lower()
-        for x in values
+        str(x).strip().lower()
+        for x in [
+            ptype,
+            host,
+            port,
+            security,
+            transport,
+            sni,
+            host_header,
+            path,
+            service_name,
+            pbk,
+            sid,
+        ]
     )
 
 
@@ -757,19 +772,25 @@ def dedupe(configs):
 
         config = config.strip()
 
-        if not valid_config(config):
+        if not valid_config(
+            config
+        ):
             continue
 
-        fp = fingerprint(config)
-
-        if not fp:
-            continue
+        fp = fingerprint(
+            config
+        )
 
         if fp in seen:
             continue
 
-        seen.add(fp)
-        output.append(config)
+        seen.add(
+            fp
+        )
+
+        output.append(
+            config
+        )
 
     return output
 
@@ -782,19 +803,17 @@ def looks_iran(config):
 
     text = config.lower()
 
-    iran_terms = (
-        "iran",
-        "irancell",
-        "mci",
-        "hamrah",
-        "rightel",
-        "همراه",
-        "ایران",
-    )
-
     return any(
         term in text
-        for term in iran_terms
+        for term in (
+            "iran",
+            "irancell",
+            "mci",
+            "hamrah",
+            "rightel",
+            " همراه",
+            "ایران",
+        )
     )
 
 
@@ -802,16 +821,22 @@ def operator_of(config):
 
     text = config.lower()
 
-    if (
-        "mci" in text
-        or "hamrah" in text
-        or "همراه" in text
+    if any(
+        x in text
+        for x in (
+            "mci",
+            "hamrah",
+            "همراه",
+        )
     ):
         return "mci"
 
-    if (
-        "irancell" in text
-        or "mtn" in text
+    if any(
+        x in text
+        for x in (
+            "irancell",
+            "mtn",
+        )
     ):
         return "irancell"
 
@@ -822,19 +847,24 @@ def operator_of(config):
 
 
 # =========================================================
-# QUALITY SCORE
+# QUALITY
 # =========================================================
 
 def quality_score(config):
 
     score = 0
 
-    ptype = proto(config)
-    q = query(config)
+    ptype = proto(
+        config
+    )
 
-    host, port = host_port(config)
+    q = query(
+        config
+    )
 
-    # Protocol
+    host, port = host_port(
+        config
+    )
 
     if ptype in {
         "vless",
@@ -852,18 +882,17 @@ def quality_score(config):
     elif ptype == "ss":
         score += 15
 
-    # Transport
-
     transport = q1(
         q,
         "type",
-        q1(q, "network")
+        q1(
+            q,
+            "network"
+        )
     ).lower()
 
     if transport in PREFERRED_TYPES:
         score += 20
-
-    # TLS
 
     security = q1(
         q,
@@ -873,17 +902,11 @@ def quality_score(config):
     if security == "tls":
         score += 15
 
-    # SNI
-
-    sni = q1(
+    if q1(
         q,
         "sni"
-    )
-
-    if sni:
+    ):
         score += 10
-
-    # Port
 
     if port == 443:
         score += 12
@@ -898,13 +921,13 @@ def quality_score(config):
     }:
         score += 8
 
-    # Domain
-
     if host:
 
         try:
 
-            ipaddress.ip_address(host)
+            ipaddress.ip_address(
+                host
+            )
 
             score += 2
 
@@ -913,24 +936,16 @@ def quality_score(config):
             if "." in host:
                 score += 8
 
-    # Path
-
-    path = q1(
+    if q1(
         q,
         "path"
-    )
-
-    if path:
+    ):
         score += 5
 
-    # Service
-
-    service = q1(
+    if q1(
         q,
         "serviceName"
-    )
-
-    if service:
+    ):
         score += 4
 
     return score
@@ -944,7 +959,9 @@ def tcp_probe(item):
 
     config, timeout = item
 
-    host, port = host_port(config)
+    host, port = host_port(
+        config
+    )
 
     if not host or not port:
         return None
@@ -954,16 +971,22 @@ def tcp_probe(item):
     try:
 
         with socket.create_connection(
-            (host, port),
+            (
+                host,
+                port
+            ),
             timeout=timeout
         ):
 
-            elapsed = (
+            latency = (
                 time.perf_counter()
                 - start
             )
 
-            return config, elapsed
+            return (
+                config,
+                latency
+            )
 
     except Exception:
         return None
@@ -978,14 +1001,16 @@ def benchmark(configs):
     if not configs:
         return []
 
-    print(
-        f"\n[BENCHMARK] Testing "
-        f"{min(len(configs), MAX_TEST)} configs..."
-    )
-
-    candidates = configs[:MAX_TEST]
+    candidates = configs[
+        :MAX_TEST
+    ]
 
     results = []
+
+    print(
+        f"\n[BENCHMARK] "
+        f"Testing {len(candidates)} configs..."
+    )
 
     with ThreadPoolExecutor(
         max_workers=BENCH_WORKERS
@@ -999,7 +1024,6 @@ def benchmark(configs):
                     BENCH_TIMEOUT
                 )
             )
-
             for config in candidates
         ]
 
@@ -1018,28 +1042,24 @@ def benchmark(configs):
                     results.append({
                         "config": config,
                         "latency": latency,
-                        "score": quality_score(config),
+                        "score": quality_score(
+                            config
+                        ),
                     })
 
             except Exception:
                 pass
 
-    # -----------------------------------------------------
-    # Second pass
-    # -----------------------------------------------------
-
     if len(results) < SECOND_PASS:
 
         remaining = configs[
             MAX_TEST:
-        ]
-
-        remaining = remaining[
-            :SECOND_PASS
+            MAX_TEST + SECOND_PASS
         ]
 
         print(
-            f"[BENCHMARK] Second pass: "
+            f"[BENCHMARK] "
+            f"Second pass: "
             f"{len(remaining)} configs..."
         )
 
@@ -1055,7 +1075,6 @@ def benchmark(configs):
                         SECOND_PASS_TIMEOUT
                     )
                 )
-
                 for config in remaining
             ]
 
@@ -1074,15 +1093,13 @@ def benchmark(configs):
                         results.append({
                             "config": config,
                             "latency": latency,
-                            "score": quality_score(config),
+                            "score": quality_score(
+                                config
+                            ),
                         })
 
                 except Exception:
                     pass
-
-    # -----------------------------------------------------
-    # Sort
-    # -----------------------------------------------------
 
     results.sort(
         key=lambda x: (
@@ -1092,7 +1109,8 @@ def benchmark(configs):
     )
 
     print(
-        f"[BENCHMARK] Alive: {len(results)}"
+        f"[BENCHMARK] "
+        f"Alive: {len(results)}"
     )
 
     return results
@@ -1102,20 +1120,32 @@ def benchmark(configs):
 # REMARK
 # =========================================================
 
-def clean_remark(config, index):
-
-    ptype = proto(config)
+def clean_remark(
+    config,
+    index
+):
 
     return (
-        f"{REMARK}-{ptype}-{index}"
+        f"{REMARK}-"
+        f"{proto(config)}-"
+        f"{index}"
     )
 
 
-def config_line(config, index):
+def config_line(
+    config,
+    index
+):
 
     return (
-        f"{config}"
-        f"#{quote(clean_remark(config, index))}"
+        config
+        + "#"
+        + quote(
+            clean_remark(
+                config,
+                index
+            )
+        )
     )
 
 
@@ -1127,19 +1157,14 @@ def select_records(
     results,
     limit,
     predicate=None,
-    used_fps=None,
 ):
 
     if not results or limit <= 0:
         return []
 
-    used_fps = (
-        used_fps
-        if used_fps is not None
-        else set()
-    )
-
     candidates = []
+
+    seen = set()
 
     for item in results:
 
@@ -1156,52 +1181,52 @@ def select_records(
         ):
             continue
 
-        fp = fingerprint(config)
+        fp = fingerprint(
+            config
+        )
 
-        if not fp:
+        if fp in seen:
             continue
 
+        seen.add(
+            fp
+        )
+
         candidates.append(
-            (
-                item,
-                fp
-            )
+            item
         )
 
     selected = []
-    selected_fps = set()
 
-    # =====================================================
-    # PASS 1
-    # Strong diversity
-    # =====================================================
+    selected_fps = set()
 
     host_count = {}
     proto_count = {}
 
-    proto_limit = max(
-        20,
-        limit // 2
-    )
+    # -----------------------------------------------------
+    # PASS 1
+    # -----------------------------------------------------
 
-    for item, fp in candidates:
+    for item in candidates:
 
         if len(selected) >= limit:
             break
 
-        if fp in selected_fps:
-            continue
+        config = item[
+            "config"
+        ]
 
-        if fp in used_fps:
-            continue
-
-        config = item["config"]
+        fp = fingerprint(
+            config
+        )
 
         host, _ = host_port(
             config
         )
 
-        ptype = proto(config)
+        ptype = proto(
+            config
+        )
 
         if host_count.get(
             host,
@@ -1212,50 +1237,59 @@ def select_records(
         if proto_count.get(
             ptype,
             0
-        ) >= proto_limit:
+        ) >= max(
+            20,
+            limit // 2
+        ):
             continue
 
-        selected.append(item)
-        selected_fps.add(fp)
+        selected.append(
+            item
+        )
+
+        selected_fps.add(
+            fp
+        )
 
         host_count[host] = (
-            host_count.get(host, 0)
-            + 1
+            host_count.get(
+                host,
+                0
+            ) + 1
         )
 
         proto_count[ptype] = (
-            proto_count.get(ptype, 0)
-            + 1
+            proto_count.get(
+                ptype,
+                0
+            ) + 1
         )
 
-    # =====================================================
+    # -----------------------------------------------------
     # PASS 2
-    # Relax host limit
-    # =====================================================
+    # -----------------------------------------------------
 
     if len(selected) < limit:
 
-        host_count = {}
-        proto_count = {}
-
-        for item, fp in candidates:
+        for item in candidates:
 
             if len(selected) >= limit:
                 break
 
+            config = item[
+                "config"
+            ]
+
+            fp = fingerprint(
+                config
+            )
+
             if fp in selected_fps:
                 continue
-
-            if fp in used_fps:
-                continue
-
-            config = item["config"]
 
             host, _ = host_port(
                 config
             )
-
-            ptype = proto(config)
 
             if host_count.get(
                 host,
@@ -1263,137 +1297,137 @@ def select_records(
             ) >= 8:
                 continue
 
-            if proto_count.get(
-                ptype,
-                0
-            ) >= max(30, limit):
-                continue
+            selected.append(
+                item
+            )
 
-            selected.append(item)
-            selected_fps.add(fp)
+            selected_fps.add(
+                fp
+            )
 
             host_count[host] = (
-                host_count.get(host, 0)
-                + 1
+                host_count.get(
+                    host,
+                    0
+                ) + 1
             )
 
-            proto_count[ptype] = (
-                proto_count.get(ptype, 0)
-                + 1
-            )
-
-    # =====================================================
-    # PASS 3
-    # Relax host limit further
-    # =====================================================
+    # -----------------------------------------------------
+    # PASS 3 - NO DIVERSITY LIMIT
+    # -----------------------------------------------------
 
     if len(selected) < limit:
 
-        host_count = {}
-
-        for item, fp in candidates:
+        for item in candidates:
 
             if len(selected) >= limit:
                 break
 
-            if fp in selected_fps:
-                continue
+            config = item[
+                "config"
+            ]
 
-            if fp in used_fps:
-                continue
-
-            config = item["config"]
-
-            host, _ = host_port(
+            fp = fingerprint(
                 config
             )
 
-            if host_count.get(
-                host,
-                0
-            ) >= 20:
-                continue
-
-            selected.append(item)
-            selected_fps.add(fp)
-
-            host_count[host] = (
-                host_count.get(host, 0)
-                + 1
-            )
-
-    # =====================================================
-    # PASS 4
-    # Quantity fallback
-    # =====================================================
-
-    if len(selected) < limit:
-
-        for item, fp in candidates:
-
-            if len(selected) >= limit:
-                break
-
             if fp in selected_fps:
                 continue
 
-            if fp in used_fps:
-                continue
+            selected.append(
+                item
+            )
 
-            selected.append(item)
-            selected_fps.add(fp)
+            selected_fps.add(
+                fp
+            )
 
-    return selected[:limit]
+    return selected[
+        :limit
+    ]
 
 
 # =========================================================
-# MIX SELECTOR
+# SOURCE-FIRST SELECTOR
+# =========================================================
+
+def fill_from_pools(
+    primary,
+    fallback,
+    limit
+):
+
+    selected = []
+    seen = set()
+
+    def add_pool(pool):
+
+        for item in pool:
+
+            if len(selected) >= limit:
+                return
+
+            config = item[
+                "config"
+            ]
+
+            fp = fingerprint(
+                config
+            )
+
+            if fp in seen:
+                continue
+
+            seen.add(
+                fp
+            )
+
+            selected.append(
+                item
+            )
+
+    add_pool(
+        primary
+    )
+
+    if len(selected) < limit:
+        add_pool(
+            fallback
+        )
+
+    return selected[
+        :limit
+    ]
+
+
+# =========================================================
+# MIX
 # =========================================================
 
 def select_mix(
     results,
-    limit,
-    predicate=None,
+    limit
 ):
 
     if not results:
         return []
 
-    pool = list(results)
+    pool = list(
+        results
+    )
 
-    block_size = 100
-
-    blocks = [
-        pool[i:i + block_size]
-
-        for i in range(
-            0,
-            len(pool),
-            block_size
-        )
-    ]
-
-    rng = random.Random()
-
-    rng.shuffle(blocks)
-
-    mixed = []
-
-    for block in blocks:
-
-        rng.shuffle(block)
-
-        mixed.extend(block)
+    random.shuffle(
+        pool
+    )
 
     return select_records(
-        mixed,
-        limit,
-        predicate=predicate
+        pool,
+        limit
     )
 
 
 # =========================================================
-# WRITE FILE
+# WRITE
 # =========================================================
 
 def write_file(
@@ -1401,15 +1435,10 @@ def write_file(
     records
 ):
 
-    directory = os.path.dirname(
-        path
+    os.makedirs(
+        os.path.dirname(path),
+        exist_ok=True
     )
-
-    if directory:
-        os.makedirs(
-            directory,
-            exist_ok=True
-        )
 
     with open(
         path,
@@ -1422,11 +1451,9 @@ def write_file(
             start=1
         ):
 
-            config = item["config"]
-
             f.write(
                 config_line(
-                    config,
+                    item["config"],
                     index
                 )
                 + "\n"
@@ -1434,20 +1461,17 @@ def write_file(
 
 
 # =========================================================
-# CREATE EMPTY FILE
+# EMPTY FILE
 # =========================================================
 
-def create_empty_file(path):
+def create_empty_file(
+    path
+):
 
-    directory = os.path.dirname(
-        path
+    os.makedirs(
+        os.path.dirname(path),
+        exist_ok=True
     )
-
-    if directory:
-        os.makedirs(
-            directory,
-            exist_ok=True
-        )
 
     with open(
         path,
@@ -1458,7 +1482,7 @@ def create_empty_file(path):
 
 
 # =========================================================
-# REMOVE OLD SUBSCRIPTIONS
+# CLEAR
 # =========================================================
 
 def clear_old_subscriptions():
@@ -1483,55 +1507,38 @@ def clear_old_subscriptions():
         )
 
         try:
-
-            os.remove(path)
-
+            os.remove(
+                path
+            )
         except Exception:
             pass
 
 
 # =========================================================
-# WRITE GENERAL
+# GENERAL
 # =========================================================
 
-def write_general(results):
+def write_general(
+    results
+):
 
-    print(
-        "\n[WRITE] GENERAL"
-    )
-
-    total_needed = (
+    total = (
         GENERAL_SUB_SIZE
         * GENERAL_SUB_COUNT
     )
 
     selected = select_records(
         results,
-        total_needed
-    )
-
-    # -----------------------------------------------------
-    # all_configs.txt
-    # -----------------------------------------------------
-
-    all_path = os.path.join(
-        OUT_DIR,
-        "all_configs.txt"
+        total
     )
 
     write_file(
-        all_path,
+        os.path.join(
+            OUT_DIR,
+            "all_configs.txt"
+        ),
         selected
     )
-
-    print(
-        f"  all_configs.txt = "
-        f"{len(selected)}"
-    )
-
-    # -----------------------------------------------------
-    # sub1 ... sub10
-    # -----------------------------------------------------
 
     for i in range(
         GENERAL_SUB_COUNT
@@ -1547,43 +1554,37 @@ def write_general(results):
             + GENERAL_SUB_SIZE
         )
 
-        part = selected[
-            start:end
-        ]
-
-        path = os.path.join(
-            OUT_DIR,
-            f"sub{i + 1}.txt"
-        )
-
         write_file(
-            path,
-            part
+            os.path.join(
+                OUT_DIR,
+                f"sub{i + 1}.txt"
+            ),
+            selected[
+                start:end
+            ]
         )
-
-        print(
-            f"  sub{i + 1}.txt = "
-            f"{len(part)}"
-        )
-
-
-# =========================================================
-# WRITE PROTOCOLS
-# =========================================================
-
-def write_protocols(results):
 
     print(
-        "\n[WRITE] PROTOCOLS"
+        f"[GENERAL] "
+        f"{len(selected)}/{total}"
     )
 
-    protocols = (
+
+# =========================================================
+# PROTOCOLS
+# =========================================================
+
+def write_protocols(
+    results
+):
+
+    protocols = [
         "vless",
         "vmess",
         "trojan",
         "ss",
         "hysteria2",
-    )
+    ]
 
     for ptype in protocols:
 
@@ -1594,162 +1595,213 @@ def write_protocols(results):
                 proto(c) == p
         )
 
-        path = os.path.join(
-            OUT_DIR,
-            f"{ptype}.txt"
-        )
-
         write_file(
-            path,
+            os.path.join(
+                OUT_DIR,
+                f"{ptype}.txt"
+            ),
             selected
         )
 
         print(
-            f"  {ptype}.txt = "
-            f"{len(selected)}"
+            f"[{ptype.upper():8}] "
+            f"{len(selected)}/{PROTOCOL_SUB_SIZE}"
         )
 
 
 # =========================================================
-# WRITE IRAN
+# IRAN / OPERATOR
 # =========================================================
 
 def write_iran(
-    all_results,
     iran_results,
+    mci_results,
+    irancell_results,
+    rightel_results,
+    all_results,
 ):
-
-    print(
-        "\n[WRITE] IRAN"
-    )
 
     # -----------------------------------------------------
     # BEST IRAN
+    # First use dedicated Iran sources,
+    # then fallback to ALL alive configs.
     # -----------------------------------------------------
 
-    best_iran = select_records(
-        iran_results,
+    best_iran = fill_from_pools(
+        select_records(
+            iran_results,
+            IRAN_SUB_SIZE
+        ),
+        select_records(
+            all_results,
+            IRAN_SUB_SIZE
+        ),
         IRAN_SUB_SIZE
     )
 
-    path = os.path.join(
-        OUT_DIR,
-        "best_iran.txt"
-    )
-
     write_file(
-        path,
+        os.path.join(
+            OUT_DIR,
+            "best_iran.txt"
+        ),
         best_iran
-    )
-
-    print(
-        f"  best_iran.txt = "
-        f"{len(best_iran)}"
     )
 
     # -----------------------------------------------------
     # MIX IRAN
     # -----------------------------------------------------
 
+    mix_pool = list(
+        iran_results
+    )
+
+    if len(mix_pool) < IRAN_SUB_SIZE:
+
+        mix_pool.extend(
+            all_results
+        )
+
     mix_iran = select_mix(
-        iran_results,
+        mix_pool,
         IRAN_SUB_SIZE
     )
 
-    path = os.path.join(
-        OUT_DIR,
-        "mix_iran.txt"
-    )
-
     write_file(
-        path,
+        os.path.join(
+            OUT_DIR,
+            "mix_iran.txt"
+        ),
         mix_iran
-    )
-
-    print(
-        f"  mix_iran.txt = "
-        f"{len(mix_iran)}"
     )
 
     # -----------------------------------------------------
     # MCI
     # -----------------------------------------------------
 
-    mci = select_records(
-        all_results.get(
-            "mci",
-            []
+    mci = fill_from_pools(
+        select_records(
+            mci_results,
+            IRAN_SUB_SIZE
+        ),
+        select_records(
+            iran_results,
+            IRAN_SUB_SIZE
         ),
         IRAN_SUB_SIZE
     )
 
-    path = os.path.join(
-        OUT_DIR,
-        "mci.txt"
-    )
+    if len(mci) < IRAN_SUB_SIZE:
+
+        mci = fill_from_pools(
+            mci,
+            select_records(
+                all_results,
+                IRAN_SUB_SIZE
+            ),
+            IRAN_SUB_SIZE
+        )
 
     write_file(
-        path,
+        os.path.join(
+            OUT_DIR,
+            "mci.txt"
+        ),
         mci
-    )
-
-    print(
-        f"  mci.txt = "
-        f"{len(mci)}"
     )
 
     # -----------------------------------------------------
     # IRANCELL
     # -----------------------------------------------------
 
-    irancell = select_records(
-        all_results.get(
-            "irancell",
-            []
+    irancell = fill_from_pools(
+        select_records(
+            irancell_results,
+            IRAN_SUB_SIZE
+        ),
+        select_records(
+            iran_results,
+            IRAN_SUB_SIZE
         ),
         IRAN_SUB_SIZE
     )
 
-    path = os.path.join(
-        OUT_DIR,
-        "irancell.txt"
-    )
+    if len(irancell) < IRAN_SUB_SIZE:
+
+        irancell = fill_from_pools(
+            irancell,
+            select_records(
+                all_results,
+                IRAN_SUB_SIZE
+            ),
+            IRAN_SUB_SIZE
+        )
 
     write_file(
-        path,
+        os.path.join(
+            OUT_DIR,
+            "irancell.txt"
+        ),
         irancell
-    )
-
-    print(
-        f"  irancell.txt = "
-        f"{len(irancell)}"
     )
 
     # -----------------------------------------------------
     # RIGHTEL
     # -----------------------------------------------------
 
-    rightel = select_records(
-        all_results.get(
-            "rightel",
-            []
+    rightel = fill_from_pools(
+        select_records(
+            rightel_results,
+            IRAN_SUB_SIZE
+        ),
+        select_records(
+            iran_results,
+            IRAN_SUB_SIZE
         ),
         IRAN_SUB_SIZE
     )
 
-    path = os.path.join(
-        OUT_DIR,
-        "rightel.txt"
-    )
+    if len(rightel) < IRAN_SUB_SIZE:
+
+        rightel = fill_from_pools(
+            rightel,
+            select_records(
+                all_results,
+                IRAN_SUB_SIZE
+            ),
+            IRAN_SUB_SIZE
+        )
 
     write_file(
-        path,
+        os.path.join(
+            OUT_DIR,
+            "rightel.txt"
+        ),
         rightel
     )
 
     print(
-        f"  rightel.txt = "
-        f"{len(rightel)}"
+        f"[BEST IRAN] "
+        f"{len(best_iran)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"[MIX IRAN]  "
+        f"{len(mix_iran)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"[MCI]       "
+        f"{len(mci)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"[IRANCELL]  "
+        f"{len(irancell)}/{IRAN_SUB_SIZE}"
+    )
+
+    print(
+        f"[RIGHTEL]   "
+        f"{len(rightel)}/{IRAN_SUB_SIZE}"
     )
 
 
@@ -1764,16 +1816,8 @@ def create_random_subscription():
         "random_200.txt"
     )
 
-    # Intentionally EMPTY.
-    # Telegram Bot handles Random 200 itself.
-
     create_empty_file(
         path
-    )
-
-    print(
-        f"  random_200.txt = "
-        f"0 (reserved for Telegram Bot)"
     )
 
 
@@ -1785,15 +1829,15 @@ def print_summary():
 
     print(
         "\n"
-        + "=" * 60
+        + "=" * 65
     )
 
     print(
-        "SUBSCRIPTION SUMMARY"
+        "NUKCROW SUBSCRIPTION SUMMARY"
     )
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
     if not os.path.isdir(
@@ -1831,15 +1875,15 @@ def print_summary():
                 )
 
             print(
-                f"{filename:<25}"
-                f"{count:>6}"
+                f"{filename:<30}"
+                f"{count:>7}"
             )
 
         except Exception:
             pass
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
 
@@ -1849,10 +1893,10 @@ def print_summary():
 
 def main():
 
-    started = time.time()
+    start_time = time.time()
 
     print(
-        "=" * 60
+        "=" * 65
     )
 
     print(
@@ -1860,12 +1904,8 @@ def main():
     )
 
     print(
-        "=" * 60
+        "=" * 65
     )
-
-    # -----------------------------------------------------
-    # Output directory
-    # -----------------------------------------------------
 
     os.makedirs(
         OUT_DIR,
@@ -1873,115 +1913,134 @@ def main():
     )
 
     # -----------------------------------------------------
-    # Fetch
+    # FETCH
     # -----------------------------------------------------
 
     raw = fetch_all()
 
-    general_raw = raw.get(
-        "general",
-        []
+    general_raw = raw[
+        "general"
+    ]
+
+    iran_raw = raw[
+        "iran"
+    ]
+
+    mci_raw = raw[
+        "mci"
+    ]
+
+    irancell_raw = raw[
+        "irancell"
+    ]
+
+    rightel_raw = raw[
+        "rightel"
+    ]
+
+    # -----------------------------------------------------
+    # DEDUPE EACH POOL
+    # -----------------------------------------------------
+
+    general_unique = dedupe(
+        general_raw
     )
 
-    iran_raw = raw.get(
-        "iran",
-        []
+    iran_unique = dedupe(
+        iran_raw
     )
 
-    mci_raw = raw.get(
-        "mci",
-        []
+    mci_unique = dedupe(
+        mci_raw
     )
 
-    irancell_raw = raw.get(
-        "irancell",
-        []
+    irancell_unique = dedupe(
+        irancell_raw
     )
 
-    rightel_raw = raw.get(
-        "rightel",
-        []
+    rightel_unique = dedupe(
+        rightel_raw
+    )
+
+    # -----------------------------------------------------
+    # GLOBAL POOL
+    # -----------------------------------------------------
+
+    all_unique = dedupe(
+        general_unique
+        + iran_unique
+        + mci_unique
+        + irancell_unique
+        + rightel_unique
     )
 
     print(
         "\n"
-        + "-" * 60
+        + "-" * 65
     )
 
     print(
-        f"RAW GENERAL   : "
-        f"{len(general_raw)}"
+        f"GENERAL UNIQUE : "
+        f"{len(general_unique)}"
     )
 
     print(
-        f"RAW IRAN      : "
-        f"{len(iran_raw)}"
+        f"IRAN UNIQUE    : "
+        f"{len(iran_unique)}"
     )
 
     print(
-        f"RAW MCI       : "
-        f"{len(mci_raw)}"
+        f"MCI UNIQUE     : "
+        f"{len(mci_unique)}"
     )
 
     print(
-        f"RAW IRANCELL  : "
-        f"{len(irancell_raw)}"
+        f"IRANCELL UNIQUE: "
+        f"{len(irancell_unique)}"
     )
 
     print(
-        f"RAW RIGHTEL   : "
-        f"{len(rightel_raw)}"
+        f"RIGHTEL UNIQUE : "
+        f"{len(rightel_unique)}"
+    )
+
+    print(
+        f"GLOBAL UNIQUE  : "
+        f"{len(all_unique)}"
     )
 
     # -----------------------------------------------------
-    # Combine
+    # BENCHMARK GLOBAL
     # -----------------------------------------------------
 
-    combined = (
-        general_raw
-        + iran_raw
-        + mci_raw
-        + irancell_raw
-        + rightel_raw
-    )
-
-    print(
-        f"\nRAW TOTAL     : "
-        f"{len(combined)}"
+    alive_global = benchmark(
+        all_unique
     )
 
     # -----------------------------------------------------
-    # Dedupe
+    # BENCHMARK DEDICATED POOLS
     # -----------------------------------------------------
 
-    unique = dedupe(
-        combined
+    alive_iran = benchmark(
+        iran_unique
     )
 
-    print(
-        f"UNIQUE        : "
-        f"{len(unique)}"
+    alive_mci = benchmark(
+        mci_unique
     )
 
-    # -----------------------------------------------------
-    # Benchmark
-    # -----------------------------------------------------
-
-    benchmarked = benchmark(
-        unique
+    alive_irancell = benchmark(
+        irancell_unique
     )
 
-    if not benchmarked:
+    alive_rightel = benchmark(
+        rightel_unique
+    )
 
-        print(
-            "\n[ERROR] "
-            "No alive configs found."
-        )
+    if not alive_global:
 
         clear_old_subscriptions()
 
-        # Even when benchmark fails,
-        # create the reserved empty Random file.
         create_random_subscription()
 
         print_summary()
@@ -1989,144 +2048,60 @@ def main():
         return
 
     # -----------------------------------------------------
-    # Sort
+    # CLEAN OLD
     # -----------------------------------------------------
-
-    benchmarked.sort(
-        key=lambda x: (
-            -x["score"],
-            x["latency"]
-        )
-    )
-
-    # -----------------------------------------------------
-    # Pools
-    # -----------------------------------------------------
-
-    general_results = benchmarked
-
-    iran_results = [
-        item
-        for item in benchmarked
-        if looks_iran(
-            item["config"]
-        )
-    ]
-
-    mci_results = [
-        item
-        for item in benchmarked
-        if operator_of(
-            item["config"]
-        ) == "mci"
-    ]
-
-    irancell_results = [
-        item
-        for item in benchmarked
-        if operator_of(
-            item["config"]
-        ) == "irancell"
-    ]
-
-    rightel_results = [
-        item
-        for item in benchmarked
-        if operator_of(
-            item["config"]
-        ) == "rightel"
-    ]
-
-    print(
-        "\n"
-        + "-" * 60
-    )
-
-    print(
-        f"ALIVE TOTAL    : "
-        f"{len(general_results)}"
-    )
-
-    print(
-        f"ALIVE IRAN     : "
-        f"{len(iran_results)}"
-    )
-
-    print(
-        f"ALIVE MCI      : "
-        f"{len(mci_results)}"
-    )
-
-    print(
-        f"ALIVE IRANCELL : "
-        f"{len(irancell_results)}"
-    )
-
-    print(
-        f"ALIVE RIGHTEL  : "
-        f"{len(rightel_results)}"
-    )
-
-    # -----------------------------------------------------
-    # Clear previous subscriptions
-    # -----------------------------------------------------
-
-    print(
-        "\n[CLEAN] "
-        "Removing old subscription files..."
-    )
 
     clear_old_subscriptions()
 
     # -----------------------------------------------------
-    # General
+    # GENERAL
     # -----------------------------------------------------
 
     write_general(
-        general_results
+        alive_global
     )
 
     # -----------------------------------------------------
-    # Protocols
+    # PROTOCOLS
     # -----------------------------------------------------
 
     write_protocols(
-        general_results
+        alive_global
     )
 
     # -----------------------------------------------------
-    # Iran / Operators
+    # IRAN
     # -----------------------------------------------------
 
     write_iran(
-        {
-            "mci": mci_results,
-            "irancell": irancell_results,
-            "rightel": rightel_results,
-        },
-        iran_results
+        alive_iran,
+        alive_mci,
+        alive_irancell,
+        alive_rightel,
+        alive_global
     )
 
     # -----------------------------------------------------
-    # Random 200
+    # RANDOM 200
+    # MUST REMAIN EMPTY
     # -----------------------------------------------------
 
     create_random_subscription()
 
     # -----------------------------------------------------
-    # Summary
+    # SUMMARY
     # -----------------------------------------------------
 
     print_summary()
 
     elapsed = (
         time.time()
-        - started
+        - start_time
     )
 
     print(
-        f"\nDONE in "
-        f"{elapsed:.1f}s"
+        f"\nCompleted in "
+        f"{elapsed:.2f} seconds"
     )
 
 
