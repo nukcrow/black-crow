@@ -58,7 +58,7 @@ jobs:
       - name: Sync with main
         run: |
           echo "=========================================="
-          echo "Syncing repository with origin/main"
+          echo "SYNCING REPOSITORY WITH ORIGIN/MAIN"
           echo "=========================================="
 
           git fetch origin main
@@ -102,6 +102,8 @@ jobs:
 
       - name: Verify Subscription Files
         run: |
+          set -e
+
           echo "=========================================="
           echo "SUBSCRIPTION FILES"
           echo "=========================================="
@@ -111,8 +113,31 @@ jobs:
             exit 1
           fi
 
+          # ==================================================
+          # RANDOM 200 MUST NOT EXIST
+          # ==================================================
+
           echo ""
-          echo "Files:"
+          echo "=========================================="
+          echo "REMOVED FILE CHECK"
+          echo "=========================================="
+
+          if [ -f "sub/general/random_200.txt" ]; then
+            echo "ERROR: random_200.txt must not exist!"
+            exit 1
+          fi
+
+          echo "OK: random_200.txt does not exist."
+
+          # ==================================================
+          # FILE LIST
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "GENERATED FILES"
+          echo "=========================================="
+
           find sub/general -maxdepth 1 -type f -name "*.txt" | sort
 
           # ==================================================
@@ -160,6 +185,7 @@ jobs:
             fi
           done
 
+          echo ""
           echo "OK: sub1.txt - sub10.txt are exactly 1000 configs each."
 
           # ==================================================
@@ -170,6 +196,11 @@ jobs:
           echo "=========================================="
           echo "ALL CONFIGS CHECK"
           echo "=========================================="
+
+          if [ ! -f "sub/general/all_configs.txt" ]; then
+            echo "ERROR: all_configs.txt does not exist!"
+            exit 1
+          fi
 
           all_count=$(grep -cve '^[[:space:]]*$' \
             sub/general/all_configs.txt || true)
@@ -210,6 +241,7 @@ jobs:
             fi
           done
 
+          echo ""
           echo "OK: all protocol subscriptions contain exactly 200 configs."
 
           # ==================================================
@@ -243,33 +275,43 @@ jobs:
             fi
           done
 
+          echo ""
           echo "OK: all Iran subscriptions contain exactly 200 configs."
 
           # ==================================================
-          # RANDOM 200
+          # REMARK CHECK
           # ==================================================
 
           echo ""
           echo "=========================================="
-          echo "RANDOM 200 CHECK"
+          echo "REMARK CHECK"
           echo "=========================================="
 
-          if [ ! -f "sub/general/random_200.txt" ]; then
-            echo "ERROR: random_200.txt was not created!"
+          bad_remark=0
+
+          for file in sub/general/*.txt; do
+            if [ -f "$file" ]; then
+
+              # هر کانفیگ باید با #nukcrow تمام شود
+              if grep -Ev '^([a-zA-Z0-9+.-]+://|#)' "$file" | grep -v '#nukcrow$' | grep -q .; then
+                echo "ERROR: Invalid remark found in $file"
+                bad_remark=1
+              fi
+
+              # country / protocol / index remark های قدیمی
+              if grep -E '#(Iran|Russia|Germany|Netherlands|Turkey|USA|VLESS|VMESS|Trojan|SS|Hysteria|[0-9]+)$' "$file" | grep -q .; then
+                echo "ERROR: Old/country/protocol remark found in $file"
+                bad_remark=1
+              fi
+            fi
+          done
+
+          if [ "$bad_remark" -ne 0 ]; then
+            echo "ERROR: Remark validation failed!"
             exit 1
           fi
 
-          random_count=$(grep -cve '^[[:space:]]*$' \
-            sub/general/random_200.txt || true)
-
-          echo "random_200.txt: $random_count configs"
-
-          if [ "$random_count" -ne 200 ]; then
-            echo "ERROR: random_200.txt must contain exactly 200 configs!"
-            exit 1
-          fi
-
-          echo "OK: random_200.txt contains exactly 200 configs."
+          echo "OK: remark validation passed."
 
           # ==================================================
           # FINAL VALIDATION
@@ -280,11 +322,15 @@ jobs:
           echo "VALIDATION SUCCESSFUL"
           echo "=========================================="
 
+          echo ""
           echo "General:     10 × 1000"
           echo "All configs: 10000"
           echo "Protocols:   5 × 200"
           echo "Iran:        5 × 200"
-          echo "Random:      200"
+          echo "Random:      REMOVED"
+
+          echo ""
+          echo "All subscription checks passed."
 
       # ==================================================
       # CHECK GIT STATUS
@@ -384,6 +430,7 @@ jobs:
           echo "WORKFLOW FINISHED"
           echo "=========================================="
 
+          echo ""
           echo "UTC:"
           date -u
 
