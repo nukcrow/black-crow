@@ -30,20 +30,31 @@ SUPPORTED_PROTOCOLS = {
     "hy2",
 }
 
-# General
+# ---------------------------------------------------------
+# GENERAL
+# ---------------------------------------------------------
+
 GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
 GENERAL_TOTAL = GENERAL_SUB_SIZE * GENERAL_SUB_COUNT
 
-# Protocol
+# ---------------------------------------------------------
+# PROTOCOL
+# ---------------------------------------------------------
+
 PROTOCOL_SUB_SIZE = 100
 
-# Iran
+# ---------------------------------------------------------
+# IRAN
+# ---------------------------------------------------------
+
 IRAN_SUB_SIZE = 200
 
-# Maximum configs from one host
-MAX_PER_HOST = 8
+# ---------------------------------------------------------
+# HOST DIVERSITY
+# ---------------------------------------------------------
 
+MAX_PER_HOST = 8
 
 # =========================================================
 # FETCH
@@ -53,7 +64,6 @@ FETCH_WORKERS = 10
 FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
 MAX_PER_SOURCE = 20000
-
 
 # =========================================================
 # BENCHMARK
@@ -68,13 +78,11 @@ SECOND_PASS = 25000
 SECOND_PASS_WORKERS = 100
 SECOND_PASS_TIMEOUT = 2.0
 
-
 # =========================================================
 # FALLBACK
 # =========================================================
 
 ALLOW_VALID_FALLBACK = True
-
 
 # =========================================================
 # QUALITY
@@ -88,7 +96,6 @@ PREFERRED_TYPES = {
     "tcp",
 }
 
-
 # =========================================================
 # GENERAL SOURCES
 # =========================================================
@@ -101,7 +108,6 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
 ]
-
 
 # =========================================================
 # IRAN SOURCES
@@ -119,13 +125,11 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
-
 # =========================================================
 # MCI
 # =========================================================
 
 SOURCES_MCI = []
-
 
 # =========================================================
 # IRANCELL
@@ -134,7 +138,6 @@ SOURCES_MCI = []
 SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
-
 
 # =========================================================
 # RIGHTEL
@@ -179,7 +182,7 @@ def decode64(value):
     if not value:
         return ""
 
-    value = value.strip()
+    value = str(value).strip()
 
     try:
         value = value.replace("-", "+")
@@ -217,7 +220,7 @@ def normalize_config(config):
         return ""
 
     config = (
-        config
+        str(config)
         .strip()
         .replace("\\/", "/")
     )
@@ -227,8 +230,8 @@ def normalize_config(config):
     # Remove source remark / fragment.
     config = config.split("#", 1)[0].strip()
 
-    # Remove spaces.
-    config = config.replace(" ", "")
+    # Remove whitespace.
+    config = re.sub(r"\s+", "", config)
 
     # Remove trailing punctuation.
     config = config.rstrip(".,;)]}>")
@@ -245,7 +248,7 @@ def extract_payload(text):
     output = []
 
     # -----------------------------------------------------
-    # DIRECT
+    # DIRECT URI
     # -----------------------------------------------------
 
     for match in URI_PATTERN.findall(text):
@@ -255,7 +258,7 @@ def extract_payload(text):
             output.append(config)
 
     # -----------------------------------------------------
-    # BASE64 WHOLE FILE
+    # WHOLE FILE BASE64
     # -----------------------------------------------------
 
     decoded = decode64(text)
@@ -506,7 +509,7 @@ def ss_data(config):
     p = parsed(config)
 
     # -----------------------------------------------------
-    # SIP002 / normal SS
+    # SIP002 / NORMAL SS
     # -----------------------------------------------------
 
     if p:
@@ -769,7 +772,7 @@ def valid_config(config):
         return True
 
     # -----------------------------------------------------
-    # OTHER PROTOCOLS
+    # OTHER
     # -----------------------------------------------------
 
     p = parsed(config)
@@ -856,7 +859,7 @@ def config_identity(config):
             .lower()
         )
 
-    # Normal URL protocols
+    # URL protocols
     p = parsed(config)
 
     if not p:
@@ -928,7 +931,10 @@ def fingerprint(config):
 
     identity = config_identity(config)
 
-    # VMESS fields
+    # -----------------------------------------------------
+    # VMESS FIELDS
+    # -----------------------------------------------------
+
     if ptype == "vmess":
         data = vmess_data(config)
 
@@ -1018,7 +1024,7 @@ def quality_score(config):
     host, port = endpoint(config)
 
     # -----------------------------------------------------
-    # Protocol
+    # PROTOCOL
     # -----------------------------------------------------
 
     if ptype in {
@@ -1089,14 +1095,14 @@ def quality_score(config):
         )
 
     # -----------------------------------------------------
-    # Transport
+    # TRANSPORT
     # -----------------------------------------------------
 
     if transport in PREFERRED_TYPES:
         score += 20
 
     # -----------------------------------------------------
-    # TLS / Reality
+    # TLS / REALITY
     # -----------------------------------------------------
 
     if security in {
@@ -1109,7 +1115,7 @@ def quality_score(config):
         score += 10
 
     # -----------------------------------------------------
-    # Ports
+    # PORT
     # -----------------------------------------------------
 
     if port == 443:
@@ -1126,7 +1132,7 @@ def quality_score(config):
         score += 8
 
     # -----------------------------------------------------
-    # Host
+    # HOST
     # -----------------------------------------------------
 
     if host:
@@ -1139,7 +1145,7 @@ def quality_score(config):
                 score += 8
 
     # -----------------------------------------------------
-    # Path
+    # PATH
     # -----------------------------------------------------
 
     if path:
@@ -1486,7 +1492,6 @@ def select_records(
             selected.append(item)
             seen.add(fp)
 
-    # HARD LIMIT
     return selected[:limit]
 
 
@@ -1522,7 +1527,6 @@ def config_line(config):
     if not config:
         return ""
 
-    # Remove any old fragment.
     config = config.split(
         "#",
         1,
@@ -1539,25 +1543,12 @@ def config_line(config):
 
 
 # =========================================================
-# WRITE FILE
+# RENDER UNIQUE LINES
 # =========================================================
 
-def write_file(
-    path,
-    records,
-    limit=None,
-):
-    os.makedirs(
-        os.path.dirname(path),
-        exist_ok=True,
-    )
-
+def render_records(records, limit=None):
     lines = []
     seen = set()
-
-    # -----------------------------------------------------
-    # HARD LIMIT WHILE BUILDING
-    # -----------------------------------------------------
 
     for item in records:
 
@@ -1569,12 +1560,19 @@ def write_file(
         else:
             config = str(item)
 
+        config = normalize_config(config)
+
+        if not config:
+            continue
+
+        if not valid_config(config):
+            continue
+
         line = config_line(config)
 
         if not line:
             continue
 
-        # Final-line dedupe.
         if line in seen:
             continue
 
@@ -1587,22 +1585,29 @@ def write_file(
         ):
             break
 
-    # -----------------------------------------------------
-    # ABSOLUTE HARD CAP
-    # -----------------------------------------------------
+    return lines
 
-    if limit is not None:
-        lines = lines[:limit]
 
-    # -----------------------------------------------------
-    # ATOMIC WRITE
-    # -----------------------------------------------------
+# =========================================================
+# ATOMIC WRITE
+# =========================================================
+
+def atomic_write_lines(path, lines):
+    directory = os.path.dirname(path)
+
+    if directory:
+        os.makedirs(
+            directory,
+            exist_ok=True,
+        )
 
     temp_path = (
         path
         + ".tmp"
     )
 
+    # IMPORTANT:
+    # "w" always truncates the temporary file.
     with open(
         temp_path,
         "w",
@@ -1610,31 +1615,120 @@ def write_file(
         newline="\n",
     ) as f:
 
-        if lines:
-            f.write(
-                "\n".join(lines)
-            )
-            f.write("\n")
+        for line in lines:
+            line = str(line).strip()
 
+            if line:
+                f.write(
+                    line
+                    + "\n"
+                )
+
+        f.flush()
+
+        try:
+            os.fsync(
+                f.fileno()
+            )
+        except Exception:
+            pass
+
+    # Complete replacement.
     os.replace(
         temp_path,
         path,
     )
 
-    actual_count = len(lines)
+
+# =========================================================
+# COUNT REAL FILE
+# =========================================================
+
+def count_nonempty_lines(path):
+    if not os.path.isfile(path):
+        return 0
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8",
+        errors="ignore",
+    ) as f:
+
+        return sum(
+            1
+            for line in f
+            if line.strip()
+        )
+
+
+# =========================================================
+# WRITE FILE
+# =========================================================
+
+def write_file(
+    path,
+    records,
+    limit=None,
+    exact=False,
+):
+    lines = render_records(
+        records,
+        limit=limit,
+    )
+
+    # -----------------------------------------------------
+    # EXACT CHECK
+    # -----------------------------------------------------
+
+    if (
+        exact
+        and limit is not None
+        and len(lines) != limit
+    ):
+        raise RuntimeError(
+            f"{path}: cannot write exact "
+            f"{limit}; only {len(lines)} "
+            f"valid unique configs available"
+        )
+
+    # -----------------------------------------------------
+    # ATOMIC WRITE
+    # -----------------------------------------------------
+
+    atomic_write_lines(
+        path,
+        lines,
+    )
+
+    # -----------------------------------------------------
+    # READ ACTUAL FILE AGAIN
+    # -----------------------------------------------------
+
+    actual = count_nonempty_lines(
+        path
+    )
+
+    if actual != len(lines):
+        raise RuntimeError(
+            f"{path}: write verification "
+            f"failed: expected {len(lines)}, "
+            f"got {actual}"
+        )
+
+    target = (
+        f"/{limit}"
+        if limit is not None
+        else ""
+    )
 
     print(
         f"[WRITE] "
         f"{os.path.basename(path)} "
-        f"-> {actual_count}"
-        + (
-            f"/{limit}"
-            if limit is not None
-            else ""
-        )
+        f"-> {actual}{target}"
     )
 
-    return actual_count
+    return actual
 
 
 # =========================================================
@@ -1647,31 +1741,38 @@ def clear_old_subscriptions():
         exist_ok=True,
     )
 
+    removed = []
+
     for filename in os.listdir(
         OUT_DIR
     ):
-
-        if not filename.endswith(".txt"):
-            continue
-
         path = os.path.join(
             OUT_DIR,
             filename,
         )
 
-        try:
-            os.remove(path)
+        if not os.path.isfile(path):
+            continue
 
-            print(
-                f"[DELETE] {filename}"
-            )
+        # Remove ALL old generated files.
+        if (
+            filename.endswith(".txt")
+            or filename.endswith(".tmp")
+        ):
+            try:
+                os.remove(path)
+                removed.append(filename)
 
-        except Exception as exc:
-            print(
-                f"[DELETE ERROR] "
-                f"{filename}: "
-                f"{type(exc).__name__}"
-            )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Cannot remove old output "
+                    f"{path}: {exc}"
+                )
+
+    print(
+        f"[CLEAN] removed "
+        f"{len(removed)} old files"
+    )
 
 
 # =========================================================
@@ -1682,38 +1783,88 @@ def write_general(
     alive_all,
     all_unique,
 ):
+    print("\n[GENERAL]")
+
     selected = select_subscription(
         alive_all,
         all_unique,
         GENERAL_TOTAL,
     )
 
-    # Absolute cap.
-    selected = selected[:GENERAL_TOTAL]
+    # -----------------------------------------------------
+    # NEVER FABRICATE
+    # -----------------------------------------------------
+
+    if len(selected) < GENERAL_TOTAL:
+        raise RuntimeError(
+            f"[GENERAL] only "
+            f"{len(selected)} configs available; "
+            f"{GENERAL_TOTAL} required"
+        )
+
+    # -----------------------------------------------------
+    # FREEZE EXACTLY 10000
+    # -----------------------------------------------------
+
+    selected = selected[
+        :GENERAL_TOTAL
+    ]
+
+    # -----------------------------------------------------
+    # RENDER ONCE
+    # -----------------------------------------------------
+
+    lines = render_records(
+        selected,
+        GENERAL_TOTAL,
+    )
+
+    if len(lines) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"[GENERAL] render produced "
+            f"{len(lines)} configs; "
+            f"expected {GENERAL_TOTAL}"
+        )
 
     # -----------------------------------------------------
     # ALL CONFIGS
     # -----------------------------------------------------
 
-    write_file(
-        os.path.join(
-            OUT_DIR,
-            "all_configs.txt",
-        ),
-        selected,
-        limit=GENERAL_TOTAL,
+    all_path = os.path.join(
+        OUT_DIR,
+        "all_configs.txt",
+    )
+
+    atomic_write_lines(
+        all_path,
+        lines,
+    )
+
+    actual_all = count_nonempty_lines(
+        all_path
+    )
+
+    if actual_all != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"{all_path}: expected "
+            f"{GENERAL_TOTAL}, "
+            f"got {actual_all}"
+        )
+
+    print(
+        f"[WRITE] all_configs.txt -> "
+        f"{actual_all}/{GENERAL_TOTAL}"
     )
 
     # -----------------------------------------------------
-    # 10 × 1000
+    # SUB1 ... SUB10
     # -----------------------------------------------------
 
-    for i in range(
+    for index in range(
         GENERAL_SUB_COUNT
     ):
-
         start = (
-            i
+            index
             * GENERAL_SUB_SIZE
         )
 
@@ -1722,22 +1873,88 @@ def write_general(
             + GENERAL_SUB_SIZE
         )
 
-        chunk = selected[
+        chunk = lines[
             start:end
         ]
 
-        write_file(
-            os.path.join(
-                OUT_DIR,
-                f"sub{i + 1}.txt",
-            ),
+        if len(chunk) != GENERAL_SUB_SIZE:
+            raise RuntimeError(
+                f"[GENERAL] sub{index + 1}: "
+                f"expected {GENERAL_SUB_SIZE}, "
+                f"got {len(chunk)}"
+            )
+
+        path = os.path.join(
+            OUT_DIR,
+            f"sub{index + 1}.txt",
+        )
+
+        atomic_write_lines(
+            path,
             chunk,
-            limit=GENERAL_SUB_SIZE,
+        )
+
+        actual = count_nonempty_lines(
+            path
+        )
+
+        if actual != GENERAL_SUB_SIZE:
+            raise RuntimeError(
+                f"{path}: expected "
+                f"{GENERAL_SUB_SIZE}, "
+                f"got {actual}"
+            )
+
+        print(
+            f"[WRITE] sub{index + 1}.txt -> "
+            f"{actual}/{GENERAL_SUB_SIZE}"
+        )
+
+    # -----------------------------------------------------
+    # FINAL CROSS CHECK
+    # -----------------------------------------------------
+
+    combined = []
+
+    for index in range(
+        1,
+        GENERAL_SUB_COUNT + 1,
+    ):
+        path = os.path.join(
+            OUT_DIR,
+            f"sub{index}.txt",
+        )
+
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+            errors="ignore",
+        ) as f:
+
+            combined.extend(
+                line.strip()
+                for line in f
+                if line.strip()
+            )
+
+    if len(combined) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"[GENERAL] sub files contain "
+            f"{len(combined)} configs; "
+            f"expected {GENERAL_TOTAL}"
+        )
+
+    if combined != lines:
+        raise RuntimeError(
+            "[GENERAL] sub1..sub10 do not "
+            "exactly match all_configs.txt"
         )
 
     print(
-        f"\n[GENERAL] "
-        f"{len(selected)}/{GENERAL_TOTAL}"
+        "[GENERAL] "
+        "all_configs.txt == "
+        "sub1 + ... + sub10"
     )
 
 
@@ -1749,16 +1966,14 @@ def write_protocols(
     alive_all,
     all_unique,
 ):
+    print("\n[PROTOCOLS]")
+
     protocols = (
         "vless",
         "vmess",
         "trojan",
         "ss",
         "hysteria2",
-    )
-
-    print(
-        "\n[PROTOCOLS]"
     )
 
     for ptype in protocols:
@@ -1771,32 +1986,73 @@ def write_protocols(
                 proto(c) == p,
         )
 
-        # Never mix protocols.
         selected = [
             item
             for item in selected
             if proto(item["config"]) == ptype
         ]
 
-        # Absolute cap.
         selected = selected[
             :PROTOCOL_SUB_SIZE
         ]
 
-        write_file(
-            os.path.join(
-                OUT_DIR,
-                f"{ptype}.txt",
-            ),
+        path = os.path.join(
+            OUT_DIR,
+            f"{ptype}.txt",
+        )
+
+        # Protocol files may contain fewer than 100.
+        # hysteria2 can therefore legitimately be 33/100.
+        count = write_file(
+            path,
             selected,
             limit=PROTOCOL_SUB_SIZE,
+            exact=False,
         )
 
         print(
             f"  {ptype:<10} "
-            f"{len(selected):>4}/"
-            f"{PROTOCOL_SUB_SIZE}"
+            f"{count:>4}/{PROTOCOL_SUB_SIZE}"
         )
+
+
+# =========================================================
+# HELPER: FILL EXACT LIMIT
+# =========================================================
+
+def fill_records(
+    primary,
+    fallback_groups,
+    limit,
+):
+    selected = []
+    seen = set()
+
+    pools = [
+        primary,
+        *fallback_groups,
+    ]
+
+    for pool in pools:
+        for item in pool:
+
+            if len(selected) >= limit:
+                break
+
+            config = item["config"]
+
+            fp = fingerprint(config)
+
+            if fp in seen:
+                continue
+
+            seen.add(fp)
+            selected.append(item)
+
+        if len(selected) >= limit:
+            break
+
+    return selected[:limit]
 
 
 # =========================================================
@@ -1816,46 +2072,52 @@ def write_iran(
     all_unique,
 ):
     # -----------------------------------------------------
+    # PREPARE GLOBAL FALLBACK
+    # -----------------------------------------------------
+
+    global_records = merge_records(
+        all_alive,
+        all_unique,
+    )
+
+    iran_records = merge_records(
+        iran_alive,
+        iran_unique,
+    )
+
+    mci_records = merge_records(
+        mci_alive,
+        mci_unique,
+    )
+
+    irancell_records = merge_records(
+        irancell_alive,
+        irancell_unique,
+    )
+
+    rightel_records = merge_records(
+        rightel_alive,
+        rightel_unique,
+    )
+
+    # -----------------------------------------------------
     # BEST IRAN
     # -----------------------------------------------------
 
-    best_iran = select_subscription(
-        iran_alive,
-        iran_unique,
+    best_iran = fill_records(
+        iran_records,
+        [
+            global_records,
+        ],
         IRAN_SUB_SIZE,
     )
 
-    # Global fallback only if Iran pool is short.
-    if len(best_iran) < IRAN_SUB_SIZE:
-
-        global_records = merge_records(
-            all_alive,
-            all_unique,
+    if len(best_iran) != IRAN_SUB_SIZE:
+        raise RuntimeError(
+            f"best_iran.txt: expected "
+            f"{IRAN_SUB_SIZE}, "
+            f"got {len(best_iran)}"
         )
-
-        existing = {
-            fingerprint(item["config"])
-            for item in best_iran
-        }
-
-        for item in global_records:
-
-            if len(best_iran) >= IRAN_SUB_SIZE:
-                break
-
-            fp = fingerprint(
-                item["config"]
-            )
-
-            if fp in existing:
-                continue
-
-            existing.add(fp)
-            best_iran.append(item)
-
-    best_iran = best_iran[
-        :IRAN_SUB_SIZE
-    ]
 
     write_file(
         os.path.join(
@@ -1864,43 +2126,45 @@ def write_iran(
         ),
         best_iran,
         limit=IRAN_SUB_SIZE,
+        exact=True,
     )
 
     # -----------------------------------------------------
     # MIX IRAN
     # -----------------------------------------------------
 
-    mix_combined = merge_records(
-        iran_alive,
-        iran_unique,
-    )
-
-    global_fallback = merge_records(
-        all_alive,
-        all_unique,
+    mix_iran_pool = (
+        iran_records
+        + global_records
     )
 
     random.shuffle(
-        mix_combined
-    )
-
-    random.shuffle(
-        global_fallback
-    )
-
-    mix_records = (
-        mix_combined
-        + global_fallback
+        mix_iran_pool
     )
 
     mix_iran = select_records(
-        mix_records,
+        mix_iran_pool,
         IRAN_SUB_SIZE,
     )
 
-    mix_iran = mix_iran[
-        :IRAN_SUB_SIZE
-    ]
+    # If host diversity leaves us short,
+    # fill without fabricating.
+    if len(mix_iran) < IRAN_SUB_SIZE:
+        mix_iran = fill_records(
+            mix_iran,
+            [
+                iran_records,
+                global_records,
+            ],
+            IRAN_SUB_SIZE,
+        )
+
+    if len(mix_iran) != IRAN_SUB_SIZE:
+        raise RuntimeError(
+            f"mix_iran.txt: expected "
+            f"{IRAN_SUB_SIZE}, "
+            f"got {len(mix_iran)}"
+        )
 
     write_file(
         os.path.join(
@@ -1909,25 +2173,28 @@ def write_iran(
         ),
         mix_iran,
         limit=IRAN_SUB_SIZE,
+        exact=True,
     )
 
     # -----------------------------------------------------
     # MCI
     # -----------------------------------------------------
 
-    mci = select_subscription(
-        mci_alive,
-        (
-            mci_unique
-            + iran_unique
-            + all_unique
-        ),
+    mci = fill_records(
+        mci_records,
+        [
+            iran_records,
+            global_records,
+        ],
         IRAN_SUB_SIZE,
     )
 
-    mci = mci[
-        :IRAN_SUB_SIZE
-    ]
+    if len(mci) != IRAN_SUB_SIZE:
+        raise RuntimeError(
+            f"mci.txt: expected "
+            f"{IRAN_SUB_SIZE}, "
+            f"got {len(mci)}"
+        )
 
     write_file(
         os.path.join(
@@ -1936,25 +2203,28 @@ def write_iran(
         ),
         mci,
         limit=IRAN_SUB_SIZE,
+        exact=True,
     )
 
     # -----------------------------------------------------
     # IRANCELL
     # -----------------------------------------------------
 
-    irancell = select_subscription(
-        irancell_alive,
-        (
-            irancell_unique
-            + iran_unique
-            + all_unique
-        ),
+    irancell = fill_records(
+        irancell_records,
+        [
+            iran_records,
+            global_records,
+        ],
         IRAN_SUB_SIZE,
     )
 
-    irancell = irancell[
-        :IRAN_SUB_SIZE
-    ]
+    if len(irancell) != IRAN_SUB_SIZE:
+        raise RuntimeError(
+            f"irancell.txt: expected "
+            f"{IRAN_SUB_SIZE}, "
+            f"got {len(irancell)}"
+        )
 
     write_file(
         os.path.join(
@@ -1963,25 +2233,28 @@ def write_iran(
         ),
         irancell,
         limit=IRAN_SUB_SIZE,
+        exact=True,
     )
 
     # -----------------------------------------------------
     # RIGHTEL
     # -----------------------------------------------------
 
-    rightel = select_subscription(
-        rightel_alive,
-        (
-            rightel_unique
-            + iran_unique
-            + all_unique
-        ),
+    rightel = fill_records(
+        rightel_records,
+        [
+            iran_records,
+            global_records,
+        ],
         IRAN_SUB_SIZE,
     )
 
-    rightel = rightel[
-        :IRAN_SUB_SIZE
-    ]
+    if len(rightel) != IRAN_SUB_SIZE:
+        raise RuntimeError(
+            f"rightel.txt: expected "
+            f"{IRAN_SUB_SIZE}, "
+            f"got {len(rightel)}"
+        )
 
     write_file(
         os.path.join(
@@ -1990,11 +2263,14 @@ def write_iran(
         ),
         rightel,
         limit=IRAN_SUB_SIZE,
+        exact=True,
     )
 
-    print(
-        "\n[IRAN]"
-    )
+    # -----------------------------------------------------
+    # SUMMARY
+    # -----------------------------------------------------
+
+    print("\n[IRAN]")
 
     print(
         f"  best_iran : "
@@ -2023,7 +2299,7 @@ def write_iran(
 
 
 # =========================================================
-# VERIFY OUTPUTS
+# VERIFY SINGLE FILE
 # =========================================================
 
 def verify_output_file(
@@ -2040,46 +2316,94 @@ def verify_output_file(
         path,
         "r",
         encoding="utf-8",
+        errors="ignore",
     ) as f:
-        lines = [
-            line.strip()
-            for line in f
-            if line.strip()
-        ]
+
+        raw_lines = f.readlines()
+
+    # Empty lines are NOT allowed.
+    for line_no, line in enumerate(
+        raw_lines,
+        start=1,
+    ):
+        if not line.strip():
+            raise RuntimeError(
+                f"{path}: empty line at "
+                f"line {line_no}"
+            )
+
+    lines = [
+        line.strip()
+        for line in raw_lines
+    ]
 
     count = len(lines)
+
+    # -----------------------------------------------------
+    # EXACT
+    # -----------------------------------------------------
 
     if expected_exact is not None:
         if count != expected_exact:
             raise RuntimeError(
                 f"{path}: expected "
-                f"{expected_exact}, got {count}"
+                f"{expected_exact}, "
+                f"got {count}"
             )
+
+    # -----------------------------------------------------
+    # MAX
+    # -----------------------------------------------------
 
     if expected_max is not None:
         if count > expected_max:
             raise RuntimeError(
                 f"{path}: maximum "
-                f"{expected_max}, got {count}"
+                f"{expected_max}, "
+                f"got {count}"
             )
 
-    # Check duplicates.
+    # -----------------------------------------------------
+    # DUPLICATES
+    # -----------------------------------------------------
+
     if len(lines) != len(set(lines)):
         raise RuntimeError(
             f"{path}: duplicate config detected"
         )
 
-    # Check remark.
+    # -----------------------------------------------------
+    # REMARK
+    # -----------------------------------------------------
+
+    expected_remark = (
+        "#"
+        + REMARK
+    )
+
     for line in lines:
+
         if not line.endswith(
-            f"#{REMARK}"
+            expected_remark
         ):
             raise RuntimeError(
-                f"{path}: invalid remark"
+                f"{path}: invalid remark: "
+                f"{line[-50:]}"
+            )
+
+        # Exactly one literal #.
+        if line.count("#") != 1:
+            raise RuntimeError(
+                f"{path}: invalid fragment/remark: "
+                f"{line}"
             )
 
     return count
 
+
+# =========================================================
+# VERIFY ALL OUTPUTS
+# =========================================================
 
 def verify_outputs():
     print(
@@ -2087,7 +2411,7 @@ def verify_outputs():
     )
 
     # -----------------------------------------------------
-    # Random must NOT exist.
+    # random_200 MUST NOT EXIST
     # -----------------------------------------------------
 
     random_path = os.path.join(
@@ -2097,11 +2421,70 @@ def verify_outputs():
 
     if os.path.exists(random_path):
         raise RuntimeError(
-            "random_200.txt must not exist"
+            "random_200.txt must NOT exist"
         )
 
     # -----------------------------------------------------
-    # General.
+    # EXPECTED FILES
+    # -----------------------------------------------------
+
+    expected_files = {
+        "all_configs.txt",
+        *{
+            f"sub{i}.txt"
+            for i in range(
+                1,
+                GENERAL_SUB_COUNT + 1,
+            )
+        },
+        "vless.txt",
+        "vmess.txt",
+        "trojan.txt",
+        "ss.txt",
+        "hysteria2.txt",
+        "best_iran.txt",
+        "mix_iran.txt",
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
+    }
+
+    actual_files = {
+        filename
+        for filename in os.listdir(
+            OUT_DIR
+        )
+        if filename.endswith(".txt")
+    }
+
+    unexpected = (
+        actual_files
+        - expected_files
+    )
+
+    missing = (
+        expected_files
+        - actual_files
+    )
+
+    if missing:
+        raise RuntimeError(
+            "Missing output files: "
+            + ", ".join(
+                sorted(missing)
+            )
+        )
+
+    if unexpected:
+        raise RuntimeError(
+            "Unexpected output files: "
+            + ", ".join(
+                sorted(unexpected)
+            )
+        )
+
+    # -----------------------------------------------------
+    # GENERAL
     # -----------------------------------------------------
 
     verify_output_file(
@@ -2112,29 +2495,85 @@ def verify_outputs():
         expected_exact=GENERAL_TOTAL,
     )
 
+    sub_lines = []
+
     for i in range(
         1,
         GENERAL_SUB_COUNT + 1,
     ):
+        path = os.path.join(
+            OUT_DIR,
+            f"sub{i}.txt",
+        )
+
         verify_output_file(
-            os.path.join(
-                OUT_DIR,
-                f"sub{i}.txt",
-            ),
+            path,
             expected_exact=GENERAL_SUB_SIZE,
         )
 
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            sub_lines.extend(
+                line.strip()
+                for line in f
+            )
+
     # -----------------------------------------------------
-    # Protocols.
+    # ALL_CONFIGS VS SUBS
     # -----------------------------------------------------
 
-    for ptype in (
+    all_path = os.path.join(
+        OUT_DIR,
+        "all_configs.txt",
+    )
+
+    with open(
+        all_path,
+        "r",
+        encoding="utf-8",
+    ) as f:
+        all_lines = [
+            line.strip()
+            for line in f
+        ]
+
+    if len(all_lines) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"all_configs.txt: expected "
+            f"{GENERAL_TOTAL}, "
+            f"got {len(all_lines)}"
+        )
+
+    if len(sub_lines) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"sub1..sub10 total: expected "
+            f"{GENERAL_TOTAL}, "
+            f"got {len(sub_lines)}"
+        )
+
+    if sub_lines != all_lines:
+        raise RuntimeError(
+            "all_configs.txt does not exactly "
+            "match sub1.txt + ... + sub10.txt"
+        )
+
+    # -----------------------------------------------------
+    # PROTOCOLS
+    # -----------------------------------------------------
+
+    protocol_files = (
         "vless",
         "vmess",
         "trojan",
         "ss",
         "hysteria2",
-    ):
+    )
+
+    for ptype in protocol_files:
+
         path = os.path.join(
             OUT_DIR,
             f"{ptype}.txt",
@@ -2155,11 +2594,12 @@ def verify_outputs():
             "r",
             encoding="utf-8",
         ) as f:
-            for line in f:
-                config = line.strip()
 
-                if not config:
-                    continue
+            for line_no, line in enumerate(
+                f,
+                start=1,
+            ):
+                config = line.strip()
 
                 clean = config.rsplit(
                     "#",
@@ -2168,21 +2608,34 @@ def verify_outputs():
 
                 if proto(clean) != ptype:
                     raise RuntimeError(
-                        f"{ptype}.txt contains "
+                        f"{ptype}.txt line "
+                        f"{line_no}: contains "
                         f"another protocol"
                     )
 
+                if not valid_config(
+                    clean
+                ):
+                    raise RuntimeError(
+                        f"{ptype}.txt line "
+                        f"{line_no}: invalid "
+                        f"configuration"
+                    )
+
     # -----------------------------------------------------
-    # Iran.
+    # IRAN
     # -----------------------------------------------------
 
-    for filename in (
+    iran_files = (
         "best_iran.txt",
         "mix_iran.txt",
         "mci.txt",
         "irancell.txt",
         "rightel.txt",
-    ):
+    )
+
+    for filename in iran_files:
+
         verify_output_file(
             os.path.join(
                 OUT_DIR,
@@ -2219,15 +2672,15 @@ def print_summary():
     ):
         return
 
-    files = []
+    files = sorted(
+        filename
+        for filename in os.listdir(
+            OUT_DIR
+        )
+        if filename.endswith(".txt")
+    )
 
-    for filename in os.listdir(
-        OUT_DIR
-    ):
-        if filename.endswith(".txt"):
-            files.append(filename)
-
-    for filename in sorted(files):
+    for filename in files:
 
         path = os.path.join(
             OUT_DIR,
@@ -2235,16 +2688,9 @@ def print_summary():
         )
 
         try:
-            with open(
-                path,
-                "r",
-                encoding="utf-8",
-            ) as f:
-                count = sum(
-                    1
-                    for line in f
-                    if line.strip()
-                )
+            count = count_nonempty_lines(
+                path
+            )
 
             print(
                 f"{filename:<25}"
@@ -2360,6 +2806,19 @@ def main():
     )
 
     # -----------------------------------------------------
+    # IMPORTANT:
+    # Do not even start writing if there are not enough
+    # configs for the mandatory 10000 general files.
+    # -----------------------------------------------------
+
+    if len(all_unique) < GENERAL_TOTAL:
+        raise RuntimeError(
+            f"Not enough valid unique configs: "
+            f"{len(all_unique)} available, "
+            f"{GENERAL_TOTAL} required"
+        )
+
+    # -----------------------------------------------------
     # BENCHMARK GLOBAL
     # -----------------------------------------------------
 
@@ -2400,7 +2859,7 @@ def main():
     )
 
     # -----------------------------------------------------
-    # CLEAR OLD OUTPUTS
+    # DELETE OLD OUTPUTS
     # -----------------------------------------------------
 
     clear_old_subscriptions()
@@ -2445,7 +2904,7 @@ def main():
     )
 
     # -----------------------------------------------------
-    # VERIFY
+    # FINAL VERIFICATION
     # -----------------------------------------------------
 
     verify_outputs()
