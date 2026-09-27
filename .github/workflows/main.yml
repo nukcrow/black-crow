@@ -4,6 +4,7 @@ on:
   schedule:
     # Every 3 hours
     - cron: "17 */3 * * *"
+
   workflow_dispatch:
 
 # جلوگیری از اجرای همزمان چند Collector
@@ -48,6 +49,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          set -euo pipefail
+
           python -m pip install --upgrade pip
           pip install --disable-pip-version-check requests
 
@@ -57,6 +60,8 @@ jobs:
 
       - name: Sync with main
         run: |
+          set -euo pipefail
+
           echo "=========================================="
           echo "SYNCING REPOSITORY WITH ORIGIN/MAIN"
           echo "=========================================="
@@ -78,6 +83,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONUNBUFFERED: "1"
         run: |
+          set -euo pipefail
+
           echo "=========================================="
           echo "NUKCROW COLLECTOR"
           echo "=========================================="
@@ -101,12 +108,17 @@ jobs:
       # ==================================================
 
       - name: Verify Subscription Files
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           echo "=========================================="
-          echo "SUBSCRIPTION FILES"
+          echo "SUBSCRIPTION FILES VALIDATION"
           echo "=========================================="
+
+          # ==================================================
+          # DIRECTORY CHECK
+          # ==================================================
 
           if [ ! -d "sub/general" ]; then
             echo "ERROR: sub/general does not exist!"
@@ -119,15 +131,101 @@ jobs:
 
           echo ""
           echo "=========================================="
-          echo "REMOVED FILE CHECK"
+          echo "RANDOM 200 CHECK"
           echo "=========================================="
 
-          if [ -f "sub/general/random_200.txt" ]; then
-            echo "ERROR: random_200.txt must not exist!"
+          if [ -e "sub/general/random_200.txt" ]; then
+            echo "ERROR: random_200.txt must NOT exist!"
             exit 1
           fi
 
           echo "OK: random_200.txt does not exist."
+
+          # ==================================================
+          # EXPECTED FILES
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "EXPECTED FILE CHECK"
+          echo "=========================================="
+
+          expected_files=(
+            "sub/general/all_configs.txt"
+
+            "sub/general/sub1.txt"
+            "sub/general/sub2.txt"
+            "sub/general/sub3.txt"
+            "sub/general/sub4.txt"
+            "sub/general/sub5.txt"
+            "sub/general/sub6.txt"
+            "sub/general/sub7.txt"
+            "sub/general/sub8.txt"
+            "sub/general/sub9.txt"
+            "sub/general/sub10.txt"
+
+            "sub/general/vless.txt"
+            "sub/general/vmess.txt"
+            "sub/general/trojan.txt"
+            "sub/general/ss.txt"
+            "sub/general/hysteria2.txt"
+
+            "sub/general/best_iran.txt"
+            "sub/general/mix_iran.txt"
+            "sub/general/mci.txt"
+            "sub/general/irancell.txt"
+            "sub/general/rightel.txt"
+          )
+
+          for file in "${expected_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "ERROR: Missing file: $file"
+              exit 1
+            fi
+          done
+
+          echo "OK: all expected files exist."
+
+          # ==================================================
+          # UNEXPECTED TXT FILE CHECK
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "UNEXPECTED FILE CHECK"
+          echo "=========================================="
+
+          mapfile -t actual_files < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt" \
+              -printf "%p\n" \
+              | sort
+          )
+
+          mapfile -t sorted_expected < <(
+            printf '%s\n' "${expected_files[@]}" | sort
+          )
+
+          if ! diff -u \
+            <(printf '%s\n' "${sorted_expected[@]}") \
+            <(printf '%s\n' "${actual_files[@]}"); then
+
+            echo ""
+            echo "ERROR: Unexpected or missing .txt files detected!"
+            echo ""
+            echo "Expected:"
+            printf '%s\n' "${sorted_expected[@]}"
+
+            echo ""
+            echo "Actual:"
+            printf '%s\n' "${actual_files[@]}"
+
+            exit 1
+          fi
+
+          echo "OK: file list is exactly correct."
 
           # ==================================================
           # FILE LIST
@@ -138,7 +236,22 @@ jobs:
           echo "GENERATED FILES"
           echo "=========================================="
 
-          find sub/general -maxdepth 1 -type f -name "*.txt" | sort
+          find sub/general \
+            -maxdepth 1 \
+            -type f \
+            -name "*.txt" \
+            -printf "%f\n" \
+            | sort
+
+          # ==================================================
+          # LINE COUNT FUNCTION
+          # ==================================================
+
+          count_lines() {
+            local file="$1"
+
+            grep -cve '^[[:space:]]*$' "$file" || true
+          }
 
           # ==================================================
           # LINE COUNTS
@@ -149,11 +262,9 @@ jobs:
           echo "LINE COUNTS"
           echo "=========================================="
 
-          for file in sub/general/*.txt; do
-            if [ -f "$file" ]; then
-              count=$(grep -cve '^[[:space:]]*$' "$file" || true)
-              printf "%-35s %6s configs\n" "$file" "$count"
-            fi
+          for file in "${expected_files[@]}"; do
+            count="$(count_lines "$file")"
+            printf "%-35s %6s configs\n" "$file" "$count"
           done
 
           # ==================================================
@@ -170,17 +281,12 @@ jobs:
           for i in $(seq 1 10); do
             file="sub/general/sub${i}.txt"
 
-            if [ ! -f "$file" ]; then
-              echo "ERROR: $file does not exist!"
-              exit 1
-            fi
-
-            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+            count="$(count_lines "$file")"
 
             echo "$file: $count configs"
 
             if [ "$count" -ne "$EXPECTED_GENERAL" ]; then
-              echo "ERROR: $file must contain exactly 1000 configs!"
+              echo "ERROR: $file must contain exactly $EXPECTED_GENERAL configs!"
               exit 1
             fi
           done
@@ -197,18 +303,14 @@ jobs:
           echo "ALL CONFIGS CHECK"
           echo "=========================================="
 
-          if [ ! -f "sub/general/all_configs.txt" ]; then
-            echo "ERROR: all_configs.txt does not exist!"
-            exit 1
-          fi
+          ALL_CONFIGS=10000
 
-          all_count=$(grep -cve '^[[:space:]]*$' \
-            sub/general/all_configs.txt || true)
+          all_count="$(count_lines "sub/general/all_configs.txt")"
 
           echo "all_configs.txt: $all_count configs"
 
-          if [ "$all_count" -ne 10000 ]; then
-            echo "ERROR: all_configs.txt must contain exactly 10000 configs!"
+          if [ "$all_count" -ne "$ALL_CONFIGS" ]; then
+            echo "ERROR: all_configs.txt must contain exactly $ALL_CONFIGS configs!"
             exit 1
           fi
 
@@ -223,26 +325,33 @@ jobs:
           echo "PROTOCOL SUBSCRIPTIONS CHECK"
           echo "=========================================="
 
+          PROTOCOL_MAX=100
+
           for proto in vless vmess trojan ss hysteria2; do
+
             file="sub/general/${proto}.txt"
 
-            if [ ! -f "$file" ]; then
-              echo "ERROR: $file does not exist!"
-              exit 1
-            fi
-
-            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+            count="$(count_lines "$file")"
 
             echo "$file: $count configs"
 
-            if [ "$count" -ne 200 ]; then
-              echo "ERROR: $file must contain exactly 200 configs!"
+            # حداقل یک کانفیگ باید وجود داشته باشد
+            if [ "$count" -lt 1 ]; then
+              echo "ERROR: $file is empty!"
               exit 1
             fi
+
+            # بیشتر از 100 نباید باشد
+            if [ "$count" -gt "$PROTOCOL_MAX" ]; then
+              echo "ERROR: $file contains more than $PROTOCOL_MAX configs!"
+              exit 1
+            fi
+
           done
 
           echo ""
-          echo "OK: all protocol subscriptions contain exactly 200 configs."
+          echo "OK: all protocol subscriptions contain 1-100 configs."
+          echo "No protocol was artificially filled with another protocol."
 
           # ==================================================
           # IRAN SUBSCRIPTIONS
@@ -253,6 +362,8 @@ jobs:
           echo "IRAN SUBSCRIPTIONS CHECK"
           echo "=========================================="
 
+          IRAN_EXPECTED=200
+
           for file in \
             sub/general/best_iran.txt \
             sub/general/mix_iran.txt \
@@ -260,23 +371,71 @@ jobs:
             sub/general/irancell.txt \
             sub/general/rightel.txt
           do
-            if [ ! -f "$file" ]; then
-              echo "ERROR: $file does not exist!"
-              exit 1
-            fi
 
-            count=$(grep -cve '^[[:space:]]*$' "$file" || true)
+            count="$(count_lines "$file")"
 
             echo "$file: $count configs"
 
-            if [ "$count" -ne 200 ]; then
-              echo "ERROR: $file must contain exactly 200 configs!"
+            if [ "$count" -ne "$IRAN_EXPECTED" ]; then
+              echo "ERROR: $file must contain exactly $IRAN_EXPECTED configs!"
               exit 1
             fi
+
           done
 
           echo ""
           echo "OK: all Iran subscriptions contain exactly 200 configs."
+
+          # ==================================================
+          # EMPTY LINE CHECK
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "EMPTY LINE CHECK"
+          echo "=========================================="
+
+          for file in "${expected_files[@]}"; do
+
+            if grep -nE '^[[:space:]]*$' "$file" | grep -q .; then
+              echo "ERROR: Empty line found in $file"
+              exit 1
+            fi
+
+          done
+
+          echo "OK: no empty lines found."
+
+          # ==================================================
+          # PROTOCOL FORMAT CHECK
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "PROTOCOL FORMAT CHECK"
+          echo "=========================================="
+
+          bad_format=0
+
+          for file in "${expected_files[@]}"; do
+
+            if grep -vE \
+              '^(vless|vmess|trojan|ss|hysteria2|hy2)://.+#nukcrow$' \
+              "$file" \
+              | grep -q .; then
+
+              echo "ERROR: Invalid config format found in $file"
+              bad_format=1
+            fi
+
+          done
+
+          if [ "$bad_format" -ne 0 ]; then
+            echo "ERROR: Protocol format validation failed!"
+            exit 1
+          fi
+
+          echo "OK: all configs have valid protocol format."
 
           # ==================================================
           # REMARK CHECK
@@ -289,29 +448,63 @@ jobs:
 
           bad_remark=0
 
-          for file in sub/general/*.txt; do
-            if [ -f "$file" ]; then
+          for file in "${expected_files[@]}"; do
 
-              # هر کانفیگ باید با #nukcrow تمام شود
-              if grep -Ev '^([a-zA-Z0-9+.-]+://|#)' "$file" | grep -v '#nukcrow$' | grep -q .; then
-                echo "ERROR: Invalid remark found in $file"
-                bad_remark=1
-              fi
-
-              # country / protocol / index remark های قدیمی
-              if grep -E '#(Iran|Russia|Germany|Netherlands|Turkey|USA|VLESS|VMESS|Trojan|SS|Hysteria|[0-9]+)$' "$file" | grep -q .; then
-                echo "ERROR: Old/country/protocol remark found in $file"
-                bad_remark=1
-              fi
+            # هر خط باید دقیقاً با #nukcrow تمام شود
+            if grep -vE '#nukcrow$' "$file" | grep -q .; then
+              echo "ERROR: Invalid remark found in $file"
+              bad_remark=1
             fi
+
+            # نباید بیشتر از یک # داشته باشد
+            if grep -vE '^([^#]*#nukcrow)$' "$file" | grep -q .; then
+              echo "ERROR: Extra remark/fragment found in $file"
+              bad_remark=1
+            fi
+
+            # Remark باید دقیقاً nukcrow باشد
+            if grep -E '#(Iran|Russia|Germany|Netherlands|Turkey|USA|VLESS|VMESS|Trojan|SS|Hysteria|[0-9]+)$' "$file" | grep -q .; then
+              echo "ERROR: Old/country/protocol/index remark found in $file"
+              bad_remark=1
+            fi
+
           done
 
           if [ "$bad_remark" -ne 0 ]; then
+            echo ""
             echo "ERROR: Remark validation failed!"
             exit 1
           fi
 
-          echo "OK: remark validation passed."
+          echo "OK: every config ends with exactly #nukcrow."
+
+          # ==================================================
+          # DUPLICATE CHECK INSIDE EACH FILE
+          # ==================================================
+
+          echo ""
+          echo "=========================================="
+          echo "DUPLICATE CHECK"
+          echo "=========================================="
+
+          for file in "${expected_files[@]}"; do
+
+            duplicates="$(
+              sort "$file" \
+              | uniq -d \
+              | head -n 1
+            )"
+
+            if [ -n "$duplicates" ]; then
+              echo "ERROR: Duplicate config found in $file"
+              echo "Duplicate:"
+              echo "$duplicates"
+              exit 1
+            fi
+
+          done
+
+          echo "OK: no duplicate configs inside subscription files."
 
           # ==================================================
           # FINAL VALIDATION
@@ -325,9 +518,10 @@ jobs:
           echo ""
           echo "General:     10 × 1000"
           echo "All configs: 10000"
-          echo "Protocols:   5 × 200"
+          echo "Protocols:   up to 5 × 100"
           echo "Iran:        5 × 200"
           echo "Random:      REMOVED"
+          echo "Remark:      #nukcrow"
 
           echo ""
           echo "All subscription checks passed."
@@ -338,6 +532,8 @@ jobs:
 
       - name: Check Changes
         run: |
+          set -euo pipefail
+
           echo "=========================================="
           echo "GIT STATUS"
           echo "=========================================="
@@ -355,6 +551,8 @@ jobs:
       - name: Commit Changes
         id: commit
         run: |
+          set -euo pipefail
+
           git config --local user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -364,6 +562,7 @@ jobs:
           git add sub/
 
           if git diff --cached --quiet; then
+
             echo "changed=false" >> "$GITHUB_OUTPUT"
 
             echo ""
@@ -393,11 +592,14 @@ jobs:
       - name: Rebase Latest Main
         if: steps.commit.outputs.changed == 'true'
         run: |
+          set -euo pipefail
+
           echo "=========================================="
           echo "REBASING WITH LATEST MAIN"
           echo "=========================================="
 
           git fetch origin main
+
           git rebase origin/main
 
       # ==================================================
@@ -407,6 +609,8 @@ jobs:
       - name: Push Changes
         if: steps.commit.outputs.changed == 'true'
         run: |
+          set -euo pipefail
+
           echo "=========================================="
           echo "PUSHING TO MAIN"
           echo "=========================================="
