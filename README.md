@@ -7,13 +7,6 @@
 <br/>
 
 ```bash
-$ whoami
-nukcrow
-
-$ cat status
-online · connected · building
-```
-
 <br/>
 
 <a href="https://t.me/nukcrow"><img src="https://img.shields.io/badge/CHANNEL-@nukcrow-1b1f24?style=for-the-badge&logo=telegram&logoColor=8A8F98&labelColor=050505"/></a>
