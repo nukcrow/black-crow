@@ -1,3 +1,4 @@
+```python
 import os
 import re
 import json
@@ -30,31 +31,36 @@ SUPPORTED_PROTOCOLS = {
     "hy2",
 }
 
-# ---------------------------------------------------------
+
+# =========================================================
 # GENERAL
-# ---------------------------------------------------------
+# =========================================================
 
 GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
 GENERAL_TOTAL = GENERAL_SUB_SIZE * GENERAL_SUB_COUNT
 
-# ---------------------------------------------------------
+
+# =========================================================
 # PROTOCOL
-# ---------------------------------------------------------
+# =========================================================
 
 PROTOCOL_SUB_SIZE = 100
 
-# ---------------------------------------------------------
+
+# =========================================================
 # IRAN
-# ---------------------------------------------------------
+# =========================================================
 
 IRAN_SUB_SIZE = 200
 
-# ---------------------------------------------------------
+
+# =========================================================
 # HOST DIVERSITY
-# ---------------------------------------------------------
+# =========================================================
 
 MAX_PER_HOST = 8
+
 
 # =========================================================
 # FETCH
@@ -65,24 +71,27 @@ FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
 MAX_PER_SOURCE = 20000
 
+
 # =========================================================
 # BENCHMARK
 # =========================================================
 
-MAX_TEST = 100000
+MAX_TEST = 30000
 
-BENCH_WORKERS = 180
+BENCH_WORKERS = 100
 BENCH_TIMEOUT = 1.8
 
-SECOND_PASS = 25000
-SECOND_PASS_WORKERS = 100
-SECOND_PASS_TIMEOUT = 2.0
+SECOND_PASS = 8000
+SECOND_PASS_WORKERS = 60
+SECOND_PASS_TIMEOUT = 1.8
+
 
 # =========================================================
 # FALLBACK
 # =========================================================
 
 ALLOW_VALID_FALLBACK = True
+
 
 # =========================================================
 # QUALITY
@@ -95,6 +104,7 @@ PREFERRED_TYPES = {
     "httpupgrade",
     "tcp",
 }
+
 
 # =========================================================
 # GENERAL SOURCES
@@ -109,12 +119,13 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
 ]
 
+
 # =========================================================
 # IRAN SOURCES
 # =========================================================
 
 SOURCES_IRAN = [
-    "https://github.com/V2RAYCONFIGSPOOL/V2RAY_SUB/blob/main/v2ray_configs_no1.txt",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
@@ -125,11 +136,13 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
+
 # =========================================================
 # MCI
 # =========================================================
 
 SOURCES_MCI = []
+
 
 # =========================================================
 # IRANCELL
@@ -137,8 +150,9 @@ SOURCES_MCI = []
 
 SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
-    "https://github.com/V2RAYCONFIGSPOOL/V2RAY_SUB/blob/main/v2ray_configs_no1.txt",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
 ]
+
 
 # =========================================================
 # RIGHTEL
@@ -228,7 +242,7 @@ def normalize_config(config):
 
     config = unquote(config)
 
-    # Remove source remark / fragment.
+    # Remove old remark / fragment.
     config = config.split("#", 1)[0].strip()
 
     # Remove whitespace.
@@ -882,7 +896,6 @@ def config_identity(config):
 
 def fingerprint(config):
     ptype = proto(config)
-
     q = query(config)
 
     host, port = endpoint(config)
@@ -1019,7 +1032,6 @@ def quality_score(config):
     score = 0
 
     ptype = proto(config)
-
     q = query(config)
 
     host, port = endpoint(config)
@@ -1248,14 +1260,12 @@ def benchmark(configs):
     # -----------------------------------------------------
 
     if len(results) < SECOND_PASS:
-
         remaining = configs[
             MAX_TEST:
             MAX_TEST + SECOND_PASS
         ]
 
         if remaining:
-
             print(
                 f"[BENCH] second pass: "
                 f"{len(remaining)} configs"
@@ -1303,7 +1313,6 @@ def benchmark(configs):
     unique = {}
 
     for item in results:
-
         fp = fingerprint(
             item["config"]
         )
@@ -1377,7 +1386,6 @@ def merge_records(
     # -----------------------------------------------------
 
     for item in alive_records:
-
         config = item["config"]
 
         fp = fingerprint(config)
@@ -1393,7 +1401,6 @@ def merge_records(
     # -----------------------------------------------------
 
     if ALLOW_VALID_FALLBACK:
-
         fallback_records = records_from_configs(
             valid_configs
         )
@@ -1403,7 +1410,6 @@ def merge_records(
         )
 
         for item in fallback_records:
-
             config = item["config"]
 
             fp = fingerprint(config)
@@ -1431,15 +1437,17 @@ def select_records(
 
     selected = []
     seen = set()
-
-    # -----------------------------------------------------
-    # PASS 1 - HOST DIVERSITY
-    # -----------------------------------------------------
-
     host_count = {}
 
-    for item in results:
+    # -----------------------------------------------------
+    # ONE SAFE PASS
+    # -----------------------------------------------------
+    # MAX_PER_HOST is always respected.
+    # This prevents the second pass from filling the
+    # result with too many configs from one host.
+    # -----------------------------------------------------
 
+    for item in results:
         if len(selected) >= limit:
             break
 
@@ -1455,10 +1463,10 @@ def select_records(
 
         host, _ = endpoint(config)
 
-        if host_count.get(
-            host,
-            0,
-        ) >= MAX_PER_HOST:
+        if not host:
+            continue
+
+        if host_count.get(host, 0) >= MAX_PER_HOST:
             continue
 
         selected.append(item)
@@ -1468,30 +1476,6 @@ def select_records(
             host_count.get(host, 0)
             + 1
         )
-
-    # -----------------------------------------------------
-    # PASS 2 - FILL
-    # -----------------------------------------------------
-
-    if len(selected) < limit:
-
-        for item in results:
-
-            if len(selected) >= limit:
-                break
-
-            config = item["config"]
-
-            if predicate and not predicate(config):
-                continue
-
-            fp = fingerprint(config)
-
-            if fp in seen:
-                continue
-
-            selected.append(item)
-            seen.add(fp)
 
     return selected[:limit]
 
@@ -1552,7 +1536,6 @@ def render_records(records, limit=None):
     seen = set()
 
     for item in records:
-
         if isinstance(item, dict):
             config = item.get(
                 "config",
@@ -1602,13 +1585,8 @@ def atomic_write_lines(path, lines):
             exist_ok=True,
         )
 
-    temp_path = (
-        path
-        + ".tmp"
-    )
+    temp_path = path + ".tmp"
 
-    # IMPORTANT:
-    # "w" always truncates the temporary file.
     with open(
         temp_path,
         "w",
@@ -1634,7 +1612,6 @@ def atomic_write_lines(path, lines):
         except Exception:
             pass
 
-    # Complete replacement.
     os.replace(
         temp_path,
         path,
@@ -1733,50 +1710,6 @@ def write_file(
 
 
 # =========================================================
-# CLEAR OLD SUBSCRIPTIONS
-# =========================================================
-
-def clear_old_subscriptions():
-    os.makedirs(
-        OUT_DIR,
-        exist_ok=True,
-    )
-
-    removed = []
-
-    for filename in os.listdir(
-        OUT_DIR
-    ):
-        path = os.path.join(
-            OUT_DIR,
-            filename,
-        )
-
-        if not os.path.isfile(path):
-            continue
-
-        # Remove ALL old generated files.
-        if (
-            filename.endswith(".txt")
-            or filename.endswith(".tmp")
-        ):
-            try:
-                os.remove(path)
-                removed.append(filename)
-
-            except Exception as exc:
-                raise RuntimeError(
-                    f"Cannot remove old output "
-                    f"{path}: {exc}"
-                )
-
-    print(
-        f"[CLEAN] removed "
-        f"{len(removed)} old files"
-    )
-
-
-# =========================================================
 # GENERAL
 # =========================================================
 
@@ -1802,10 +1735,6 @@ def write_general(
             f"{len(selected)} configs available; "
             f"{GENERAL_TOTAL} required"
         )
-
-    # -----------------------------------------------------
-    # FREEZE EXACTLY 10000
-    # -----------------------------------------------------
 
     selected = selected[
         :GENERAL_TOTAL
@@ -1978,7 +1907,6 @@ def write_protocols(
     )
 
     for ptype in protocols:
-
         selected = select_subscription(
             alive_all,
             all_unique,
@@ -2002,8 +1930,6 @@ def write_protocols(
             f"{ptype}.txt",
         )
 
-        # Protocol files may contain fewer than 100.
-        # hysteria2 can therefore legitimately be 33/100.
         count = write_file(
             path,
             selected,
@@ -2018,7 +1944,7 @@ def write_protocols(
 
 
 # =========================================================
-# HELPER: FILL EXACT LIMIT
+# FILL EXACT LIMIT
 # =========================================================
 
 def fill_records(
@@ -2026,17 +1952,24 @@ def fill_records(
     fallback_groups,
     limit,
 ):
+    if limit <= 0:
+        return []
+
     selected = []
     seen = set()
+    host_count = {}
 
     pools = [
         primary,
         *fallback_groups,
     ]
 
+    # -----------------------------------------------------
+    # PASS 1
+    # -----------------------------------------------------
+
     for pool in pools:
         for item in pool:
-
             if len(selected) >= limit:
                 break
 
@@ -2047,8 +1980,24 @@ def fill_records(
             if fp in seen:
                 continue
 
+            host, _ = endpoint(config)
+
+            if not host:
+                continue
+
+            if host_count.get(
+                host,
+                0,
+            ) >= MAX_PER_HOST:
+                continue
+
             seen.add(fp)
             selected.append(item)
+
+            host_count[host] = (
+                host_count.get(host, 0)
+                + 1
+            )
 
         if len(selected) >= limit:
             break
@@ -2073,7 +2022,7 @@ def write_iran(
     all_unique,
 ):
     # -----------------------------------------------------
-    # PREPARE GLOBAL FALLBACK
+    # GLOBAL FALLBACK
     # -----------------------------------------------------
 
     global_records = merge_records(
@@ -2148,8 +2097,6 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    # If host diversity leaves us short,
-    # fill without fabricating.
     if len(mix_iran) < IRAN_SUB_SIZE:
         mix_iran = fill_records(
             mix_iran,
@@ -2319,7 +2266,6 @@ def verify_output_file(
         encoding="utf-8",
         errors="ignore",
     ) as f:
-
         raw_lines = f.readlines()
 
     # Empty lines are NOT allowed.
@@ -2383,7 +2329,6 @@ def verify_output_file(
     )
 
     for line in lines:
-
         if not line.endswith(
             expected_remark
         ):
@@ -2392,7 +2337,6 @@ def verify_output_file(
                 f"{line[-50:]}"
             )
 
-        # Exactly one literal #.
         if line.count("#") != 1:
             raise RuntimeError(
                 f"{path}: invalid fragment/remark: "
@@ -2574,7 +2518,6 @@ def verify_outputs():
     )
 
     for ptype in protocol_files:
-
         path = os.path.join(
             OUT_DIR,
             f"{ptype}.txt",
@@ -2636,7 +2579,6 @@ def verify_outputs():
     )
 
     for filename in iran_files:
-
         verify_output_file(
             os.path.join(
                 OUT_DIR,
@@ -2682,7 +2624,6 @@ def print_summary():
     )
 
     for filename in files:
-
         path = os.path.join(
             OUT_DIR,
             filename,
@@ -2808,8 +2749,8 @@ def main():
 
     # -----------------------------------------------------
     # IMPORTANT:
-    # Do not even start writing if there are not enough
-    # configs for the mandatory 10000 general files.
+    # Do not modify existing outputs if there aren't
+    # enough configs for the mandatory 10000 files.
     # -----------------------------------------------------
 
     if len(all_unique) < GENERAL_TOTAL:
@@ -2860,10 +2801,12 @@ def main():
     )
 
     # -----------------------------------------------------
-    # DELETE OLD OUTPUTS
+    # IMPORTANT:
+    # DO NOT clear old subscriptions here.
+    #
+    # Every output is written atomically.
+    # If a later step fails, previous files remain intact.
     # -----------------------------------------------------
-
-    clear_old_subscriptions()
 
     # -----------------------------------------------------
     # GENERAL
@@ -2933,3 +2876,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
