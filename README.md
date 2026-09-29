@@ -16,22 +16,37 @@ Automated • Tested • Quality Ranked
 
 <br/>
 
-<p>
+<!-- Telegram -->
 <a href="https://t.me/nukcrow">
-<img src="https://img.shields.io/badge/Telegram_Channel-@nukcrow-0d1117?style=flat&logo=telegram&logoColor=8A8F98"/>
+<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="55" height="55"/>
 </a>
-</p>
 
-<p>
+<br/>
+
+<font size="5"><b>Telegram</b></font>
+
+<br/><br/>
+
+<a href="https://t.me/nukcrow">
+<font size="4">@nukcrow</font>
+</a>
+
+<br/><br/>
+
 <a href="https://t.me/Nukcrowbot">
-<img src="https://img.shields.io/badge/Support_Admin-@Nukcrowbot-0d1117?style=flat&logo=telegram&logoColor=8A8F98"/>
+<font size="4">@Nukcrowbot</font>
 </a>
-</p>
 
-<p>
+<br/><br/>
+
 <a href="https://t.me/nukcrowvpnbot">
-<img src="https://img.shields.io/badge/Config_Service-@nukcrowvpnbot-0d1117?style=flat&logo=telegram&logoColor=8A8F98"/>
+<font size="4">@nukcrowvpnbot</font>
 </a>
-</p>
+
+<br/><br/>
+
+<font size="2" color="#8A8F98">
+Channel&nbsp;&nbsp;•&nbsp;&nbsp;Admin Support&nbsp;&nbsp;•&nbsp;&nbsp;Config Bot
+</font>
 
 </div>
