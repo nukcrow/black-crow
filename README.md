@@ -16,37 +16,73 @@ Automated • Tested • Quality Ranked
 
 <br/><br/>
 
-<a href="https://t.me/nukcrow">
-<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="60"/>
-</a>
+<table>
+<tr>
+<td align="center" width="500">
 
 <br/>
+
+<a href="https://t.me/nukcrow">
+<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="65"/>
+</a>
 
 <h2>Telegram</h2>
 
+<p>
+<font color="#8A8F98">
+Official NukCrow Services
+</font>
+</p>
+
 <br/>
 
+<table>
+<tr>
+<td align="center">
+
 <a href="https://t.me/nukcrow">
-<b>📢 Channel</b><br>
-@<b>nukcrow</b>
+<b>📢 CHANNEL</b><br/>
+<font color="#8A8F98">@nukcrow</font>
 </a>
 
-<br/><br/>
+</td>
+</tr>
+
+<tr>
+<td align="center">
+<br/>
 
 <a href="https://t.me/Nukcrowbot">
-<b>💬 Admin Support</b><br>
-@<b>Nukcrowbot</b>
+<b>💬 ADMIN SUPPORT</b><br/>
+<font color="#8A8F98">@Nukcrowbot</font>
 </a>
 
-<br/><br/>
+</td>
+</tr>
+
+<tr>
+<td align="center">
+<br/>
 
 <a href="https://t.me/nukcrowvpnbot">
-<b>⚡ Configuration Bot</b><br>
-@<b>nukcrowvpnbot</b>
+<b>⚡ CONFIGURATION BOT</b><br/>
+<font color="#8A8F98">@nukcrowvpnbot</font>
 </a>
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+<font size="2" color="#8A8F98">
+NukCrow • Official Telegram Services
+</font>
 
 <br/><br/>
 
-<sub>Official Telegram Services</sub>
+</td>
+</tr>
+</table>
 
 </div>
