@@ -2,317 +2,220 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    # Every 3 hours
     - cron: "17 */3 * * *"
 
   workflow_dispatch:
 
+
 concurrency:
   group: auto-update-subscriptions
   cancel-in-progress: false
+
 
 permissions:
   contents: write
 
 
 jobs:
+
   update:
+
     runs-on: ubuntu-latest
+
     timeout-minutes: 30
+
 
     steps:
 
-      # ==========================================
-      # CHECKOUT
-      # ==========================================
 
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: true
+    # ===============================
+    # CHECKOUT
+    # ===============================
 
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        fetch-depth: 0
+        persist-credentials: true
 
-      # ==========================================
-      # PYTHON
-      # ==========================================
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
 
+    # ===============================
+    # PYTHON
+    # ===============================
 
-      # ==========================================
-      # DEPENDENCIES
-      # ==========================================
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
 
-      - name: Install Dependencies
-        run: |
-          set -euo pipefail
 
-          python -m pip install --upgrade pip
 
-          python -m pip install \
-            --disable-pip-version-check \
-            requests
+    # ===============================
+    # DEPENDENCIES
+    # ===============================
 
+    - name: Install Dependencies
+      run: |
 
-      # ==========================================
-      # SYNC MAIN
-      # ==========================================
+        python -m pip install --upgrade pip
 
-      - name: Sync with main
-        run: |
-          set -euo pipefail
+        pip install requests
 
-          echo "=========================================="
-          echo "SYNCING REPOSITORY"
-          echo "=========================================="
 
-          git fetch origin main
 
-          git checkout main
+    # ===============================
+    # SYNC MAIN
+    # ===============================
 
-          git reset --hard origin/main
+    - name: Sync latest main
+      run: |
 
-          echo ""
-          echo "Current commit:"
-          git log -1 --oneline
+        set -e
 
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
 
-      # ==========================================
-      # RUN COLLECTOR
-      # ==========================================
 
-      - name: Run NukCrow Collector
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONUNBUFFERED: "1"
+        git fetch origin main
 
-        run: |
-          set -euo pipefail
 
-          echo "=========================================="
-          echo "NUKCROW COLLECTOR"
-          echo "=========================================="
+        git checkout main
 
-          echo ""
-          echo "UTC:"
-          date -u
 
-          echo ""
-          echo "Python:"
-          python --version
+        git reset --hard origin/main
 
-          echo ""
-          echo "Running collector..."
 
-          python scripts/switcher.py
 
+    # ===============================
+    # RUN COLLECTOR
+    # ===============================
 
-      # ==========================================
-      # CHECK OUTPUT EXISTS
-      # ==========================================
+    - name: Run Collector
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PYTHONUNBUFFERED: "1"
 
-      - name: Check Subscription Output
-        run: |
-          set -euo pipefail
+      run: |
 
-          echo "Checking output..."
+        python scripts/switcher.py
 
-          test -d sub/general
 
-          required=(
-            all_configs.txt
-            sub1.txt
-            sub2.txt
-            sub3.txt
-            sub4.txt
-            sub5.txt
-            sub6.txt
-            sub7.txt
-            sub8.txt
-            sub9.txt
-            sub10.txt
-            vless.txt
-            vmess.txt
-            trojan.txt
-            ss.txt
-            hysteria2.txt
-            best_iran.txt
-            mix_iran.txt
-            mci.txt
-            irancell.txt
-            rightel.txt
-          )
 
-          for f in "${required[@]}"; do
+    # ===============================
+    # COMMIT
+    # ===============================
 
-            if [ ! -f "sub/general/$f" ]; then
-              echo "Missing: $f"
-              exit 1
-            fi
+    - name: Commit changes
+      id: commit
 
-          done
+      run: |
 
+        set -e
 
-          if [ -f "sub/general/random_200.txt" ]; then
-            echo "random_200.txt exists"
-            exit 1
-          fi
 
+        git add sub/
 
-          echo "Output files OK"
 
+        if git diff --cached --quiet;
+        then
 
-      # ==========================================
-      # VALIDATE COUNTS
-      # ==========================================
+          echo "changed=false" >> $GITHUB_OUTPUT
 
-      - name: Validate Subscription Counts
-        run: |
-          set -euo pipefail
+          exit 0
 
+        fi
 
-          count_lines(){
 
-            grep -cve '^[[:space:]]*$' "$1" || true
 
-          }
+        git commit \
+        -m "Auto update subscriptions $(date -u '+%Y-%m-%d %H:%M UTC')"
 
 
-          echo "Checking general files"
 
+        echo "changed=true" >> $GITHUB_OUTPUT
 
-          for i in $(seq 1 10); do
 
-            file="sub/general/sub${i}.txt"
 
-            count=$(count_lines "$file")
 
-            echo "$file => $count"
+    # ===============================
+    # SAFE PUSH
+    # ===============================
 
+    - name: Safe push
 
-            if [ "$count" -ne 1000 ]; then
-              exit 1
-            fi
+      if: steps.commit.outputs.changed == 'true'
 
-          done
+      run: |
 
+        set -e
 
-          all=$(count_lines sub/general/all_configs.txt)
 
+        git fetch origin main
 
-          if [ "$all" -ne 10000 ]; then
-            echo "Invalid all_configs count"
-            exit 1
-          fi
 
+        git rebase origin/main
 
-          echo "Checking Iran files"
 
 
-          for file in \
-            best_iran.txt \
-            mix_iran.txt \
-            mci.txt \
-            irancell.txt \
-            rightel.txt
+        git push origin HEAD:main
 
-          do
 
-            count=$(count_lines "sub/general/$file")
 
-            echo "$file => $count"
+    # ===============================
+    # CREATE RELEASE
+    # ===============================
 
 
-            if [ "$count" -ne 200 ]; then
-              exit 1
-            fi
+    - name: Publish release
 
-          done
+      if: steps.commit.outputs.changed == 'true'
 
+      env:
 
-          echo "Validation OK"
+        GH_TOKEN: ${{ github.token }}
 
 
+      run: |
 
-      # ==========================================
-      # COMMIT
-      # ==========================================
+        set -e
 
-      - name: Commit Changes
-        id: commit
 
-        run: |
+        TAG="latest"
 
-          set -euo pipefail
 
 
-          git config user.name \
-          "github-actions[bot]"
+        gh release delete "$TAG" \
+        --cleanup-tag \
+        -y || true
 
 
-          git config user.email \
-          "41898282+github-actions[bot]@users.noreply.github.com"
 
+        gh release create "$TAG" \
+        sub/general/*.txt \
+        --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
+        --notes "Auto-updated every 3 hours."
 
-          git add sub/
 
 
-          if git diff --cached --quiet; then
+    # ===============================
+    # FINAL
+    # ===============================
 
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+    - name: Final Status
 
-            echo "No changes"
+      if: always()
 
-            exit 0
+      run: |
 
-          fi
+        echo "======================"
 
+        echo "FINISHED"
 
-          git commit \
-          -m "Auto-update subscriptions $(date -u '+%Y-%m-%d %H:%M UTC')"
+        date -u
 
+        echo "======================"
 
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-
-
-      # ==========================================
-      # PUSH
-      # ==========================================
-
-      - name: Push Changes
-
-        if: steps.commit.outputs.changed == 'true'
-
-        run: |
-
-          set -euo pipefail
-
-
-          git push origin main
-
-
-
-      # ==========================================
-      # FINAL
-      # ==========================================
-
-      - name: Final Status
-
-        if: always()
-
-        run: |
-
-          echo "=========================================="
-          echo "WORKFLOW FINISHED"
-          echo "=========================================="
-
-          date -u
-
-          git log -1 --oneline
+        git log -1 --oneline
