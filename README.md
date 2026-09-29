@@ -7,12 +7,6 @@
 <br/>
 
 ```bash
-$ whoami
-nukcrow
-
-$ cat status
-online · connected · building
-```
 
 <br/>
 
