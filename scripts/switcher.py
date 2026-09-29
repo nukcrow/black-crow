@@ -453,62 +453,58 @@ def vmess_data(config):
 # ============================================================
 
 def ss_data(config):
-    if not config.lower().startswith("ss://"):
-        return {}
-
-    parsed_url = parsed(config)
-
-    if not parsed_url:
-        return {}
-
-    hostname = parsed_url.hostname
-    port = parsed_url.port
-
-    username = ""
-    password = ""
-    method = ""
-
     try:
-        if parsed_url.username is not None:
-            username = unquote(
-                parsed_url.username
-            )
+        parsed_url = urlparse(config)
 
-        if parsed_url.password is not None:
-            password = unquote(
-                parsed_url.password
-            )
+        if parsed_url.scheme.lower() != "ss":
+            return None
 
-        if username and ":" in username:
-            method, password = username.split(
-                ":",
-                1,
-            )
+        try:
+            port = parsed_url.port
+        except (ValueError, TypeError):
+            return None
 
+        if not port or not (1 <= port <= 65535):
+            return None
+
+        host = parsed_url.hostname
+        if not host:
+            return None
+
+        username = unquote(parsed_url.username or "")
+        password = unquote(parsed_url.password or "")
+
+        if username and password:
+            method = username
+            secret = password
+        else:
+            raw = parsed_url.netloc
+            if "@" not in raw:
+                return None
+
+            userinfo, hostpart = raw.rsplit("@", 1)
+
+            if ":" not in userinfo:
+                return None
+
+            method, secret = userinfo.split(":", 1)
+            method = unquote(method)
+            secret = unquote(secret)
+
+        if not method or not secret:
+            return None
+
+        return {
+            "method": method,
+            "password": secret,
+            "host": host,
+            "port": port,
+        }
+
+    except (ValueError, TypeError, UnicodeError):
+        return None
     except Exception:
-        pass
-
-    # SIP002
-    if not method:
-        raw = parsed_url.netloc
-
-        if "@" in raw:
-            userinfo = raw.rsplit("@", 1)[0]
-
-            decoded = decode64(userinfo)
-
-            if ":" in decoded:
-                method, password = decoded.split(
-                    ":",
-                    1,
-                )
-
-    return {
-        "host": hostname or "",
-        "port": port or 0,
-        "method": method,
-        "password": password,
-    }
+        return None
 
 
 # ============================================================
@@ -598,71 +594,39 @@ def is_junk_host(host):
 # ============================================================
 
 def valid_config(config):
-    if not config:
-        return False
-
-    ptype = proto(config)
-
-    if ptype not in SUPPORTED_PROTOCOLS:
-        return False
-
-    host, port = endpoint(config)
-
-    if not host:
-        return False
-
-    if is_junk_host(host):
-        return False
-
-    if not isinstance(port, int):
-        return False
-
-    if not 1 <= port <= 65535:
-        return False
-
     try:
-        parsed_url = parsed(config)
+        config = config.strip()
 
-        if not parsed_url:
+        if not config:
             return False
 
-        if ptype == "vless":
-            if not parsed_url.username:
-                return False
+        p = proto(config)
 
-        elif ptype == "trojan":
-            if not parsed_url.username:
-                return False
+        if p not in SUPPORTED_PROTOCOLS:
+            return False
 
-        elif ptype in {
-            "hysteria2",
-            "hy2",
-        }:
-            if not parsed_url.username:
-                return False
+        host, port = endpoint(config)
 
-        elif ptype == "vmess":
-            data = vmess_data(config)
+        if not host or not port:
+            return False
 
-            uuid = (
-                data.get("id")
-                or data.get("uuid")
-                or ""
-            )
+        if not (1 <= int(port) <= 65535):
+            return False
 
-            if not uuid:
-                return False
+        if not valid_host(host):
+            return False
 
-        elif ptype == "ss":
+        if p == "ss":
             data = ss_data(config)
-
-            if not data.get("host"):
+            if not data:
                 return False
 
+        return True
+
+    except (ValueError, TypeError, UnicodeError):
+        return False
     except Exception:
         return False
-
-    return True
 
 
 # ============================================================
