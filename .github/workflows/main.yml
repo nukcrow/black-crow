@@ -2,220 +2,791 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
+    # Every 3 hours
     - cron: "17 */3 * * *"
 
   workflow_dispatch:
-
 
 concurrency:
   group: auto-update-subscriptions
   cancel-in-progress: false
 
-
 permissions:
   contents: write
 
-
 jobs:
-
   update:
-
     runs-on: ubuntu-latest
-
     timeout-minutes: 30
-
 
     steps:
 
+      # ==================================================
+      # CHECKOUT
+      # ==================================================
 
-    # ===============================
-    # CHECKOUT
-    # ===============================
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        ref: main
-        fetch-depth: 0
-        persist-credentials: true
 
+      # ==================================================
+      # PYTHON
+      # ==================================================
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
 
-    # ===============================
-    # PYTHON
-    # ===============================
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-        cache: pip
+      # ==================================================
+      # DEPENDENCIES
+      # ==================================================
 
+      - name: Install Dependencies
+        run: |
+          set -euo pipefail
 
+          python -m pip install --upgrade pip
 
-    # ===============================
-    # DEPENDENCIES
-    # ===============================
+          python -m pip install \
+            --disable-pip-version-check \
+            requests
 
-    - name: Install Dependencies
-      run: |
 
-        python -m pip install --upgrade pip
+      # ==================================================
+      # SYNC MAIN
+      # ==================================================
 
-        pip install requests
+      - name: Sync Latest Main
+        run: |
+          set -euo pipefail
 
+          echo "=========================================="
+          echo "SYNCING REPOSITORY"
+          echo "=========================================="
 
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
-    # ===============================
-    # SYNC MAIN
-    # ===============================
+          git config user.name \
+            "github-actions[bot]"
 
-    - name: Sync latest main
-      run: |
+          git fetch origin main
 
-        set -e
+          git checkout main
 
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
+          git reset --hard origin/main
 
+          echo ""
+          echo "Current commit:"
+          git log -1 --oneline
 
-        git fetch origin main
 
+      # ==================================================
+      # RUN COLLECTOR
+      # ==================================================
 
-        git checkout main
+      - name: Run NukCrow Collector
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONUNBUFFERED: "1"
 
+        run: |
+          set -euo pipefail
 
-        git reset --hard origin/main
+          echo "=========================================="
+          echo "NUKCROW COLLECTOR"
+          echo "=========================================="
 
+          echo ""
+          echo "UTC:"
+          date -u
 
+          echo ""
+          echo "Python:"
+          python --version
 
-    # ===============================
-    # RUN COLLECTOR
-    # ===============================
+          echo ""
+          echo "Running collector..."
+          echo "=========================================="
 
-    - name: Run Collector
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PYTHONUNBUFFERED: "1"
+          python scripts/switcher.py
 
-      run: |
 
-        python scripts/switcher.py
+      # ==================================================
+      # VERIFY DIRECTORY
+      # ==================================================
+
+      - name: Verify Output Directory
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "CHECKING OUTPUT DIRECTORY"
+          echo "=========================================="
+
+          if [ ! -d "sub/general" ]; then
+            echo "ERROR: sub/general does not exist!"
+            exit 1
+          fi
+
+          echo "OK: sub/general exists."
+
+
+      # ==================================================
+      # RANDOM 200 MUST NOT EXIST
+      # ==================================================
+
+      - name: Verify Random 200 Removed
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "RANDOM 200 CHECK"
+          echo "=========================================="
+
+          if [ -e "sub/general/random_200.txt" ]; then
+            echo "ERROR: random_200.txt must NOT exist!"
+            exit 1
+          fi
+
+          echo "OK: random_200.txt does not exist."
+
+
+      # ==================================================
+      # EXPECTED FILES
+      # ==================================================
+
+      - name: Verify Expected Files
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "EXPECTED FILE CHECK"
+          echo "=========================================="
+
+          expected_files=(
+            "sub/general/all_configs.txt"
+
+            "sub/general/sub1.txt"
+            "sub/general/sub2.txt"
+            "sub/general/sub3.txt"
+            "sub/general/sub4.txt"
+            "sub/general/sub5.txt"
+            "sub/general/sub6.txt"
+            "sub/general/sub7.txt"
+            "sub/general/sub8.txt"
+            "sub/general/sub9.txt"
+            "sub/general/sub10.txt"
+
+            "sub/general/vless.txt"
+            "sub/general/vmess.txt"
+            "sub/general/trojan.txt"
+            "sub/general/ss.txt"
+            "sub/general/hysteria2.txt"
+
+            "sub/general/best_iran.txt"
+            "sub/general/mix_iran.txt"
+            "sub/general/mci.txt"
+            "sub/general/irancell.txt"
+            "sub/general/rightel.txt"
+          )
+
+          for file in "${expected_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "ERROR: Missing file: $file"
+              exit 1
+            fi
+          done
 
+          echo "OK: all expected files exist."
 
 
-    # ===============================
-    # COMMIT
-    # ===============================
+      # ==================================================
+      # UNEXPECTED TXT FILE CHECK
+      # ==================================================
 
-    - name: Commit changes
-      id: commit
+      - name: Verify File List
+        run: |
+          set -euo pipefail
 
-      run: |
+          echo "=========================================="
+          echo "FILE LIST CHECK"
+          echo "=========================================="
 
-        set -e
+          expected_files=(
+            "sub/general/all_configs.txt"
 
+            "sub/general/sub1.txt"
+            "sub/general/sub2.txt"
+            "sub/general/sub3.txt"
+            "sub/general/sub4.txt"
+            "sub/general/sub5.txt"
+            "sub/general/sub6.txt"
+            "sub/general/sub7.txt"
+            "sub/general/sub8.txt"
+            "sub/general/sub9.txt"
+            "sub/general/sub10.txt"
 
-        git add sub/
+            "sub/general/vless.txt"
+            "sub/general/vmess.txt"
+            "sub/general/trojan.txt"
+            "sub/general/ss.txt"
+            "sub/general/hysteria2.txt"
 
+            "sub/general/best_iran.txt"
+            "sub/general/mix_iran.txt"
+            "sub/general/mci.txt"
+            "sub/general/irancell.txt"
+            "sub/general/rightel.txt"
+          )
 
-        if git diff --cached --quiet;
-        then
+          mapfile -t actual_files < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt" \
+              -printf "%p\n" \
+              | sort
+          )
 
-          echo "changed=false" >> $GITHUB_OUTPUT
+          mapfile -t sorted_expected < <(
+            printf '%s\n' "${expected_files[@]}" | sort
+          )
 
-          exit 0
+          if ! diff -u \
+            <(printf '%s\n' "${sorted_expected[@]}") \
+            <(printf '%s\n' "${actual_files[@]}"); then
 
-        fi
+            echo ""
+            echo "ERROR: Unexpected or missing .txt files detected!"
 
+            echo ""
+            echo "Expected:"
+            printf '%s\n' "${sorted_expected[@]}"
 
+            echo ""
+            echo "Actual:"
+            printf '%s\n' "${actual_files[@]}"
 
-        git commit \
-        -m "Auto update subscriptions $(date -u '+%Y-%m-%d %H:%M UTC')"
+            exit 1
+          fi
 
+          echo "OK: file list is exactly correct."
 
 
-        echo "changed=true" >> $GITHUB_OUTPUT
+      # ==================================================
+      # LINE COUNT FUNCTION
+      # ==================================================
 
+      - name: Validate Counts
+        shell: bash
+        run: |
+          set -euo pipefail
 
+          count_lines() {
+            grep -cve '^[[:space:]]*$' "$1" || true
+          }
 
 
-    # ===============================
-    # SAFE PUSH
-    # ===============================
+          echo "=========================================="
+          echo "GENERAL SUBSCRIPTIONS"
+          echo "=========================================="
 
-    - name: Safe push
 
-      if: steps.commit.outputs.changed == 'true'
+          EXPECTED_GENERAL=1000
 
-      run: |
+          for i in $(seq 1 10); do
 
-        set -e
+            file="sub/general/sub${i}.txt"
 
+            count="$(count_lines "$file")"
 
-        git fetch origin main
+            echo "$file: $count configs"
 
+            if [ "$count" -ne "$EXPECTED_GENERAL" ]; then
+              echo "ERROR: $file must contain exactly $EXPECTED_GENERAL configs!"
+              exit 1
+            fi
 
-        git rebase origin/main
+          done
 
 
+          echo ""
+          echo "OK: sub1.txt - sub10.txt are exactly 1000 configs each."
 
-        git push origin HEAD:main
 
+          echo ""
+          echo "=========================================="
+          echo "ALL CONFIGS"
+          echo "=========================================="
 
 
-    # ===============================
-    # CREATE RELEASE
-    # ===============================
+          ALL_CONFIGS=10000
 
+          all_count="$(count_lines "sub/general/all_configs.txt")"
 
-    - name: Publish release
+          echo "all_configs.txt: $all_count configs"
 
-      if: steps.commit.outputs.changed == 'true'
+          if [ "$all_count" -ne "$ALL_CONFIGS" ]; then
+            echo "ERROR: all_configs.txt must contain exactly $ALL_CONFIGS configs!"
+            exit 1
+          fi
 
-      env:
 
-        GH_TOKEN: ${{ github.token }}
+          echo "OK: all_configs.txt contains exactly 10000 configs."
 
 
-      run: |
+          echo ""
+          echo "=========================================="
+          echo "PROTOCOL SUBSCRIPTIONS"
+          echo "=========================================="
 
-        set -e
 
+          PROTOCOL_MAX=100
 
-        TAG="latest"
+          for proto in vless vmess trojan ss hysteria2; do
 
+            file="sub/general/${proto}.txt"
 
+            count="$(count_lines "$file")"
 
-        gh release delete "$TAG" \
-        --cleanup-tag \
-        -y || true
+            echo "$file: $count configs"
 
+            if [ "$count" -lt 1 ]; then
+              echo "ERROR: $file is empty!"
+              exit 1
+            fi
 
+            if [ "$count" -gt "$PROTOCOL_MAX" ]; then
+              echo "ERROR: $file contains more than $PROTOCOL_MAX configs!"
+              exit 1
+            fi
 
-        gh release create "$TAG" \
-        sub/general/*.txt \
-        --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
-        --notes "Auto-updated every 3 hours."
+          done
 
 
+          echo ""
+          echo "OK: protocol files contain 1-100 configs."
 
-    # ===============================
-    # FINAL
-    # ===============================
 
-    - name: Final Status
+          echo ""
+          echo "=========================================="
+          echo "IRAN SUBSCRIPTIONS"
+          echo "=========================================="
 
-      if: always()
 
-      run: |
+          IRAN_EXPECTED=200
 
-        echo "======================"
+          for file in \
+            sub/general/best_iran.txt \
+            sub/general/mix_iran.txt \
+            sub/general/mci.txt \
+            sub/general/irancell.txt \
+            sub/general/rightel.txt
+          do
 
-        echo "FINISHED"
+            count="$(count_lines "$file")"
 
-        date -u
+            echo "$file: $count configs"
 
-        echo "======================"
+            if [ "$count" -ne "$IRAN_EXPECTED" ]; then
+              echo "ERROR: $file must contain exactly $IRAN_EXPECTED configs!"
+              exit 1
+            fi
 
-        git log -1 --oneline
+          done
+
+
+          echo ""
+          echo "OK: all Iran files contain exactly 200 configs."
+
+
+      # ==================================================
+      # EMPTY LINE CHECK
+      # ==================================================
+
+      - name: Validate Empty Lines
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "EMPTY LINE CHECK"
+          echo "=========================================="
+
+
+          while IFS= read -r file; do
+
+            if grep -nE '^[[:space:]]*$' "$file" | grep -q .; then
+              echo "ERROR: Empty line found in $file"
+              exit 1
+            fi
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
+
+
+          echo "OK: no empty lines found."
+
+
+      # ==================================================
+      # PROTOCOL FORMAT CHECK
+      # ==================================================
+
+      - name: Validate Protocol Format
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "PROTOCOL FORMAT CHECK"
+          echo "=========================================="
+
+
+          bad_format=0
+
+
+          while IFS= read -r file; do
+
+            if grep -vE \
+              '^(vless|vmess|trojan|ss|hysteria2|hy2)://.+#nukcrow$' \
+              "$file" \
+              | grep -q .; then
+
+              echo "ERROR: Invalid config format found in $file"
+
+              bad_format=1
+
+            fi
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
+
+
+          if [ "$bad_format" -ne 0 ]; then
+            echo "ERROR: Protocol format validation failed!"
+            exit 1
+          fi
+
+
+          echo "OK: all configs have valid protocol format."
+
+
+      # ==================================================
+      # REMARK CHECK
+      # ==================================================
+
+      - name: Validate Remarks
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "REMARK CHECK"
+          echo "=========================================="
+
+
+          bad_remark=0
+
+
+          while IFS= read -r file; do
+
+            if grep -vE '#nukcrow$' "$file" | grep -q .; then
+              echo "ERROR: Invalid remark found in $file"
+              bad_remark=1
+            fi
+
+
+            if grep -vE '^([^#]*#nukcrow)$' "$file" | grep -q .; then
+              echo "ERROR: Extra remark/fragment found in $file"
+              bad_remark=1
+            fi
+
+
+            if grep -E \
+              '#(Iran|Russia|Germany|Netherlands|Turkey|USA|VLESS|VMESS|Trojan|SS|Hysteria|[0-9]+)$' \
+              "$file" \
+              | grep -q .; then
+
+              echo "ERROR: Old/country/protocol/index remark found in $file"
+
+              bad_remark=1
+
+            fi
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
+
+
+          if [ "$bad_remark" -ne 0 ]; then
+            echo "ERROR: Remark validation failed!"
+            exit 1
+          fi
+
+
+          echo "OK: every config ends with exactly #nukcrow."
+
+
+      # ==================================================
+      # DUPLICATE CHECK
+      # ==================================================
+
+      - name: Validate Duplicates
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "DUPLICATE CHECK"
+          echo "=========================================="
+
+
+          while IFS= read -r file; do
+
+            duplicate="$(
+              sort "$file" |
+              uniq -d |
+              head -n 1
+            )"
+
+
+            if [ -n "$duplicate" ]; then
+
+              echo "ERROR: Duplicate config found in $file"
+
+              echo "Duplicate:"
+              echo "$duplicate"
+
+              exit 1
+
+            fi
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
+
+
+          echo "OK: no duplicate configs inside subscription files."
+
+
+      # ==================================================
+      # FINAL VALIDATION
+      # ==================================================
+
+      - name: Final Validation
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "VALIDATION SUCCESSFUL"
+          echo "=========================================="
+
+          echo ""
+          echo "General:      10 × 1000"
+          echo "All configs:  10000"
+          echo "Protocols:    1-100 each"
+          echo "Iran:         5 × 200"
+          echo "Random 200:   REMOVED"
+          echo "Remark:       #nukcrow"
+
+          echo ""
+          echo "All subscription checks passed."
+
+
+      # ==================================================
+      # CHECK GIT STATUS
+      # ==================================================
+
+      - name: Check Changes
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "GIT STATUS"
+          echo "=========================================="
+
+          git status --short
+
+          echo ""
+          echo "Changed files:"
+          git diff --name-only
+
+
+      # ==================================================
+      # COMMIT
+      # ==================================================
+
+      - name: Commit Changes
+        id: commit
+        run: |
+          set -euo pipefail
+
+          git config --local user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git config --local user.name \
+            "github-actions[bot]"
+
+
+          git add sub/
+
+
+          if git diff --cached --quiet; then
+
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+
+            echo ""
+            echo "=========================================="
+            echo "NO CHANGES"
+            echo "=========================================="
+
+            exit 0
+
+          fi
+
+
+          echo ""
+          echo "=========================================="
+          echo "CHANGES DETECTED"
+          echo "=========================================="
+
+
+          git diff --cached --stat
+
+
+          git commit \
+            -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+
+      # ==================================================
+      # SAFE REBASE
+      # ==================================================
+
+      - name: Rebase Latest Main
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "REBASING WITH LATEST MAIN"
+          echo "=========================================="
+
+
+          git fetch origin main
+
+          git rebase origin/main
+
+
+      # ==================================================
+      # SAFE PUSH
+      # ==================================================
+
+      - name: Push Changes
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "PUSHING TO MAIN"
+          echo "=========================================="
+
+
+          git push origin HEAD:main || {
+
+            echo ""
+            echo "First push failed. Retrying..."
+
+
+            git fetch origin main
+
+            git rebase origin/main
+
+            git push origin HEAD:main
+
+          }
+
+
+          echo ""
+          echo "=========================================="
+          echo "PUSH SUCCESSFUL"
+          echo "=========================================="
+
+
+      # ==================================================
+      # PUBLISH RELEASE
+      # ==================================================
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "PUBLISHING LATEST RELEASE"
+          echo "=========================================="
+
+
+          TAG="latest"
+
+
+          gh release delete "$TAG" \
+            --cleanup-tag \
+            -y || true
+
+
+          gh release create "$TAG" \
+            sub/general/*.txt \
+            --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
+            --notes "Auto-updated every 3 hours."
+
+
+          echo ""
+          echo "Release published successfully."
+
+
+      # ==================================================
+      # FINAL STATUS
+      # ==================================================
+
+      - name: Final Status
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "WORKFLOW FINISHED"
+          echo "=========================================="
+
+          echo ""
+          echo "UTC:"
+          date -u
+
+          echo ""
+          echo "Commit:"
+          git log -1 --oneline
+
+          echo ""
+          echo "Repository status:"
+          git status --short
