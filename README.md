@@ -1,248 +1,282 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>NukCrow</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            padding: 50px 20px;
-            background: #0d1117;
-            color: #c9d1d9;
-            font-family: Arial, Helvetica, sans-serif;
-            text-align: center;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        .hero {
-            width: 100%;
-            border-radius: 12px;
-        }
-
-        .title {
-            margin-top: 25px;
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .subtitle {
-            margin-top: 10px;
-            color: #8a8f98;
-            font-size: 14px;
-        }
-
-        /* Main Telegram Card */
-
-        .telegram-card {
-            width: 470px;
-            max-width: 92%;
-            margin: 38px auto 0;
-
-            padding: 38px 32px;
-
-            background: rgba(22, 27, 34, 0.72);
-
-            border: 1px solid rgba(139, 148, 158, 0.16);
-
-            border-radius: 22px;
-
-            box-shadow:
-                0 18px 50px rgba(0, 0, 0, 0.28),
-                inset 0 1px 0 rgba(255, 255, 255, 0.025);
-
-            backdrop-filter: blur(10px);
-        }
-
-        .telegram-icon {
-            width: 58px;
-            height: 58px;
-
-            margin-bottom: 10px;
-
-            opacity: 0.9;
-        }
-
-        .telegram-title {
-            font-size: 25px;
-            font-weight: 600;
-            letter-spacing: 0.2px;
-        }
-
-        .official {
-            margin-top: 8px;
-            color: #8a8f98;
-            font-size: 13px;
-        }
-
-        /* Links */
-
-        .links {
-            margin-top: 30px;
-        }
-
-        .link {
-            display: block;
-
-            padding: 16px 18px;
-            margin: 10px 0;
-
-            text-decoration: none;
-            color: #c9d1d9;
-
-            background: rgba(13, 17, 23, 0.55);
-
-            border: 1px solid rgba(139, 148, 158, 0.10);
-
-            border-radius: 13px;
-
-            transition:
-                background 0.25s ease,
-                border-color 0.25s ease,
-                transform 0.25s ease;
-        }
-
-        .link:hover {
-            background: rgba(33, 38, 45, 0.85);
-
-            border-color: rgba(139, 148, 158, 0.28);
-
-            transform: translateY(-2px);
-        }
-
-        .link-name {
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.4px;
-        }
-
-        .username {
-            margin-top: 5px;
-
-            color: #8a8f98;
-
-            font-size: 13px;
-        }
-
-        .footer {
-            margin-top: 25px;
-
-            color: #6e7681;
-
-            font-size: 11px;
-        }
-
-    </style>
-</head>
-
-<body>
-
-<div class="container">
-
-    <!-- Header -->
-
-    <img
-        class="hero"
-        src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:161b22,100:21262d&height=220&section=header&text=nukcrow&fontSize=65&fontColor=8A8F98&animation=fadeIn&fontAlignY=38"
-        alt="NukCrow"
-    >
-
-    <div class="title">
-        V2Ray / Xray Configuration Platform
-    </div>
-
-    <div class="subtitle">
-        Automated • Tested • Quality Ranked
-    </div>
-
-
-    <!-- Telegram Card -->
-
-    <div class="telegram-card">
-
-        <a href="https://t.me/nukcrow" target="_blank">
-            <img
-                class="telegram-icon"
-                src="https://cdn.simpleicons.org/telegram/8A8F98"
-                alt="Telegram"
-            >
-        </a>
-
-        <div class="telegram-title">
-            Telegram
-        </div>
-
-        <div class="official">
-            Official NukCrow Services
-        </div>
-
-
-        <div class="links">
-
-            <a
-                class="link"
-                href="https://t.me/nukcrow"
-                target="_blank"
-            >
-                <div class="link-name">
-                    📢 CHANNEL
-                </div>
-
-                <div class="username">
-                    @nukcrow
-                </div>
-            </a>
-
-
-            <a
-                class="link"
-                href="https://t.me/Nukcrowbot"
-                target="_blank"
-            >
-                <div class="link-name">
-                    💬 ADMIN SUPPORT
-                </div>
-
-                <div class="username">
-                    @Nukcrowbot
-                </div>
-            </a>
-
-
-            <a
-                class="link"
-                href="https://t.me/nukcrowvpnbot"
-                target="_blank"
-            >
-                <div class="link-name">
-                    ⚡ CONFIGURATION BOT
-                </div>
-
-                <div class="username">
-                    @nukcrowvpnbot
-                </div>
-            </a>
-
-        </div>
-
-
-        <div class="footer">
-            NukCrow • Official Telegram Services
-        </div>
-
-    </div>
+<div align="center">
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:161b22,100:21262d&height=220&section=header&text=nukcrow&fontSize=65&fontColor=8A8F98&animation=fadeIn&fontAlignY=38" width="100%"/>
+
+<br/>
+
+<img src="https://readme-typing-svg.demolab.com/?font=Arial&weight=500&size=20&duration=3000&pause=1200&color=A9A9C8&background=00000000&center=true&vCenter=true&width=700&lines=V2Ray+%2F+Xray+Configuration+Platform;Automated+Collection+%E2%80%A2+Testing+%E2%80%A2+Quality+Ranking;Built+with+Python+%2B+GitHub+Actions" alt="NukCrow"/>
+
+<br/><br/>
+
+<p>
+  <a href="https://github.com/nukcrow/black-crow">
+    <img src="https://img.shields.io/github/stars/nukcrow/black-crow?style=flat-square&color=161b22&labelColor=0d1117&logo=github&logoColor=8A8F98"/>
+  </a>
+  <a href="https://github.com/nukcrow/black-crow/network/members">
+    <img src="https://img.shields.io/github/forks/nukcrow/black-crow?style=flat-square&color=161b22&labelColor=0d1117&logo=github&logoColor=8A8F98"/>
+  </a>
+  <a href="https://github.com/nukcrow/black-crow/actions">
+    <img src="https://img.shields.io/github/actions/workflow/status/nukcrow/black-crow/collector.yml?style=flat-square&color=161b22&labelColor=0d1117&logo=githubactions&logoColor=8A8F98"/>
+  </a>
+</p>
 
 </div>
 
-</body>
-</html>
+---
+
+## `01` — What is NukCrow?
+
+**NukCrow** is an automated V2Ray / Xray configuration aggregation platform.
+
+It continuously collects configurations from multiple public sources, normalizes them, removes duplicates, tests connectivity, ranks reachable configurations, and publishes clean subscription files.
+
+```text
+Sources
+   │
+   ▼
+┌──────────────┐
+│   Collector  │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│  Normalize   │
+│  & Dedup     │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ Connectivity │
+│    Tests     │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ Quality Rank │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ Subscription │
+│    Output    │
+└──────────────┘
+```
+
+---
+
+## `02` — Supported Protocols
+
+<div align="center">
+
+| Protocol | Status |
+|:---:|:---:|
+| **VLESS** | `● Active` |
+| **VMess** | `● Active` |
+| **Trojan** | `● Active` |
+| **Shadowsocks** | `● Active` |
+| **Hysteria2** | `● Active` |
+
+</div>
+
+---
+
+## `03` — Why NukCrow?
+
+> **Collect less noise. Keep more usable configurations.**
+
+NukCrow is designed around an automated pipeline rather than simply downloading configuration lists.
+
+- `Multi-source` aggregation
+- `Duplicate` detection
+- `Connectivity` testing
+- `Quality` filtering
+- `Automatic` subscription generation
+- `GitHub Actions` automation
+- `10-config` subscription chunks
+- Continuous updates
+
+---
+
+## `04` — Architecture
+
+```text
+                    ┌─────────────────────┐
+                    │     Public Sources  │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   NukCrow Collector │
+                    │       Python        │
+                    └──────────┬──────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                ▼                             ▼
+        ┌──────────────┐              ┌──────────────┐
+        │   Normalize  │              │   Deduplicate│
+        └──────┬───────┘              └──────┬───────┘
+               └──────────────┬──────────────┘
+                              ▼
+                    ┌─────────────────────┐
+                    │ Connectivity Tests  │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   Quality Ranking   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    sub/general/     │
+                    │  10-config chunks   │
+                    └─────────────────────┘
+```
+
+---
+
+## `05` — Automated Pipeline
+
+NukCrow is designed to run automatically through GitHub Actions.
+
+```text
+┌─────────────────────────────────────────┐
+│             GitHub Actions              │
+├─────────────────────────────────────────┤
+│                                         │
+│   Fetch → Parse → Clean → Test → Rank   │
+│                         ↓               │
+│                     Publish             │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+No manual collection is required once the workflow is configured.
+
+---
+
+## `06` — Project Structure
+
+```text
+black-crow/
+│
+├── .github/
+│   └── workflows/
+│
+├── collector/
+│
+├── sub/
+│   └── general/
+│
+├── docs/
+│
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
+
+---
+
+## `07` — Quick Start
+
+```bash
+git clone https://github.com/nukcrow/black-crow.git
+
+cd black-crow
+
+pip install -r requirements.txt
+```
+
+Run the collector:
+
+```bash
+python collector.py
+```
+
+Generated subscriptions are stored under:
+
+```text
+sub/general/
+```
+
+---
+
+## `08` — Telegram
+
+<div align="center">
+
+<table>
+<tr>
+<td align="center" width="520">
+
+<br/>
+
+<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="55"/>
+
+### Telegram
+
+`Official NukCrow Services`
+
+<br/>
+
+<a href="https://t.me/nukcrow">
+
+**📢 CHANNEL**
+
+`@nukcrow`
+
+</a>
+
+<br/><br/>
+
+<a href="https://t.me/Nukcrowbot">
+
+**💬 ADMIN SUPPORT**
+
+`@Nukcrowbot`
+
+</a>
+
+<br/><br/>
+
+<a href="https://t.me/nukcrowvpnbot">
+
+**⚡ CONFIGURATION BOT**
+
+`@nukcrowvpnbot`
+
+</a>
+
+<br/><br/>
+
+</td>
+</tr>
+</table>
+
+</div>
+
+---
+
+## `09` — Disclaimer
+
+NukCrow aggregates publicly available configuration data.
+
+The project does not operate or control third-party servers, networks, or configurations.
+
+Users are responsible for complying with the laws, regulations, and terms applicable to their use of any configuration obtained through this project.
+
+---
+
+<div align="center">
+
+<br/>
+
+<img src="https://capsule-render.vercel.app/api?type=rect&color=0:0d1117,100:161b22&height=80&section=footer&text=nukcrow&fontSize=28&fontColor=8A8F98&animation=fadeIn" width="100%"/>
+
+<sub>
+
+**NukCrow** · Built for automation. Designed for simplicity.
+
+</sub>
+
+</div>
