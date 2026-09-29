@@ -74,7 +74,19 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/SoliSpirit/v2ray-configs/main/all_configs.txt",
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
+
+    # Russia / relatively smaller country pool
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/Countries/Russia.txt",
+
+    # Small / curated additions
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/mini.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/lite.txt",
+
+    # Small verified/fast pools
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/fast/configs.txt",
 ]
+
 
 SOURCES_IRAN = [
     "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
@@ -86,14 +98,23 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/vless_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
+
+    # Small Iran-oriented additions
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
 ]
 
+
 SOURCES_MCI = []
+
 
 SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
     "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
+
+    # Small verified pool as fallback
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
 ]
+
 
 SOURCES_RIGHTEL = []
 
