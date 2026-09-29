@@ -7,6 +7,7 @@ import socket
 import random
 import ipaddress
 import threading
+import asyncio
 
 from urllib.parse import urlparse, parse_qs, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,7 +31,6 @@ SUPPORTED_PROTOCOLS = {
     "hy2",
 }
 
-
 # =========================================================
 # GENERAL
 # =========================================================
@@ -39,13 +39,11 @@ GENERAL_SUB_SIZE = 1000
 GENERAL_SUB_COUNT = 10
 GENERAL_TOTAL = GENERAL_SUB_SIZE * GENERAL_SUB_COUNT
 
-
 # =========================================================
 # PROTOCOL
 # =========================================================
 
 PROTOCOL_SUB_SIZE = 100
-
 
 # =========================================================
 # IRAN
@@ -53,13 +51,11 @@ PROTOCOL_SUB_SIZE = 100
 
 IRAN_SUB_SIZE = 200
 
-
 # =========================================================
 # HOST DIVERSITY
 # =========================================================
 
 MAX_PER_HOST = 8
-
 
 # =========================================================
 # FETCH
@@ -70,6 +66,41 @@ FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
 MAX_PER_SOURCE = 20000
 
+# =========================================================
+# TELEGRAM
+# =========================================================
+
+TELEGRAM_ENABLED = (
+    os.getenv("TG_API_ID", "").strip()
+    and os.getenv("TG_API_HASH", "").strip()
+    and os.getenv("TG_SESSION", "").strip()
+)
+
+TELEGRAM_CHANNELS_FILE = os.getenv(
+    "TELEGRAM_CHANNELS_FILE",
+    "telegram_channels.txt",
+)
+
+TELEGRAM_MESSAGE_LIMIT = int(
+    os.getenv(
+        "TG_MESSAGE_LIMIT",
+        "500",
+    )
+)
+
+TELEGRAM_SUB_LINK_LIMIT = int(
+    os.getenv(
+        "TG_SUB_LINK_LIMIT",
+        "100",
+    )
+)
+
+TELEGRAM_FETCH_TIMEOUT = int(
+    os.getenv(
+        "TG_FETCH_TIMEOUT",
+        "20",
+    )
+)
 
 # =========================================================
 # BENCHMARK
@@ -84,13 +115,11 @@ SECOND_PASS = 8000
 SECOND_PASS_WORKERS = 60
 SECOND_PASS_TIMEOUT = 1.8
 
-
 # =========================================================
 # FALLBACK
 # =========================================================
 
 ALLOW_VALID_FALLBACK = True
-
 
 # =========================================================
 # QUALITY
@@ -104,6 +133,12 @@ PREFERRED_TYPES = {
     "tcp",
 }
 
+# =========================================================
+# SOURCE TRACKING
+# =========================================================
+
+SOURCE_META = {}
+SOURCE_META_LOCK = threading.Lock()
 
 # =========================================================
 # GENERAL SOURCES
@@ -117,7 +152,6 @@ SOURCES_GENERAL = [
     "https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/sub/sub_merge.txt",
     "https://raw.githubusercontent.com/hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
 ]
-
 
 # =========================================================
 # IRAN SOURCES
@@ -135,13 +169,11 @@ SOURCES_IRAN = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
 ]
 
-
 # =========================================================
 # MCI
 # =========================================================
 
 SOURCES_MCI = []
-
 
 # =========================================================
 # IRANCELL
@@ -152,13 +184,11 @@ SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/main/v2ray_configs_no1.txt",
 ]
 
-
 # =========================================================
 # RIGHTEL
 # =========================================================
 
 SOURCES_RIGHTEL = []
-
 
 # =========================================================
 # THREAD LOCAL SESSION
@@ -224,7 +254,7 @@ def decode64(value):
 # =========================================================
 
 URI_PATTERN = re.compile(
-    r"""(?:vless|vmess|trojan|ss|hysteria2|hy2)://[^\s<>\[\]{}"'`]+""",
+    r"""(?:vless|vmess|trojan|ss|hysteria2|hy2)://[^\s<>\[\]\{\}"'`]+""",
     re.IGNORECASE,
 )
 
@@ -241,14 +271,17 @@ def normalize_config(config):
 
     config = unquote(config)
 
-    # Remove old remark / fragment.
     config = config.split("#", 1)[0].strip()
 
-    # Remove whitespace.
-    config = re.sub(r"\s+", "", config)
+    config = re.sub(
+        r"\s+",
+        "",
+        config,
+    )
 
-    # Remove trailing punctuation.
-    config = config.rstrip(".,;)]}>")
+    config = config.rstrip(
+        ".,;)]}>"
+    )
 
     return config
 
@@ -257,7 +290,10 @@ def extract_payload(text):
     if not text:
         return []
 
-    text = text.replace("\r", "")
+    text = str(text).replace(
+        "\r",
+        "",
+    )
 
     output = []
 
@@ -278,7 +314,9 @@ def extract_payload(text):
     decoded = decode64(text)
 
     if decoded:
-        for match in URI_PATTERN.findall(decoded):
+        for match in URI_PATTERN.findall(
+            decoded
+        ):
             config = normalize_config(match)
 
             if config:
@@ -305,7 +343,9 @@ def extract_payload(text):
         if not decoded_line:
             continue
 
-        for match in URI_PATTERN.findall(decoded_line):
+        for match in URI_PATTERN.findall(
+            decoded_line
+        ):
             config = normalize_config(match)
 
             if config:
@@ -315,11 +355,57 @@ def extract_payload(text):
 
 
 # =========================================================
+# SOURCE TRACKING
+# =========================================================
+
+def register_source(
+    config,
+    source,
+):
+    if not config or not source:
+        return
+
+    fp = fingerprint(config)
+
+    with SOURCE_META_LOCK:
+        SOURCE_META.setdefault(
+            fp,
+            set(),
+        ).add(
+            str(source)
+        )
+
+
+def source_for_config(config):
+    fp = fingerprint(config)
+
+    with SOURCE_META_LOCK:
+        sources = SOURCE_META.get(
+            fp,
+            set(),
+        )
+
+    return sorted(
+        sources
+    )
+
+
+# =========================================================
 # FETCH SOURCE
 # =========================================================
 
-def fetch_source(url):
-    for attempt in range(FETCH_RETRIES + 1):
+def fetch_source(
+    url,
+    source_name=None,
+):
+    source_name = (
+        source_name
+        or url
+    )
+
+    for attempt in range(
+        FETCH_RETRIES + 1
+    ):
         try:
             response = session().get(
                 url,
@@ -327,10 +413,23 @@ def fetch_source(url):
                 allow_redirects=True,
             )
 
-            if response.ok and response.text:
-                return extract_payload(
+            if (
+                response.ok
+                and response.text
+            ):
+                configs = extract_payload(
                     response.text
-                )[:MAX_PER_SOURCE]
+                )[
+                    :MAX_PER_SOURCE
+                ]
+
+                for config in configs:
+                    register_source(
+                        config,
+                        source_name,
+                    )
+
+                return configs
 
         except Exception:
             pass
@@ -345,9 +444,14 @@ def fetch_source(url):
 # FETCH GROUP
 # =========================================================
 
-def fetch_group(name, sources):
+def fetch_group(
+    name,
+    sources,
+):
     if not sources:
-        print(f"\n[FETCH] {name} (0 sources)")
+        print(
+            f"\n[FETCH] {name} (0 sources)"
+        )
         return []
 
     results = []
@@ -365,17 +469,22 @@ def fetch_group(name, sources):
             executor.submit(
                 fetch_source,
                 url,
+                f"{name.lower()}:{url}",
             ): url
             for url in sources
         }
 
-        for future in as_completed(futures):
+        for future in as_completed(
+            futures
+        ):
             url = futures[future]
 
             try:
                 configs = future.result()
 
-                results.extend(configs)
+                results.extend(
+                    configs
+                )
 
                 print(
                     f"  [+] "
@@ -393,10 +502,472 @@ def fetch_group(name, sources):
 
 
 # =========================================================
+# TELEGRAM CHANNEL LIST
+# =========================================================
+
+def load_telegram_channels():
+    channels = []
+
+    env_channels = os.getenv(
+        "TELEGRAM_CHANNELS",
+        "",
+    ).strip()
+
+    if env_channels:
+        for value in re.split(
+            r"[\s,;]+",
+            env_channels,
+        ):
+            value = value.strip()
+
+            if value:
+                channels.append(
+                    value
+                )
+
+    if os.path.isfile(
+        TELEGRAM_CHANNELS_FILE
+    ):
+        try:
+            with open(
+                TELEGRAM_CHANNELS_FILE,
+                "r",
+                encoding="utf-8",
+                errors="ignore",
+            ) as f:
+
+                for line in f:
+                    line = line.strip()
+
+                    if not line:
+                        continue
+
+                    if line.startswith(
+                        "#"
+                    ):
+                        continue
+
+                    channels.append(
+                        line
+                    )
+
+        except Exception as exc:
+            print(
+                "[TELEGRAM] channel file "
+                f"error: {exc}"
+            )
+
+    output = []
+
+    seen = set()
+
+    for channel in channels:
+        channel = channel.strip()
+
+        if not channel:
+            continue
+
+        if channel.startswith(
+            "https://t.me/"
+        ):
+            channel = channel[
+                len("https://t.me/"):
+            ]
+
+        elif channel.startswith(
+            "http://t.me/"
+        ):
+            channel = channel[
+                len("http://t.me/"):
+            ]
+
+        channel = channel.strip(
+            "/ "
+        )
+
+        if channel.startswith("@"):
+            channel = channel[1:]
+
+        if (
+            not channel
+            or channel.startswith("+")
+        ):
+            continue
+
+        key = channel.lower()
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        output.append(channel)
+
+    return output
+
+
+# =========================================================
+# TELEGRAM URL EXTRACTION
+# =========================================================
+
+HTTP_URL_PATTERN = re.compile(
+    r"https?://[^\s<>\[\]\{\}\"'`]+",
+    re.IGNORECASE,
+)
+
+
+def clean_url(url):
+    if not url:
+        return ""
+
+    url = (
+        str(url)
+        .strip()
+        .rstrip(
+            ".,;)]}>"
+        )
+    )
+
+    return url
+
+
+def looks_like_subscription_url(url):
+    if not url:
+        return False
+
+    try:
+        parsed_url = urlparse(
+            url
+        )
+
+        if parsed_url.scheme not in {
+            "http",
+            "https",
+        }:
+            return False
+
+        host = (
+            parsed_url.hostname
+            or ""
+        ).lower()
+
+        path = (
+            parsed_url.path
+            or ""
+        ).lower()
+
+        query = (
+            parsed_url.query
+            or ""
+        ).lower()
+
+        full = (
+            host
+            + " "
+            + path
+            + " "
+            + query
+        )
+
+        keywords = (
+            "sub",
+            "config",
+            "v2ray",
+            "vmess",
+            "vless",
+            "trojan",
+            "proxy",
+            "clash",
+            "subscription",
+            "subscribe",
+            "raw.githubusercontent",
+            "githubusercontent",
+        )
+
+        return any(
+            keyword in full
+            for keyword in keywords
+        )
+
+    except Exception:
+        return False
+
+
+# =========================================================
+# TELEGRAM COLLECTOR
+# =========================================================
+
+async def _telegram_collect_async(
+    api_id,
+    api_hash,
+    session_string,
+    channels,
+):
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+
+    except ImportError:
+        print(
+            "[TELEGRAM] Telethon is not installed."
+        )
+        print(
+            "[TELEGRAM] Install with: "
+            "pip install telethon"
+        )
+        return []
+
+    configs = []
+
+    client = TelegramClient(
+        StringSession(
+            session_string
+        ),
+        int(api_id),
+        api_hash,
+        connection_retries=3,
+        request_retries=3,
+        retry_delay=2,
+        auto_reconnect=True,
+        flood_sleep_threshold=60,
+        device_model="NukCrow Collector",
+        system_version="GitHub Actions",
+        app_version="1.0",
+        lang_code="en",
+        system_lang_code="en",
+    )
+
+    try:
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            print(
+                "[TELEGRAM] Session is not authorized."
+            )
+            return []
+
+        me = await client.get_me()
+
+        username = getattr(
+            me,
+            "username",
+            None,
+        )
+
+        print(
+            "[TELEGRAM] connected as "
+            f"{username or 'authorized user'}"
+        )
+
+        for channel in channels:
+            print(
+                f"\n[TELEGRAM] @{channel}"
+            )
+
+            try:
+                entity = await client.get_entity(
+                    channel
+                )
+
+                message_count = 0
+                subscription_urls = []
+                seen_urls = set()
+
+                async for message in client.iter_messages(
+                    entity,
+                    limit=TELEGRAM_MESSAGE_LIMIT,
+                ):
+                    message_count += 1
+
+                    text = (
+                        getattr(
+                            message,
+                            "raw_text",
+                            None,
+                        )
+                        or getattr(
+                            message,
+                            "message",
+                            None,
+                        )
+                        or ""
+                    )
+
+                    if not text:
+                        continue
+
+                    # -------------------------------------
+                    # DIRECT CONFIGS
+                    # -------------------------------------
+
+                    message_configs = extract_payload(
+                        text
+                    )
+
+                    for config in message_configs:
+                        register_source(
+                            config,
+                            f"telegram:@{channel}",
+                        )
+
+                    configs.extend(
+                        message_configs
+                    )
+
+                    # -------------------------------------
+                    # SUBSCRIPTION URLS
+                    # -------------------------------------
+
+                    urls = HTTP_URL_PATTERN.findall(
+                        text
+                    )
+
+                    for raw_url in urls:
+                        url = clean_url(
+                            raw_url
+                        )
+
+                        if not looks_like_subscription_url(
+                            url
+                        ):
+                            continue
+
+                        key = url.lower()
+
+                        if key in seen_urls:
+                            continue
+
+                        seen_urls.add(
+                            key
+                        )
+
+                        if len(
+                            subscription_urls
+                        ) >= TELEGRAM_SUB_LINK_LIMIT:
+                            break
+
+                        subscription_urls.append(
+                            url
+                        )
+
+                # -----------------------------------------
+                # FETCH SUBSCRIPTION LINKS
+                # -----------------------------------------
+
+                if subscription_urls:
+                    print(
+                        "[TELEGRAM] subscription links: "
+                        f"{len(subscription_urls)}"
+                    )
+
+                    for url in subscription_urls:
+                        try:
+                            sub_configs = fetch_source(
+                                url,
+                                (
+                                    f"telegram:@{channel}"
+                                    f":subscription:{url}"
+                                ),
+                            )
+
+                            configs.extend(
+                                sub_configs
+                            )
+
+                        except Exception as exc:
+                            print(
+                                "[TELEGRAM] subscription "
+                                f"error: {type(exc).__name__}"
+                            )
+
+                print(
+                    "[TELEGRAM] messages: "
+                    f"{message_count} | "
+                    "configs: "
+                    f"{len(configs)}"
+                )
+
+            except Exception as exc:
+                print(
+                    f"[TELEGRAM] @{channel} "
+                    f"failed: {type(exc).__name__}: "
+                    f"{exc}"
+                )
+
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+    return configs
+
+
+def fetch_telegram():
+    if not TELEGRAM_ENABLED:
+        print(
+            "\n[TELEGRAM] disabled"
+        )
+        print(
+            "[TELEGRAM] Set "
+            "TG_API_ID, TG_API_HASH and "
+            "TG_SESSION to enable it."
+        )
+        return []
+
+    channels = load_telegram_channels()
+
+    if not channels:
+        print(
+            "\n[TELEGRAM] enabled but "
+            "no channels configured."
+        )
+        return []
+
+    api_id = os.getenv(
+        "TG_API_ID",
+        "",
+    ).strip()
+
+    api_hash = os.getenv(
+        "TG_API_HASH",
+        "",
+    ).strip()
+
+    session_string = os.getenv(
+        "TG_SESSION",
+        "",
+    ).strip()
+
+    print(
+        "\n[TELEGRAM] "
+        f"{len(channels)} channels"
+    )
+
+    try:
+        return asyncio.run(
+            _telegram_collect_async(
+                api_id,
+                api_hash,
+                session_string,
+                channels,
+            )
+        )
+
+    except Exception as exc:
+        print(
+            "[TELEGRAM] collector failed: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return []
+
+
+# =========================================================
 # FETCH ALL
 # =========================================================
 
 def fetch_all():
+    telegram_configs = fetch_telegram()
+
     return {
         "general": fetch_group(
             "GENERAL",
@@ -422,6 +993,8 @@ def fetch_all():
             "RIGHTEL",
             SOURCES_RIGHTEL,
         ),
+
+        "telegram": telegram_configs,
     }
 
 
@@ -433,10 +1006,14 @@ def proto(config):
     try:
         return (
             config
-            .split("://", 1)[0]
+            .split(
+                "://",
+                1,
+            )[0]
             .lower()
             .strip()
         )
+
     except Exception:
         return ""
 
@@ -447,7 +1024,10 @@ def proto(config):
 
 def parsed(config):
     try:
-        return urlparse(config)
+        return urlparse(
+            config
+        )
+
     except Exception:
         return None
 
@@ -463,17 +1043,27 @@ def query(config):
             p.query,
             keep_blank_values=True,
         )
+
     except Exception:
         return {}
 
 
-def q1(q, key, default=""):
-    value = q.get(key)
+def q1(
+    q,
+    key,
+    default="",
+):
+    value = q.get(
+        key
+    )
 
     if not value:
         return default
 
-    if isinstance(value, list):
+    if isinstance(
+        value,
+        list,
+    ):
         return value[0]
 
     return str(value)
@@ -492,18 +1082,26 @@ def vmess_data(config):
             "://",
             1,
         )[1]
+
     except Exception:
         return {}
 
-    decoded = decode64(payload)
+    decoded = decode64(
+        payload
+    )
 
     if not decoded:
         return {}
 
     try:
-        data = json.loads(decoded)
+        data = json.loads(
+            decoded
+        )
 
-        if not isinstance(data, dict):
+        if not isinstance(
+            data,
+            dict,
+        ):
             return {}
 
         return data
@@ -528,12 +1126,21 @@ def ss_data(config):
 
     if p:
         try:
-            if p.hostname and p.port:
+            if (
+                p.hostname
+                and p.port
+            ):
                 return {
                     "host": p.hostname,
                     "port": p.port,
-                    "username": p.username or "",
-                    "password": p.password or "",
+                    "username": (
+                        p.username
+                        or ""
+                    ),
+                    "password": (
+                        p.password
+                        or ""
+                    ),
                 }
 
         except Exception:
@@ -548,6 +1155,7 @@ def ss_data(config):
             "://",
             1,
         )[1]
+
     except Exception:
         return {}
 
@@ -556,7 +1164,9 @@ def ss_data(config):
         1,
     )[0]
 
-    decoded = decode64(payload)
+    decoded = decode64(
+        payload
+    )
 
     if not decoded:
         return {}
@@ -565,23 +1175,41 @@ def ss_data(config):
 
     try:
         if "://" not in decoded:
-            decoded = "ss://" + decoded
+            decoded = (
+                "ss://"
+                + decoded
+            )
 
-        p2 = urlparse(decoded)
+        p2 = urlparse(
+            decoded
+        )
 
-        host = p2.hostname or ""
+        host = (
+            p2.hostname
+            or ""
+        )
 
         try:
             port = p2.port or 0
+
         except Exception:
             port = 0
 
-        if host and port:
+        if (
+            host
+            and port
+        ):
             return {
                 "host": host,
                 "port": port,
-                "username": p2.username or "",
-                "password": p2.password or "",
+                "username": (
+                    p2.username
+                    or ""
+                ),
+                "password": (
+                    p2.password
+                    or ""
+                ),
             }
 
     except Exception:
@@ -602,7 +1230,9 @@ def endpoint(config):
     # -----------------------------------------------------
 
     if ptype == "vmess":
-        data = vmess_data(config)
+        data = vmess_data(
+            config
+        )
 
         host = (
             data.get("add")
@@ -610,15 +1240,23 @@ def endpoint(config):
             or ""
         )
 
-        port = data.get("port") or 0
+        port = (
+            data.get("port")
+            or 0
+        )
 
         try:
-            port = int(port)
+            port = int(
+                port
+            )
+
         except Exception:
             port = 0
 
         return (
-            str(host).strip().lower(),
+            str(
+                host
+            ).strip().lower(),
             port,
         )
 
@@ -627,16 +1265,25 @@ def endpoint(config):
     # -----------------------------------------------------
 
     if ptype == "ss":
-        data = ss_data(config)
+        data = ss_data(
+            config
+        )
 
         host = str(
-            data.get("host", "")
+            data.get(
+                "host",
+                "",
+            )
         ).strip().lower()
 
         try:
             port = int(
-                data.get("port", 0)
+                data.get(
+                    "port",
+                    0,
+                )
             )
+
         except Exception:
             port = 0
 
@@ -649,15 +1296,21 @@ def endpoint(config):
     # VLESS / TROJAN / HY2
     # -----------------------------------------------------
 
-    p = parsed(config)
+    p = parsed(
+        config
+    )
 
     if not p:
         return "", 0
 
-    host = p.hostname or ""
+    host = (
+        p.hostname
+        or ""
+    )
 
     try:
         port = p.port or 0
+
     except Exception:
         port = 0
 
@@ -675,7 +1328,11 @@ def is_junk_host(host):
     if not host:
         return True
 
-    h = host.lower().strip()
+    h = (
+        host
+        .lower()
+        .strip()
+    )
 
     if h in {
         "localhost",
@@ -686,7 +1343,9 @@ def is_junk_host(host):
         return True
 
     try:
-        ip = ipaddress.ip_address(h)
+        ip = ipaddress.ip_address(
+            h
+        )
 
         if (
             ip.is_private
@@ -700,7 +1359,9 @@ def is_junk_host(host):
     except Exception:
         pass
 
-    return h.endswith(".local")
+    return h.endswith(
+        ".local"
+    )
 
 
 # =========================================================
@@ -711,7 +1372,9 @@ def valid_config(config):
     if not config:
         return False
 
-    ptype = proto(config)
+    ptype = proto(
+        config
+    )
 
     if ptype not in SUPPORTED_PROTOCOLS:
         return False
@@ -721,7 +1384,9 @@ def valid_config(config):
     # -----------------------------------------------------
 
     if ptype == "vmess":
-        data = vmess_data(config)
+        data = vmess_data(
+            config
+        )
 
         if not data:
             return False
@@ -732,20 +1397,30 @@ def valid_config(config):
             or ""
         )
 
-        port = data.get("port") or 0
+        port = (
+            data.get("port")
+            or 0
+        )
 
         try:
-            port = int(port)
+            port = int(
+                port
+            )
+
         except Exception:
             return False
 
         if not host:
             return False
 
-        if is_junk_host(host):
+        if is_junk_host(
+            host
+        ):
             return False
 
-        if not 1 <= port <= 65535:
+        if not (
+            1 <= port <= 65535
+        ):
             return False
 
         vmess_id = (
@@ -764,23 +1439,39 @@ def valid_config(config):
     # -----------------------------------------------------
 
     if ptype == "ss":
-        data = ss_data(config)
+        data = ss_data(
+            config
+        )
 
-        host = data.get("host", "")
-        port = data.get("port", 0)
+        host = data.get(
+            "host",
+            "",
+        )
+
+        port = data.get(
+            "port",
+            0,
+        )
 
         if not host:
             return False
 
-        if is_junk_host(host):
+        if is_junk_host(
+            host
+        ):
             return False
 
         try:
-            port = int(port)
+            port = int(
+                port
+            )
+
         except Exception:
             return False
 
-        if not 1 <= port <= 65535:
+        if not (
+            1 <= port <= 65535
+        ):
             return False
 
         return True
@@ -789,20 +1480,28 @@ def valid_config(config):
     # OTHER
     # -----------------------------------------------------
 
-    p = parsed(config)
+    p = parsed(
+        config
+    )
 
     if not p:
         return False
 
-    host, port = endpoint(config)
+    host, port = endpoint(
+        config
+    )
 
     if not host:
         return False
 
-    if is_junk_host(host):
+    if is_junk_host(
+        host
+    ):
         return False
 
-    if not 1 <= port <= 65535:
+    if not (
+        1 <= port <= 65535
+    ):
         return False
 
     # -----------------------------------------------------
@@ -813,7 +1512,9 @@ def valid_config(config):
         if not p.username:
             return False
 
-        if len(p.username) < 8:
+        if len(
+            p.username
+        ) < 8:
             return False
 
     # -----------------------------------------------------
@@ -843,50 +1544,46 @@ def valid_config(config):
 # =========================================================
 
 def config_identity(config):
-    ptype = proto(config)
+    ptype = proto(
+        config
+    )
 
     # VMESS
     if ptype == "vmess":
-        data = vmess_data(config)
-
-        return (
-            str(
-                data.get("id")
-                or data.get("uuid")
-                or ""
-            )
-            .strip()
-            .lower()
+        data = vmess_data(
+            config
         )
+
+        return str(
+            data.get("id")
+            or data.get("uuid")
+            or ""
+        ).strip().lower()
 
     # SS
     if ptype == "ss":
-        data = ss_data(config)
-
-        return (
-            str(
-                data.get("username")
-                or data.get("password")
-                or ""
-            )
-            .strip()
-            .lower()
+        data = ss_data(
+            config
         )
 
+        return str(
+            data.get("username")
+            or data.get("password")
+            or ""
+        ).strip().lower()
+
     # URL protocols
-    p = parsed(config)
+    p = parsed(
+        config
+    )
 
     if not p:
         return ""
 
-    return (
-        str(
-            p.username
-            or ""
-        )
-        .strip()
-        .lower()
-    )
+    return str(
+        p.username
+        or ""
+    ).strip().lower()
 
 
 # =========================================================
@@ -894,27 +1591,43 @@ def config_identity(config):
 # =========================================================
 
 def fingerprint(config):
-    ptype = proto(config)
-    q = query(config)
+    ptype = proto(
+        config
+    )
 
-    host, port = endpoint(config)
+    q = query(
+        config
+    )
+
+    host, port = endpoint(
+        config
+    )
 
     security = q1(
         q,
         "security",
-        q1(q, "tls"),
+        q1(
+            q,
+            "tls",
+        ),
     )
 
     transport = q1(
         q,
         "type",
-        q1(q, "network"),
+        q1(
+            q,
+            "network",
+        ),
     )
 
     sni = q1(
         q,
         "sni",
-        q1(q, "peer"),
+        q1(
+            q,
+            "peer",
+        ),
     )
 
     host_header = q1(
@@ -942,14 +1655,28 @@ def fingerprint(config):
         "sid",
     )
 
-    identity = config_identity(config)
+    flow = q1(
+        q,
+        "flow",
+    )
+
+    fpmi = q1(
+        q,
+        "fp",
+    )
+
+    identity = config_identity(
+        config
+    )
 
     # -----------------------------------------------------
     # VMESS FIELDS
     # -----------------------------------------------------
 
     if ptype == "vmess":
-        data = vmess_data(config)
+        data = vmess_data(
+            config
+        )
 
         transport = (
             data.get("net")
@@ -977,6 +1704,18 @@ def fingerprint(config):
             or ""
         )
 
+        flow = (
+            data.get("flow")
+            or flow
+            or ""
+        )
+
+        fpmi = (
+            data.get("fp")
+            or fpmi
+            or ""
+        )
+
     return "|".join(
         str(x)
         .strip()
@@ -994,6 +1733,8 @@ def fingerprint(config):
             service_name,
             pbk,
             sid,
+            flow,
+            fpmi,
         )
     )
 
@@ -1007,18 +1748,29 @@ def dedupe(configs):
     output = []
 
     for config in configs:
-        config = normalize_config(config)
+        config = normalize_config(
+            config
+        )
 
-        if not valid_config(config):
+        if not valid_config(
+            config
+        ):
             continue
 
-        fp = fingerprint(config)
+        fp = fingerprint(
+            config
+        )
 
         if fp in seen:
             continue
 
-        seen.add(fp)
-        output.append(config)
+        seen.add(
+            fp
+        )
+
+        output.append(
+            config
+        )
 
     return output
 
@@ -1030,10 +1782,17 @@ def dedupe(configs):
 def quality_score(config):
     score = 0
 
-    ptype = proto(config)
-    q = query(config)
+    ptype = proto(
+        config
+    )
 
-    host, port = endpoint(config)
+    q = query(
+        config
+    )
+
+    host, port = endpoint(
+        config
+    )
 
     # -----------------------------------------------------
     # PROTOCOL
@@ -1060,7 +1819,9 @@ def quality_score(config):
     # -----------------------------------------------------
 
     if ptype == "vmess":
-        data = vmess_data(config)
+        data = vmess_data(
+            config
+        )
 
         transport = str(
             data.get("net")
@@ -1088,7 +1849,10 @@ def quality_score(config):
         transport = q1(
             q,
             "type",
-            q1(q, "network"),
+            q1(
+                q,
+                "network",
+            ),
         ).lower()
 
         security = q1(
@@ -1149,7 +1913,10 @@ def quality_score(config):
 
     if host:
         try:
-            ipaddress.ip_address(host)
+            ipaddress.ip_address(
+                host
+            )
+
             score += 2
 
         except Exception:
@@ -1163,8 +1930,27 @@ def quality_score(config):
     if path:
         score += 5
 
-    if q1(q, "serviceName"):
+    if q1(
+        q,
+        "serviceName",
+    ):
         score += 4
+
+    # -----------------------------------------------------
+    # REALITY
+    # -----------------------------------------------------
+
+    if q1(
+        q,
+        "pbk",
+    ):
+        score += 6
+
+    if q1(
+        q,
+        "sid",
+    ):
+        score += 3
 
     return score
 
@@ -1176,7 +1962,9 @@ def quality_score(config):
 def tcp_probe(item):
     config, timeout = item
 
-    host, port = endpoint(config)
+    host, port = endpoint(
+        config
+    )
 
     if not host or not port:
         return None
@@ -1185,7 +1973,10 @@ def tcp_probe(item):
 
     try:
         with socket.create_connection(
-            (host, port),
+            (
+                host,
+                port,
+            ),
             timeout=timeout,
         ):
             latency = (
@@ -1206,21 +1997,18 @@ def tcp_probe(item):
 # BENCHMARK
 # =========================================================
 
-def benchmark(configs):
-    if not configs:
-        return []
-
-    candidates = configs[:MAX_TEST]
-
+def _benchmark_pass(
+    configs,
+    workers,
+    timeout,
+):
     results = []
 
-    print(
-        f"\n[BENCH] testing "
-        f"{len(candidates)} configs..."
-    )
+    if not configs:
+        return results
 
     with ThreadPoolExecutor(
-        max_workers=BENCH_WORKERS
+        max_workers=workers
     ) as executor:
 
         futures = [
@@ -1228,13 +2016,15 @@ def benchmark(configs):
                 tcp_probe,
                 (
                     config,
-                    BENCH_TIMEOUT,
+                    timeout,
                 ),
             )
-            for config in candidates
+            for config in configs
         ]
 
-        for future in as_completed(futures):
+        for future in as_completed(
+            futures
+        ):
             try:
                 result = future.result()
 
@@ -1254,6 +2044,28 @@ def benchmark(configs):
             except Exception:
                 pass
 
+    return results
+
+
+def benchmark(configs):
+    if not configs:
+        return []
+
+    candidates = configs[
+        :MAX_TEST
+    ]
+
+    print(
+        f"\n[BENCH] testing "
+        f"{len(candidates)} configs..."
+    )
+
+    results = _benchmark_pass(
+        candidates,
+        BENCH_WORKERS,
+        BENCH_TIMEOUT,
+    )
+
     # -----------------------------------------------------
     # SECOND PASS
     # -----------------------------------------------------
@@ -1270,40 +2082,13 @@ def benchmark(configs):
                 f"{len(remaining)} configs"
             )
 
-            with ThreadPoolExecutor(
-                max_workers=SECOND_PASS_WORKERS
-            ) as executor:
-
-                futures = [
-                    executor.submit(
-                        tcp_probe,
-                        (
-                            config,
-                            SECOND_PASS_TIMEOUT,
-                        ),
-                    )
-                    for config in remaining
-                ]
-
-                for future in as_completed(futures):
-                    try:
-                        result = future.result()
-
-                        if result:
-                            config, latency = result
-
-                            results.append(
-                                {
-                                    "config": config,
-                                    "latency": latency,
-                                    "score": quality_score(
-                                        config
-                                    ),
-                                }
-                            )
-
-                    except Exception:
-                        pass
+            results.extend(
+                _benchmark_pass(
+                    remaining,
+                    SECOND_PASS_WORKERS,
+                    SECOND_PASS_TIMEOUT,
+                )
+            )
 
     # -----------------------------------------------------
     # DEDUPE ALIVE
@@ -1316,19 +2101,25 @@ def benchmark(configs):
             item["config"]
         )
 
-        old = unique.get(fp)
+        old = unique.get(
+            fp
+        )
 
         if old is None:
             unique[fp] = item
             continue
 
-        if (
+        new_key = (
             item["score"],
             -item["latency"],
-        ) > (
+        )
+
+        old_key = (
             old["score"],
             -old["latency"],
-        ):
+        )
+
+        if new_key > old_key:
             unique[fp] = item
 
     results = list(
@@ -1358,13 +2149,19 @@ def config_record(config):
     return {
         "config": config,
         "latency": 999.0,
-        "score": quality_score(config),
+        "score": quality_score(
+            config
+        ),
     }
 
 
-def records_from_configs(configs):
+def records_from_configs(
+    configs
+):
     return [
-        config_record(config)
+        config_record(
+            config
+        )
         for config in configs
     ]
 
@@ -1385,15 +2182,24 @@ def merge_records(
     # -----------------------------------------------------
 
     for item in alive_records:
-        config = item["config"]
+        config = item[
+            "config"
+        ]
 
-        fp = fingerprint(config)
+        fp = fingerprint(
+            config
+        )
 
         if fp in seen:
             continue
 
-        seen.add(fp)
-        output.append(item)
+        seen.add(
+            fp
+        )
+
+        output.append(
+            item
+        )
 
     # -----------------------------------------------------
     # VALID FALLBACK
@@ -1405,19 +2211,30 @@ def merge_records(
         )
 
         fallback_records.sort(
-            key=lambda x: -x["score"]
+            key=lambda x: -x[
+                "score"
+            ]
         )
 
         for item in fallback_records:
-            config = item["config"]
+            config = item[
+                "config"
+            ]
 
-            fp = fingerprint(config)
+            fp = fingerprint(
+                config
+            )
 
             if fp in seen:
                 continue
 
-            seen.add(fp)
-            output.append(item)
+            seen.add(
+                fp
+            )
+
+            output.append(
+                item
+            )
 
     return output
 
@@ -1431,52 +2248,78 @@ def select_records(
     limit,
     predicate=None,
 ):
-    if not results or limit <= 0:
+    if (
+        not results
+        or limit <= 0
+    ):
         return []
 
     selected = []
     seen = set()
     host_count = {}
 
-    # -----------------------------------------------------
-    # ONE SAFE PASS
-    # -----------------------------------------------------
-    # MAX_PER_HOST is always respected.
-    # This prevents the second pass from filling the
-    # result with too many configs from one host.
-    # -----------------------------------------------------
-
     for item in results:
-        if len(selected) >= limit:
+        if len(
+            selected
+        ) >= limit:
             break
 
-        config = item["config"]
+        config = item[
+            "config"
+        ]
 
-        if predicate and not predicate(config):
+        if (
+            predicate
+            and not predicate(
+                config
+            )
+        ):
             continue
 
-        fp = fingerprint(config)
+        fp = fingerprint(
+            config
+        )
 
         if fp in seen:
             continue
 
-        host, _ = endpoint(config)
+        host, _ = endpoint(
+            config
+        )
 
         if not host:
             continue
 
-        if host_count.get(host, 0) >= MAX_PER_HOST:
+        if (
+            host_count.get(
+                host,
+                0,
+            )
+            >= MAX_PER_HOST
+        ):
             continue
 
-        selected.append(item)
-        seen.add(fp)
+        selected.append(
+            item
+        )
 
-        host_count[host] = (
-            host_count.get(host, 0)
+        seen.add(
+            fp
+        )
+
+        host_count[
+            host
+        ] = (
+            host_count.get(
+                host,
+                0,
+            )
             + 1
         )
 
-    return selected[:limit]
+    return selected[
+        :limit
+    ]
 
 
 # =========================================================
@@ -1506,7 +2349,9 @@ def select_subscription(
 # =========================================================
 
 def config_line(config):
-    config = normalize_config(config)
+    config = normalize_config(
+        config
+    )
 
     if not config:
         return ""
@@ -1530,28 +2375,42 @@ def config_line(config):
 # RENDER UNIQUE LINES
 # =========================================================
 
-def render_records(records, limit=None):
+def render_records(
+    records,
+    limit=None,
+):
     lines = []
     seen = set()
 
     for item in records:
-        if isinstance(item, dict):
+        if isinstance(
+            item,
+            dict,
+        ):
             config = item.get(
                 "config",
                 "",
             )
         else:
-            config = str(item)
+            config = str(
+                item
+            )
 
-        config = normalize_config(config)
+        config = normalize_config(
+            config
+        )
 
         if not config:
             continue
 
-        if not valid_config(config):
+        if not valid_config(
+            config
+        ):
             continue
 
-        line = config_line(config)
+        line = config_line(
+            config
+        )
 
         if not line:
             continue
@@ -1559,12 +2418,18 @@ def render_records(records, limit=None):
         if line in seen:
             continue
 
-        seen.add(line)
-        lines.append(line)
+        seen.add(
+            line
+        )
+
+        lines.append(
+            line
+        )
 
         if (
             limit is not None
-            and len(lines) >= limit
+            and len(lines)
+            >= limit
         ):
             break
 
@@ -1575,8 +2440,13 @@ def render_records(records, limit=None):
 # ATOMIC WRITE
 # =========================================================
 
-def atomic_write_lines(path, lines):
-    directory = os.path.dirname(path)
+def atomic_write_lines(
+    path,
+    lines,
+):
+    directory = os.path.dirname(
+        path
+    )
 
     if directory:
         os.makedirs(
@@ -1584,7 +2454,10 @@ def atomic_write_lines(path, lines):
             exist_ok=True,
         )
 
-    temp_path = path + ".tmp"
+    temp_path = (
+        path
+        + ".tmp"
+    )
 
     with open(
         temp_path,
@@ -1594,7 +2467,9 @@ def atomic_write_lines(path, lines):
     ) as f:
 
         for line in lines:
-            line = str(line).strip()
+            line = str(
+                line
+            ).strip()
 
             if line:
                 f.write(
@@ -1621,8 +2496,12 @@ def atomic_write_lines(path, lines):
 # COUNT REAL FILE
 # =========================================================
 
-def count_nonempty_lines(path):
-    if not os.path.isfile(path):
+def count_nonempty_lines(
+    path
+):
+    if not os.path.isfile(
+        path
+    ):
         return 0
 
     with open(
@@ -1654,10 +2533,6 @@ def write_file(
         limit=limit,
     )
 
-    # -----------------------------------------------------
-    # EXACT CHECK
-    # -----------------------------------------------------
-
     if (
         exact
         and limit is not None
@@ -1669,18 +2544,10 @@ def write_file(
             f"valid unique configs available"
         )
 
-    # -----------------------------------------------------
-    # ATOMIC WRITE
-    # -----------------------------------------------------
-
     atomic_write_lines(
         path,
         lines,
     )
-
-    # -----------------------------------------------------
-    # READ ACTUAL FILE AGAIN
-    # -----------------------------------------------------
 
     actual = count_nonempty_lines(
         path
@@ -1716,7 +2583,9 @@ def write_general(
     alive_all,
     all_unique,
 ):
-    print("\n[GENERAL]")
+    print(
+        "\n[GENERAL]"
+    )
 
     selected = select_subscription(
         alive_all,
@@ -1724,11 +2593,9 @@ def write_general(
         GENERAL_TOTAL,
     )
 
-    # -----------------------------------------------------
-    # NEVER FABRICATE
-    # -----------------------------------------------------
-
-    if len(selected) < GENERAL_TOTAL:
+    if len(
+        selected
+    ) < GENERAL_TOTAL:
         raise RuntimeError(
             f"[GENERAL] only "
             f"{len(selected)} configs available; "
@@ -1738,10 +2605,6 @@ def write_general(
     selected = selected[
         :GENERAL_TOTAL
     ]
-
-    # -----------------------------------------------------
-    # RENDER ONCE
-    # -----------------------------------------------------
 
     lines = render_records(
         selected,
@@ -1867,7 +2730,9 @@ def write_general(
                 if line.strip()
             )
 
-    if len(combined) != GENERAL_TOTAL:
+    if len(
+        combined
+    ) != GENERAL_TOTAL:
         raise RuntimeError(
             f"[GENERAL] sub files contain "
             f"{len(combined)} configs; "
@@ -1895,7 +2760,9 @@ def write_protocols(
     alive_all,
     all_unique,
 ):
-    print("\n[PROTOCOLS]")
+    print(
+        "\n[PROTOCOLS]"
+    )
 
     protocols = (
         "vless",
@@ -1917,7 +2784,9 @@ def write_protocols(
         selected = [
             item
             for item in selected
-            if proto(item["config"]) == ptype
+            if proto(
+                item["config"]
+            ) == ptype
         ]
 
         selected = selected[
@@ -1963,45 +2832,66 @@ def fill_records(
         *fallback_groups,
     ]
 
-    # -----------------------------------------------------
-    # PASS 1
-    # -----------------------------------------------------
-
     for pool in pools:
         for item in pool:
-            if len(selected) >= limit:
+            if len(
+                selected
+            ) >= limit:
                 break
 
-            config = item["config"]
+            config = item[
+                "config"
+            ]
 
-            fp = fingerprint(config)
+            fp = fingerprint(
+                config
+            )
 
             if fp in seen:
                 continue
 
-            host, _ = endpoint(config)
+            host, _ = endpoint(
+                config
+            )
 
             if not host:
                 continue
 
-            if host_count.get(
-                host,
-                0,
-            ) >= MAX_PER_HOST:
+            if (
+                host_count.get(
+                    host,
+                    0,
+                )
+                >= MAX_PER_HOST
+            ):
                 continue
 
-            seen.add(fp)
-            selected.append(item)
+            seen.add(
+                fp
+            )
 
-            host_count[host] = (
-                host_count.get(host, 0)
+            selected.append(
+                item
+            )
+
+            host_count[
+                host
+            ] = (
+                host_count.get(
+                    host,
+                    0,
+                )
                 + 1
             )
 
-        if len(selected) >= limit:
+        if len(
+            selected
+        ) >= limit:
             break
 
-    return selected[:limit]
+    return selected[
+        :limit
+    ]
 
 
 # =========================================================
@@ -2020,10 +2910,6 @@ def write_iran(
     all_alive,
     all_unique,
 ):
-    # -----------------------------------------------------
-    # GLOBAL FALLBACK
-    # -----------------------------------------------------
-
     global_records = merge_records(
         all_alive,
         all_unique,
@@ -2061,7 +2947,9 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    if len(best_iran) != IRAN_SUB_SIZE:
+    if len(
+        best_iran
+    ) != IRAN_SUB_SIZE:
         raise RuntimeError(
             f"best_iran.txt: expected "
             f"{IRAN_SUB_SIZE}, "
@@ -2096,7 +2984,9 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    if len(mix_iran) < IRAN_SUB_SIZE:
+    if len(
+        mix_iran
+    ) < IRAN_SUB_SIZE:
         mix_iran = fill_records(
             mix_iran,
             [
@@ -2106,7 +2996,9 @@ def write_iran(
             IRAN_SUB_SIZE,
         )
 
-    if len(mix_iran) != IRAN_SUB_SIZE:
+    if len(
+        mix_iran
+    ) != IRAN_SUB_SIZE:
         raise RuntimeError(
             f"mix_iran.txt: expected "
             f"{IRAN_SUB_SIZE}, "
@@ -2136,7 +3028,9 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    if len(mci) != IRAN_SUB_SIZE:
+    if len(
+        mci
+    ) != IRAN_SUB_SIZE:
         raise RuntimeError(
             f"mci.txt: expected "
             f"{IRAN_SUB_SIZE}, "
@@ -2166,7 +3060,9 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    if len(irancell) != IRAN_SUB_SIZE:
+    if len(
+        irancell
+    ) != IRAN_SUB_SIZE:
         raise RuntimeError(
             f"irancell.txt: expected "
             f"{IRAN_SUB_SIZE}, "
@@ -2196,7 +3092,9 @@ def write_iran(
         IRAN_SUB_SIZE,
     )
 
-    if len(rightel) != IRAN_SUB_SIZE:
+    if len(
+        rightel
+    ) != IRAN_SUB_SIZE:
         raise RuntimeError(
             f"rightel.txt: expected "
             f"{IRAN_SUB_SIZE}, "
@@ -2213,11 +3111,9 @@ def write_iran(
         exact=True,
     )
 
-    # -----------------------------------------------------
-    # SUMMARY
-    # -----------------------------------------------------
-
-    print("\n[IRAN]")
+    print(
+        "\n[IRAN]"
+    )
 
     print(
         f"  best_iran : "
@@ -2254,7 +3150,9 @@ def verify_output_file(
     expected_max=None,
     expected_exact=None,
 ):
-    if not os.path.isfile(path):
+    if not os.path.isfile(
+        path
+    ):
         raise RuntimeError(
             f"Missing output file: {path}"
         )
@@ -2265,9 +3163,13 @@ def verify_output_file(
         encoding="utf-8",
         errors="ignore",
     ) as f:
+
         raw_lines = f.readlines()
 
-    # Empty lines are NOT allowed.
+    # -----------------------------------------------------
+    # EMPTY LINES
+    # -----------------------------------------------------
+
     for line_no, line in enumerate(
         raw_lines,
         start=1,
@@ -2283,7 +3185,9 @@ def verify_output_file(
         for line in raw_lines
     ]
 
-    count = len(lines)
+    count = len(
+        lines
+    )
 
     # -----------------------------------------------------
     # EXACT
@@ -2313,7 +3217,11 @@ def verify_output_file(
     # DUPLICATES
     # -----------------------------------------------------
 
-    if len(lines) != len(set(lines)):
+    if len(
+        lines
+    ) != len(
+        set(lines)
+    ):
         raise RuntimeError(
             f"{path}: duplicate config detected"
         )
@@ -2363,7 +3271,9 @@ def verify_outputs():
         "random_200.txt",
     )
 
-    if os.path.exists(random_path):
+    if os.path.exists(
+        random_path
+    ):
         raise RuntimeError(
             "random_200.txt must NOT exist"
         )
@@ -2398,7 +3308,9 @@ def verify_outputs():
         for filename in os.listdir(
             OUT_DIR
         )
-        if filename.endswith(".txt")
+        if filename.endswith(
+            ".txt"
+        )
     }
 
     unexpected = (
@@ -2415,7 +3327,9 @@ def verify_outputs():
         raise RuntimeError(
             "Missing output files: "
             + ", ".join(
-                sorted(missing)
+                sorted(
+                    missing
+                )
             )
         )
 
@@ -2423,7 +3337,9 @@ def verify_outputs():
         raise RuntimeError(
             "Unexpected output files: "
             + ", ".join(
-                sorted(unexpected)
+                sorted(
+                    unexpected
+                )
             )
         )
 
@@ -2460,13 +3376,15 @@ def verify_outputs():
             "r",
             encoding="utf-8",
         ) as f:
+
             sub_lines.extend(
                 line.strip()
                 for line in f
+                if line.strip()
             )
 
     # -----------------------------------------------------
-    # ALL_CONFIGS VS SUBS
+    # ALL CONFIGS VS SUBS
     # -----------------------------------------------------
 
     all_path = os.path.join(
@@ -2479,19 +3397,24 @@ def verify_outputs():
         "r",
         encoding="utf-8",
     ) as f:
+
         all_lines = [
             line.strip()
             for line in f
         ]
 
-    if len(all_lines) != GENERAL_TOTAL:
+    if len(
+        all_lines
+    ) != GENERAL_TOTAL:
         raise RuntimeError(
             f"all_configs.txt: expected "
             f"{GENERAL_TOTAL}, "
             f"got {len(all_lines)}"
         )
 
-    if len(sub_lines) != GENERAL_TOTAL:
+    if len(
+        sub_lines
+    ) != GENERAL_TOTAL:
         raise RuntimeError(
             f"sub1..sub10 total: expected "
             f"{GENERAL_TOTAL}, "
@@ -2549,7 +3472,9 @@ def verify_outputs():
                     1,
                 )[0]
 
-                if proto(clean) != ptype:
+                if proto(
+                    clean
+                ) != ptype:
                     raise RuntimeError(
                         f"{ptype}.txt line "
                         f"{line_no}: contains "
@@ -2619,7 +3544,9 @@ def print_summary():
         for filename in os.listdir(
             OUT_DIR
         )
-        if filename.endswith(".txt")
+        if filename.endswith(
+            ".txt"
+        )
     )
 
     for filename in files:
@@ -2644,6 +3571,56 @@ def print_summary():
     print(
         "=" * 65
     )
+
+
+# =========================================================
+# SOURCE SUMMARY
+# =========================================================
+
+def print_source_summary():
+    if not SOURCE_META:
+        return
+
+    unique_sources = set()
+
+    for sources in SOURCE_META.values():
+        unique_sources.update(
+            sources
+        )
+
+    print(
+        "\n[SOURCES]"
+    )
+
+    print(
+        f"Unique source references: "
+        f"{len(unique_sources)}"
+    )
+
+    source_counter = {}
+
+    for sources in SOURCE_META.values():
+        for source in sources:
+            source_counter[
+                source
+            ] = (
+                source_counter.get(
+                    source,
+                    0,
+                )
+                + 1
+            )
+
+    top_sources = sorted(
+        source_counter.items(),
+        key=lambda x: -x[1],
+    )[:20]
+
+    for source, count in top_sources:
+        print(
+            f"  {count:>6} "
+            f"| {source}"
+        )
 
 
 # =========================================================
@@ -2677,6 +3654,25 @@ def main():
     raw = fetch_all()
 
     # -----------------------------------------------------
+    # TELEGRAM MERGE
+    # -----------------------------------------------------
+
+    general_raw = (
+        raw["general"]
+        + raw["telegram"]
+    )
+
+    iran_raw = raw[
+        "iran"
+    ]
+
+    # Telegram is global by default.
+    # Its configs can participate in Iran fallback.
+    telegram_raw = raw[
+        "telegram"
+    ]
+
+    # -----------------------------------------------------
     # DEDUPE SOURCE POOLS
     # -----------------------------------------------------
 
@@ -2685,11 +3681,11 @@ def main():
     )
 
     general_unique = dedupe(
-        raw["general"]
+        general_raw
     )
 
     iran_unique = dedupe(
-        raw["iran"]
+        iran_raw
     )
 
     mci_unique = dedupe(
@@ -2702,6 +3698,10 @@ def main():
 
     rightel_unique = dedupe(
         raw["rightel"]
+    )
+
+    telegram_unique = dedupe(
+        telegram_raw
     )
 
     print(
@@ -2729,6 +3729,11 @@ def main():
         f"{len(rightel_unique)}"
     )
 
+    print(
+        f"TELEGRAM : "
+        f"{len(telegram_unique)}"
+    )
+
     # -----------------------------------------------------
     # GLOBAL UNIQUE
     # -----------------------------------------------------
@@ -2739,6 +3744,7 @@ def main():
         + mci_unique
         + irancell_unique
         + rightel_unique
+        + telegram_unique
     )
 
     print(
@@ -2747,12 +3753,12 @@ def main():
     )
 
     # -----------------------------------------------------
-    # IMPORTANT:
-    # Do not modify existing outputs if there aren't
-    # enough configs for the mandatory 10000 files.
+    # IMPORTANT
     # -----------------------------------------------------
 
-    if len(all_unique) < GENERAL_TOTAL:
+    if len(
+        all_unique
+    ) < GENERAL_TOTAL:
         raise RuntimeError(
             f"Not enough valid unique configs: "
             f"{len(all_unique)} available, "
@@ -2800,14 +3806,6 @@ def main():
     )
 
     # -----------------------------------------------------
-    # IMPORTANT:
-    # DO NOT clear old subscriptions here.
-    #
-    # Every output is written atomically.
-    # If a later step fails, previous files remain intact.
-    # -----------------------------------------------------
-
-    # -----------------------------------------------------
     # GENERAL
     # -----------------------------------------------------
 
@@ -2828,6 +3826,16 @@ def main():
     # -----------------------------------------------------
     # IRAN
     # -----------------------------------------------------
+
+    # Telegram is included as a global fallback.
+    iran_fallback_unique = dedupe(
+        iran_unique
+        + telegram_unique
+    )
+
+    alive_iran_fallback = benchmark(
+        iran_fallback_unique
+    )
 
     write_iran(
         alive_iran,
@@ -2851,6 +3859,12 @@ def main():
     # -----------------------------------------------------
 
     verify_outputs()
+
+    # -----------------------------------------------------
+    # SOURCE REPORT
+    # -----------------------------------------------------
+
+    print_source_summary()
 
     # -----------------------------------------------------
     # SUMMARY
