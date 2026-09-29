@@ -14,39 +14,39 @@ Automated • Tested • Quality Ranked
 </font>
 </p>
 
-<br/>
+<br/><br/>
 
-<!-- Telegram -->
 <a href="https://t.me/nukcrow">
-<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="55" height="55"/>
+<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="60"/>
 </a>
 
 <br/>
 
-<font size="5"><b>Telegram</b></font>
+<h2>Telegram</h2>
 
-<br/><br/>
+<br/>
 
 <a href="https://t.me/nukcrow">
-<font size="4">@nukcrow</font>
+<b>📢 Channel</b><br>
+@<b>nukcrow</b>
 </a>
 
 <br/><br/>
 
 <a href="https://t.me/Nukcrowbot">
-<font size="4">@Nukcrowbot</font>
+<b>💬 Admin Support</b><br>
+@<b>Nukcrowbot</b>
 </a>
 
 <br/><br/>
 
 <a href="https://t.me/nukcrowvpnbot">
-<font size="4">@nukcrowvpnbot</font>
+<b>⚡ Configuration Bot</b><br>
+@<b>nukcrowvpnbot</b>
 </a>
 
 <br/><br/>
 
-<font size="2" color="#8A8F98">
-Channel&nbsp;&nbsp;•&nbsp;&nbsp;Admin Support&nbsp;&nbsp;•&nbsp;&nbsp;Config Bot
-</font>
+<sub>Official Telegram Services</sub>
 
 </div>
