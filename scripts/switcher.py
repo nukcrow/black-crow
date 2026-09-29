@@ -114,7 +114,7 @@ SOURCES_GENERAL = [
 # =========================================================
 
 SOURCES_IRAN = [
-    "https://raw.githubusercontent.com/youfoundamin/V2rayCollector/main/mixed_iran.txt",
+    "https://github.com/V2RAYCONFIGSPOOL/V2RAY_SUB/blob/main/v2ray_configs_no1.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
@@ -137,6 +137,7 @@ SOURCES_MCI = []
 
 SOURCES_IRANCELL = [
     "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/main/main/mix",
+    "https://github.com/V2RAYCONFIGSPOOL/V2RAY_SUB/blob/main/v2ray_configs_no1.txt",
 ]
 
 # =========================================================
