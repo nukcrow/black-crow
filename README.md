@@ -1,28 +1,24 @@
 <div align="center">
 
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:050505,50:11151a,100:1b1f24&height=140&section=header&text=nukcrow&fontSize=46&fontColor=8A8F98&animation=fadeIn&fontAlignY=42" width="100%"/>
+
 <br/>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:050505,45:0d1117,70:161b22,100:050505&height=260&section=header&text=nukcrow&fontSize=72&fontColor=8A8F98&animation=fadeIn&fontAlignY=42" width="100%"/>
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=400&size=15&duration=3200&pause=1100&color=8A8F98&background=00000000&center=true&vCenter=true&width=500&lines=stay+curious.;build+quietly.;keep+moving.;nukcrow." alt="nukcrow"/>
 
 <br/><br/>
 
-<img src="https://readme-typing-svg.demolab.com/?font=Arial&weight=300&size=22&duration=3500&pause=1200&color=8A8F98&background=00000000&center=true&vCenter=true&width=700&lines=stay+curious.;build+quietly.;keep+moving.;nukcrow." alt="nukcrow"/>
-
-<br/><br/><br/>
-
 <table>
 <tr>
-<td align="center" width="560">
+<td align="center" width="400">
 
 <br/>
 
-<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="58"/>
+<img src="https://cdn.simpleicons.org/telegram/8A8F98" width="42"/>
 
-<br/>
+<br/><br/>
 
-<h2>Telegram</h2>
-
-<sub>OFFICIAL CHANNELS</sub>
+<sub>TELEGRAM</sub>
 
 <br/><br/>
 
@@ -42,13 +38,13 @@
 <kbd>⚡ &nbsp; @nukcrowvpnbot</kbd>
 </a>
 
-<br/><br/><br/>
+<br/><br/>
 
-<sub>────────────────────────</sub>
+<sub>────────────────</sub>
 
 <br/><br/>
 
-<sub>NUKCROW / 2026</sub>
+<sub>NUKCROW · 2026</sub>
 
 <br/><br/>
 
@@ -56,12 +52,12 @@
 </tr>
 </table>
 
-<br/><br/>
+<br/>
 
-<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&size=13&duration=4000&pause=1500&color=484F58&background=00000000&center=true&vCenter=true&width=500&lines=%5B+online+%5D;%5B+connected+%5D;%5B+nukcrow+%5D" alt="status"/>
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&size=11&duration=4000&pause=1500&color=484F58&background=00000000&center=true&vCenter=true&width=400&lines=%5B+online+%5D;%5B+connected+%5D;%5B+nukcrow+%5D" alt="status"/>
 
-<br/><br/><br/>
+<br/>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:050505,50:0d1117,100:161b22&height=120&section=footer" width="100%"/>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:050505,50:11151a,100:1b1f24&height=80&section=footer" width="100%"/>
 
 </div>
