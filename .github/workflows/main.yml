@@ -120,7 +120,7 @@ jobs:
 
 
       # ==================================================
-      # VERIFY DIRECTORY
+      # VERIFY OUTPUT DIRECTORY
       # ==================================================
 
       - name: Verify Output Directory
@@ -185,17 +185,18 @@ jobs:
             "sub/general/sub9.txt"
             "sub/general/sub10.txt"
 
+            "sub/general/mci.txt"
+            "sub/general/irancell.txt"
+            "sub/general/rightel.txt"
+
+            "sub/general/best_iran.txt"
+            "sub/general/mix_iran.txt"
+
             "sub/general/vless.txt"
             "sub/general/vmess.txt"
             "sub/general/trojan.txt"
             "sub/general/ss.txt"
             "sub/general/hysteria2.txt"
-
-            "sub/general/best_iran.txt"
-            "sub/general/mix_iran.txt"
-            "sub/general/mci.txt"
-            "sub/general/irancell.txt"
-            "sub/general/rightel.txt"
           )
 
           for file in "${expected_files[@]}"; do
@@ -234,17 +235,18 @@ jobs:
             "sub/general/sub9.txt"
             "sub/general/sub10.txt"
 
+            "sub/general/mci.txt"
+            "sub/general/irancell.txt"
+            "sub/general/rightel.txt"
+
+            "sub/general/best_iran.txt"
+            "sub/general/mix_iran.txt"
+
             "sub/general/vless.txt"
             "sub/general/vmess.txt"
             "sub/general/trojan.txt"
             "sub/general/ss.txt"
             "sub/general/hysteria2.txt"
-
-            "sub/general/best_iran.txt"
-            "sub/general/mix_iran.txt"
-            "sub/general/mci.txt"
-            "sub/general/irancell.txt"
-            "sub/general/rightel.txt"
           )
 
           mapfile -t actual_files < <(
@@ -294,16 +296,13 @@ jobs:
             grep -cve '^[[:space:]]*$' "$1" || true
           }
 
-
           echo "=========================================="
           echo "GENERAL SUBSCRIPTIONS"
           echo "=========================================="
 
-
           EXPECTED_GENERAL=1000
 
           for i in $(seq 1 10); do
-
             file="sub/general/sub${i}.txt"
 
             count="$(count_lines "$file")"
@@ -314,19 +313,15 @@ jobs:
               echo "ERROR: $file must contain exactly $EXPECTED_GENERAL configs!"
               exit 1
             fi
-
           done
-
 
           echo ""
           echo "OK: sub1.txt - sub10.txt are exactly 1000 configs each."
-
 
           echo ""
           echo "=========================================="
           echo "ALL CONFIGS"
           echo "=========================================="
-
 
           ALL_CONFIGS=10000
 
@@ -339,20 +334,16 @@ jobs:
             exit 1
           fi
 
-
           echo "OK: all_configs.txt contains exactly 10000 configs."
-
 
           echo ""
           echo "=========================================="
           echo "PROTOCOL SUBSCRIPTIONS"
           echo "=========================================="
 
-
           PROTOCOL_MAX=100
 
           for proto in vless vmess trojan ss hysteria2; do
-
             file="sub/general/${proto}.txt"
 
             count="$(count_lines "$file")"
@@ -368,30 +359,25 @@ jobs:
               echo "ERROR: $file contains more than $PROTOCOL_MAX configs!"
               exit 1
             fi
-
           done
-
 
           echo ""
           echo "OK: protocol files contain 1-100 configs."
 
-
           echo ""
           echo "=========================================="
-          echo "IRAN SUBSCRIPTIONS"
+          echo "IRAN / OPERATOR SUBSCRIPTIONS"
           echo "=========================================="
-
 
           IRAN_EXPECTED=200
 
           for file in \
-            sub/general/best_iran.txt \
-            sub/general/mix_iran.txt \
             sub/general/mci.txt \
             sub/general/irancell.txt \
-            sub/general/rightel.txt
+            sub/general/rightel.txt \
+            sub/general/best_iran.txt \
+            sub/general/mix_iran.txt
           do
-
             count="$(count_lines "$file")"
 
             echo "$file: $count configs"
@@ -400,12 +386,43 @@ jobs:
               echo "ERROR: $file must contain exactly $IRAN_EXPECTED configs!"
               exit 1
             fi
-
           done
 
-
           echo ""
-          echo "OK: all Iran files contain exactly 200 configs."
+          echo "OK: all Iran/operator files contain exactly 200 configs."
+
+
+      # ==================================================
+      # VERIFY SUB ORDER
+      # ==================================================
+
+      - name: Verify Subscription Order
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "SUBSCRIPTION ORDER CHECK"
+          echo "=========================================="
+
+          tmp_file="$(mktemp)"
+
+          for i in $(seq 1 10); do
+            cat "sub/general/sub${i}.txt" >> "$tmp_file"
+          done
+
+          if ! cmp -s \
+            "$tmp_file" \
+            "sub/general/all_configs.txt"; then
+
+            echo "ERROR: sub1..sub10 do not match all_configs.txt order!"
+            rm -f "$tmp_file"
+            exit 1
+          fi
+
+          rm -f "$tmp_file"
+
+          echo "OK: sub1 -> sub10 exactly match all_configs.txt order."
 
 
       # ==================================================
@@ -420,21 +437,17 @@ jobs:
           echo "EMPTY LINE CHECK"
           echo "=========================================="
 
-
           while IFS= read -r file; do
-
             if grep -nE '^[[:space:]]*$' "$file" | grep -q .; then
               echo "ERROR: Empty line found in $file"
               exit 1
             fi
-
           done < <(
             find sub/general \
               -maxdepth 1 \
               -type f \
               -name "*.txt"
           )
-
 
           echo "OK: no empty lines found."
 
@@ -451,23 +464,17 @@ jobs:
           echo "PROTOCOL FORMAT CHECK"
           echo "=========================================="
 
-
           bad_format=0
 
-
           while IFS= read -r file; do
-
             if grep -vE \
               '^(vless|vmess|trojan|ss|hysteria2|hy2)://.+#nukcrow$' \
               "$file" \
               | grep -q .; then
 
               echo "ERROR: Invalid config format found in $file"
-
               bad_format=1
-
             fi
-
           done < <(
             find sub/general \
               -maxdepth 1 \
@@ -475,12 +482,10 @@ jobs:
               -name "*.txt"
           )
 
-
           if [ "$bad_format" -ne 0 ]; then
             echo "ERROR: Protocol format validation failed!"
             exit 1
           fi
-
 
           echo "OK: all configs have valid protocol format."
 
@@ -497,9 +502,7 @@ jobs:
           echo "REMARK CHECK"
           echo "=========================================="
 
-
           bad_remark=0
-
 
           while IFS= read -r file; do
 
@@ -508,12 +511,10 @@ jobs:
               bad_remark=1
             fi
 
-
             if grep -vE '^([^#]*#nukcrow)$' "$file" | grep -q .; then
               echo "ERROR: Extra remark/fragment found in $file"
               bad_remark=1
             fi
-
 
             if grep -E \
               '#(Iran|Russia|Germany|Netherlands|Turkey|USA|VLESS|VMESS|Trojan|SS|Hysteria|[0-9]+)$' \
@@ -521,9 +522,7 @@ jobs:
               | grep -q .; then
 
               echo "ERROR: Old/country/protocol/index remark found in $file"
-
               bad_remark=1
-
             fi
 
           done < <(
@@ -533,12 +532,10 @@ jobs:
               -name "*.txt"
           )
 
-
           if [ "$bad_remark" -ne 0 ]; then
             echo "ERROR: Remark validation failed!"
             exit 1
           fi
-
 
           echo "OK: every config ends with exactly #nukcrow."
 
@@ -555,7 +552,6 @@ jobs:
           echo "DUPLICATE CHECK"
           echo "=========================================="
 
-
           while IFS= read -r file; do
 
             duplicate="$(
@@ -564,16 +560,12 @@ jobs:
               head -n 1
             )"
 
-
             if [ -n "$duplicate" ]; then
-
               echo "ERROR: Duplicate config found in $file"
-
+              echo ""
               echo "Duplicate:"
               echo "$duplicate"
-
               exit 1
-
             fi
 
           done < <(
@@ -582,7 +574,6 @@ jobs:
               -type f \
               -name "*.txt"
           )
-
 
           echo "OK: no duplicate configs inside subscription files."
 
@@ -603,7 +594,8 @@ jobs:
           echo "General:      10 × 1000"
           echo "All configs:  10000"
           echo "Protocols:    1-100 each"
-          echo "Iran:         5 × 200"
+          echo "Operators:    3 × 200"
+          echo "Iran:         2 × 200"
           echo "Random 200:   REMOVED"
           echo "Remark:       #nukcrow"
 
@@ -645,12 +637,9 @@ jobs:
           git config --local user.name \
             "github-actions[bot]"
 
-
           git add sub/
 
-
           if git diff --cached --quiet; then
-
             echo "changed=false" >> "$GITHUB_OUTPUT"
 
             echo ""
@@ -659,22 +648,17 @@ jobs:
             echo "=========================================="
 
             exit 0
-
           fi
-
 
           echo ""
           echo "=========================================="
           echo "CHANGES DETECTED"
           echo "=========================================="
 
-
           git diff --cached --stat
-
 
           git commit \
             -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
-
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
@@ -691,7 +675,6 @@ jobs:
           echo "=========================================="
           echo "REBASING WITH LATEST MAIN"
           echo "=========================================="
-
 
           git fetch origin main
 
@@ -711,21 +694,16 @@ jobs:
           echo "PUSHING TO MAIN"
           echo "=========================================="
 
-
           git push origin HEAD:main || {
-
             echo ""
             echo "First push failed. Retrying..."
-
 
             git fetch origin main
 
             git rebase origin/main
 
             git push origin HEAD:main
-
           }
-
 
           echo ""
           echo "=========================================="
@@ -748,20 +726,16 @@ jobs:
           echo "PUBLISHING LATEST RELEASE"
           echo "=========================================="
 
-
           TAG="latest"
-
 
           gh release delete "$TAG" \
             --cleanup-tag \
             -y || true
 
-
           gh release create "$TAG" \
             sub/general/*.txt \
             --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
             --notes "Auto-updated every 3 hours."
-
 
           echo ""
           echo "Release published successfully."
