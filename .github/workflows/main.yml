@@ -2,8 +2,8 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: "7 */6 * * *"
+    # Every hour
+    - cron: "7 * * * *"
 
   workflow_dispatch:
 
@@ -17,7 +17,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
 
@@ -54,6 +54,42 @@ jobs:
 
           python -m pip install --upgrade pip
           python -m pip install --disable-pip-version-check requests
+
+
+      # ==================================================
+      # XRAY (real end-to-end config test)
+      # ==================================================
+
+      - name: Install Xray
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$RUNNER_TEMP/xray"
+
+          curl -fsSL --retry 3 \
+            -o "$RUNNER_TEMP/xray.zip" \
+            https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+
+          unzip -q -o "$RUNNER_TEMP/xray.zip" xray -d "$RUNNER_TEMP/xray"
+          chmod +x "$RUNNER_TEMP/xray/xray"
+
+          echo "$RUNNER_TEMP/xray" >> "$GITHUB_PATH"
+
+          "$RUNNER_TEMP/xray/xray" version | head -n 1
+
+
+      # ==================================================
+      # STATE CACHE (configs that worked in previous runs)
+      # ==================================================
+
+      - name: Restore Good-Config Pool
+        uses: actions/cache@v4
+        with:
+          path: .state
+          key: state-${{ github.run_id }}
+          restore-keys: |
+            state-
 
 
       # ==================================================
@@ -199,48 +235,44 @@ jobs:
             grep -cve '^[[:space:]]*$' "$1" || true
           }
 
-          check_exact() {
-            local file="$1"
-            local expected="$2"
-            local count
+          check_range() {
+            local file="$1" min="$2" max="$3" count
 
             count="$(count_lines "$file")"
             echo "$file: $count configs"
 
-            if [ "$count" -ne "$expected" ]; then
-              echo "ERROR: $file must contain exactly $expected configs!"
+            if [ "$count" -lt "$min" ] || [ "$count" -gt "$max" ]; then
+              echo "ERROR: $file must contain $min-$max configs!"
               exit 1
             fi
           }
 
-          echo "=== GENERAL SUBSCRIPTIONS ==="
+          echo "=== ALL CONFIGS ==="
+
+          total="$(count_lines sub/general/all_configs.txt)"
+          check_range sub/general/all_configs.txt 10 10000
+
+          echo ""
+          echo "=== GENERAL SUBSCRIPTIONS (even split of all_configs) ==="
+
+          base=$((total / 10))
+          rem=$((total % 10))
 
           for i in $(seq 1 10); do
-            check_exact "sub/general/sub${i}.txt" 1000
-          done
+            expected=$base
 
-          check_exact "sub/general/all_configs.txt" 10000
+            if [ "$i" -le "$rem" ]; then
+              expected=$((base + 1))
+            fi
+
+            check_range "sub/general/sub${i}.txt" "$expected" "$expected"
+          done
 
           echo ""
           echo "=== PROTOCOL SUBSCRIPTIONS ==="
 
-          PROTOCOL_MAX=100
-
           for proto in vless vmess trojan ss hysteria2; do
-            file="sub/general/${proto}.txt"
-            count="$(count_lines "$file")"
-
-            echo "$file: $count configs"
-
-            if [ "$count" -lt 1 ]; then
-              echo "ERROR: $file is empty!"
-              exit 1
-            fi
-
-            if [ "$count" -gt "$PROTOCOL_MAX" ]; then
-              echo "ERROR: $file contains more than $PROTOCOL_MAX configs!"
-              exit 1
-            fi
+            check_range "sub/general/${proto}.txt" 1 100
           done
 
           echo ""
@@ -253,7 +285,7 @@ jobs:
             sub/general/best_iran.txt \
             sub/general/mix_iran.txt
           do
-            check_exact "$file" 200
+            check_range "$file" 1 200
           done
 
           echo ""
@@ -402,11 +434,10 @@ jobs:
       - name: Final Validation
         run: |
           echo "VALIDATION SUCCESSFUL"
-          echo "General:      10 x 1000"
-          echo "All configs:  10000"
+          echo "General:      10 files, even split (max 1000 each)"
+          echo "All configs:  10-10000 (verified only)"
           echo "Protocols:    1-100 each"
-          echo "Operators:    3 x 200"
-          echo "Iran:         2 x 200"
+          echo "Operators:    1-200 each"
           echo "Remark:       #nukcrow"
 
 
@@ -471,26 +502,19 @@ jobs:
       # ==================================================
 
       - name: Publish Release
-        if: steps.commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
           TAG="latest"
-          TITLE="Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')"
-          NOTES="Auto-updated every 6 hours."
 
-          # Keep the existing release and replace only its assets when possible.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" sub/general/*.txt --clobber
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
-          else
-            gh release create "$TAG" \
-              sub/general/*.txt \
-              --title "$TITLE" \
-              --notes "$NOTES"
-          fi
+          gh release delete "$TAG" --cleanup-tag -y || true
+
+          gh release create "$TAG" \
+            sub/general/*.txt \
+            --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
+            --notes "Auto-updated every hour. Only verified configs."
 
           echo "Release published successfully."
 
