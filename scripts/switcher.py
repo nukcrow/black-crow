@@ -19,7 +19,7 @@ import requests
 
 OUT_DIR = "sub/general"
 
-REMARK = "nukcrow"
+REMARK = "NUKCROW"
 
 TOTAL_CONFIGS = 20000
 
