@@ -8,18 +8,26 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: nukcrow-subscriptions
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -30,7 +38,18 @@ jobs:
         run: |
           python scripts/switcher.py
 
-      - name: Commit changes
+      - name: Verify output
+        run: |
+          test -f sub/general/all_configs.txt
+          test -f sub/general/sub1.txt
+          test -f sub/general/sub10.txt
+
+          echo "Output verification:"
+          wc -l sub/general/all_configs.txt
+          wc -l sub/general/sub1.txt
+          wc -l sub/general/sub10.txt
+
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -38,7 +57,7 @@ jobs:
           git add sub/general
 
           if git diff --cached --quiet; then
-            echo "No changes."
+            echo "No changes detected."
           else
             git commit -m "Auto update subscriptions"
             git push
