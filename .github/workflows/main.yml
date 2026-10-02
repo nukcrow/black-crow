@@ -2,8 +2,8 @@ name: Auto-update Subscriptions
 
 on:
   schedule:
-    # Every hour
-    - cron: "7 * * * *"
+    # Every 3 hours at minute 17
+    - cron: "17 */3 * * *"
 
   workflow_dispatch:
 
@@ -57,7 +57,7 @@ jobs:
 
 
       # ==================================================
-      # XRAY (real end-to-end config test)
+      # XRAY
       # ==================================================
 
       - name: Install Xray
@@ -72,6 +72,7 @@ jobs:
             https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
 
           unzip -q -o "$RUNNER_TEMP/xray.zip" xray -d "$RUNNER_TEMP/xray"
+
           chmod +x "$RUNNER_TEMP/xray/xray"
 
           echo "$RUNNER_TEMP/xray" >> "$GITHUB_PATH"
@@ -80,7 +81,7 @@ jobs:
 
 
       # ==================================================
-      # STATE CACHE (configs that worked in previous runs)
+      # STATE CACHE
       # ==================================================
 
       - name: Restore Good-Config Pool
@@ -161,10 +162,11 @@ jobs:
 
 
       # ==================================================
-      # EXPECTED FILES + UNEXPECTED TXT FILE CHECK
+      # EXPECTED FILES
       # ==================================================
 
       - name: Verify Expected Files
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -204,7 +206,12 @@ jobs:
           done
 
           mapfile -t actual_files < <(
-            find sub/general -maxdepth 1 -type f -name "*.txt" -printf "%p\n" | sort
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt" \
+              -printf "%p\n" \
+              | sort
           )
 
           mapfile -t sorted_expected < <(
@@ -235,10 +242,29 @@ jobs:
             grep -cve '^[[:space:]]*$' "$1" || true
           }
 
-          check_range() {
-            local file="$1" min="$2" max="$3" count
+          check_exact() {
+            local file="$1"
+            local expected="$2"
+            local count
 
             count="$(count_lines "$file")"
+
+            echo "$file: $count configs"
+
+            if [ "$count" -ne "$expected" ]; then
+              echo "ERROR: $file must contain exactly $expected configs!"
+              exit 1
+            fi
+          }
+
+          check_range() {
+            local file="$1"
+            local min="$2"
+            local max="$3"
+            local count
+
+            count="$(count_lines "$file")"
+
             echo "$file: $count configs"
 
             if [ "$count" -lt "$min" ] || [ "$count" -gt "$max" ]; then
@@ -249,31 +275,44 @@ jobs:
 
           echo "=== ALL CONFIGS ==="
 
+          check_exact \
+            "sub/general/all_configs.txt" \
+            10000
+
           total="$(count_lines sub/general/all_configs.txt)"
-          check_range sub/general/all_configs.txt 10 10000
+
+          if [ "$total" -ne 10000 ]; then
+            echo "ERROR: all_configs.txt must contain exactly 10000 configs!"
+            exit 1
+          fi
+
 
           echo ""
-          echo "=== GENERAL SUBSCRIPTIONS (even split of all_configs) ==="
-
-          base=$((total / 10))
-          rem=$((total % 10))
+          echo "=== GENERAL SUBSCRIPTIONS ==="
 
           for i in $(seq 1 10); do
-            expected=$base
-
-            if [ "$i" -le "$rem" ]; then
-              expected=$((base + 1))
-            fi
-
-            check_range "sub/general/sub${i}.txt" "$expected" "$expected"
+            check_exact \
+              "sub/general/sub${i}.txt" \
+              1000
           done
+
 
           echo ""
           echo "=== PROTOCOL SUBSCRIPTIONS ==="
 
-          for proto in vless vmess trojan ss hysteria2; do
-            check_range "sub/general/${proto}.txt" 1 100
+          for proto in \
+            vless \
+            vmess \
+            trojan \
+            ss \
+            hysteria2
+          do
+            check_range \
+              "sub/general/${proto}.txt" \
+              1 \
+              100
           done
+
 
           echo ""
           echo "=== IRAN / OPERATOR SUBSCRIPTIONS ==="
@@ -288,12 +327,13 @@ jobs:
             check_range "$file" 1 200
           done
 
+
           echo ""
           echo "OK: all counts are correct."
 
 
       # ==================================================
-      # VERIFY SUB ORDER
+      # VERIFY SUBSCRIPTION ORDER
       # ==================================================
 
       - name: Verify Subscription Order
@@ -303,19 +343,44 @@ jobs:
 
           tmp_file="$(mktemp)"
 
+          trap 'rm -f "$tmp_file"' EXIT
+
           for i in $(seq 1 10); do
             cat "sub/general/sub${i}.txt" >> "$tmp_file"
           done
 
-          if ! cmp -s "$tmp_file" "sub/general/all_configs.txt"; then
-            echo "ERROR: sub1..sub10 do not match all_configs.txt order!"
-            rm -f "$tmp_file"
+          if ! cmp -s \
+            "$tmp_file" \
+            "sub/general/all_configs.txt"; then
+
+            echo "ERROR: sub1..sub10 do not exactly match all_configs.txt!"
             exit 1
           fi
 
-          rm -f "$tmp_file"
+          echo "OK: sub1 -> sub10 exactly match all_configs.txt."
 
-          echo "OK: sub1 -> sub10 exactly match all_configs.txt order."
+
+      # ==================================================
+      # VERIFY EACH SUB FILE SIZE
+      # ==================================================
+
+      - name: Verify Subscription Sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for i in $(seq 1 10); do
+            file="sub/general/sub${i}.txt"
+
+            count="$(grep -cve '^[[:space:]]*$' "$file" || true)"
+
+            if [ "$count" -ne 1000 ]; then
+              echo "ERROR: $file contains $count configs, expected 1000."
+              exit 1
+            fi
+          done
+
+          echo "OK: every general subscription contains exactly 1000 configs."
 
 
       # ==================================================
@@ -323,15 +388,23 @@ jobs:
       # ==================================================
 
       - name: Validate Empty Lines
+        shell: bash
         run: |
           set -euo pipefail
 
           while IFS= read -r file; do
+
             if grep -nE '^[[:space:]]*$' "$file" | grep -q .; then
               echo "ERROR: Empty line found in $file"
               exit 1
             fi
-          done < <(find sub/general -maxdepth 1 -type f -name "*.txt")
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
 
           echo "OK: no empty lines found."
 
@@ -341,12 +414,14 @@ jobs:
       # ==================================================
 
       - name: Validate Protocol Format
+        shell: bash
         run: |
           set -euo pipefail
 
           bad_format=0
 
           while IFS= read -r file; do
+
             if grep -vE \
               '^(vless|vmess|trojan|ss|hysteria2|hy2)://.+#nukcrow$' \
               "$file" | grep -q .; then
@@ -354,7 +429,13 @@ jobs:
               echo "ERROR: Invalid config format found in $file"
               bad_format=1
             fi
-          done < <(find sub/general -maxdepth 1 -type f -name "*.txt")
+
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
 
           if [ "$bad_format" -ne 0 ]; then
             echo "ERROR: Protocol format validation failed!"
@@ -369,6 +450,7 @@ jobs:
       # ==================================================
 
       - name: Validate Remarks
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -394,7 +476,12 @@ jobs:
               bad_remark=1
             fi
 
-          done < <(find sub/general -maxdepth 1 -type f -name "*.txt")
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
 
           if [ "$bad_remark" -ne 0 ]; then
             echo "ERROR: Remark validation failed!"
@@ -409,12 +496,17 @@ jobs:
       # ==================================================
 
       - name: Validate Duplicates
+        shell: bash
         run: |
           set -euo pipefail
 
           while IFS= read -r file; do
 
-            duplicate="$(sort "$file" | uniq -d | head -n 1)"
+            duplicate="$(
+              sort "$file" |
+              uniq -d |
+              head -n 1
+            )"
 
             if [ -n "$duplicate" ]; then
               echo "ERROR: Duplicate config found in $file"
@@ -422,9 +514,50 @@ jobs:
               exit 1
             fi
 
-          done < <(find sub/general -maxdepth 1 -type f -name "*.txt")
+          done < <(
+            find sub/general \
+              -maxdepth 1 \
+              -type f \
+              -name "*.txt"
+          )
 
           echo "OK: no duplicate configs inside subscription files."
+
+
+      # ==================================================
+      # CROSS-FILE DUPLICATE CHECK
+      # ==================================================
+
+      - name: Validate General Cross-File Duplicates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tmp_file="$(mktemp)"
+
+          trap 'rm -f "$tmp_file"' EXIT
+
+          for i in $(seq 1 10); do
+            cat "sub/general/sub${i}.txt" >> "$tmp_file"
+          done
+
+          total="$(wc -l < "$tmp_file")"
+          unique="$(sort -u "$tmp_file" | wc -l)"
+
+          echo "Total general configs:  $total"
+          echo "Unique general configs: $unique"
+
+          if [ "$total" -ne 10000 ]; then
+            echo "ERROR: General subscriptions do not contain 10000 lines!"
+            exit 1
+          fi
+
+          if [ "$unique" -ne 10000 ]; then
+            echo "ERROR: Duplicate configs detected across sub1..sub10!"
+            exit 1
+          fi
+
+          echo "OK: all general subscription files are globally unique."
 
 
       # ==================================================
@@ -432,13 +565,26 @@ jobs:
       # ==================================================
 
       - name: Final Validation
+        shell: bash
         run: |
-          echo "VALIDATION SUCCESSFUL"
-          echo "General:      10 files, even split (max 1000 each)"
-          echo "All configs:  10-10000 (verified only)"
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "        NUKCROW VALIDATION SUCCESS"
+          echo "=========================================="
+          echo ""
+          echo "Schedule:     Every 3 hours"
+          echo "General:      10 files"
+          echo "Each general: 1000 configs"
+          echo "All configs:  10000 configs"
           echo "Protocols:    1-100 each"
           echo "Operators:    1-200 each"
           echo "Remark:       #nukcrow"
+          echo "Random 200:   removed"
+          echo "Duplicates:   checked"
+          echo "Order:        verified"
+          echo ""
+          echo "ALL VALIDATIONS PASSED."
 
 
       # ==================================================
@@ -447,11 +593,17 @@ jobs:
 
       - name: Commit Changes
         id: commit
+        shell: bash
         run: |
           set -euo pipefail
 
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --local \
+            user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git config --local \
+            user.name \
+            "github-actions[bot]"
 
           git add sub/
 
@@ -461,36 +613,56 @@ jobs:
             exit 0
           fi
 
+          echo "Changes detected:"
           git diff --cached --stat
 
-          git commit -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          git commit \
+            -m "Auto-update subscriptions [$(date -u '+%Y-%m-%d %H:%M UTC')]"
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
 
       # ==================================================
-      # SAFE REBASE + PUSH
+      # SAFE REBASE
       # ==================================================
 
       - name: Rebase Latest Main
         if: steps.commit.outputs.changed == 'true'
+        shell: bash
         run: |
           set -euo pipefail
 
           git fetch origin main
-          git rebase origin/main
 
+          if ! git rebase origin/main; then
+            echo "ERROR: Rebase failed."
+            git rebase --abort || true
+            exit 1
+          fi
+
+
+      # ==================================================
+      # PUSH
+      # ==================================================
 
       - name: Push Changes
         if: steps.commit.outputs.changed == 'true'
+        shell: bash
         run: |
           set -euo pipefail
 
           git push origin HEAD:main || {
-            echo "First push failed. Retrying..."
+
+            echo "First push failed. Fetching latest main..."
 
             git fetch origin main
-            git rebase origin/main
+
+            if ! git rebase origin/main; then
+              echo "ERROR: Retry rebase failed."
+              git rebase --abort || true
+              exit 1
+            fi
+
             git push origin HEAD:main
           }
 
@@ -502,21 +674,41 @@ jobs:
       # ==================================================
 
       - name: Publish Release
+        if: steps.commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
 
           TAG="latest"
 
-          gh release delete "$TAG" --cleanup-tag -y || true
+          echo "Removing previous latest release..."
+
+          gh release delete "$TAG" \
+            --cleanup-tag \
+            -y || true
+
+          echo "Creating latest release..."
 
           gh release create "$TAG" \
             sub/general/*.txt \
             --title "Latest configs · $(date -u +'%Y-%m-%d %H:%M UTC')" \
-            --notes "Auto-updated every hour. Only verified configs."
+            --notes "Auto-updated every 3 hours. Verified and validated NukCrow subscriptions."
 
           echo "Release published successfully."
+
+
+      # ==================================================
+      # NO CHANGE RELEASE STATUS
+      # ==================================================
+
+      - name: No Changes Status
+        if: steps.commit.outputs.changed != 'true'
+        shell: bash
+        run: |
+          echo "No subscription changes detected."
+          echo "Release was not recreated."
 
 
       # ==================================================
@@ -525,8 +717,16 @@ jobs:
 
       - name: Final Status
         if: always()
+        shell: bash
         run: |
-          echo "WORKFLOW FINISHED"
+          echo "=========================================="
+          echo "          WORKFLOW FINISHED"
+          echo "=========================================="
           echo "UTC: $(date -u)"
+          echo ""
+
           git log -1 --oneline
-          git status --short
+
+          echo ""
+          echo "Git status:"
+          git status --short || true
