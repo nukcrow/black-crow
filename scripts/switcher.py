@@ -18,12 +18,36 @@ import requests
 OUT_DIR = "sub/general"
 REMARK = "nukcrow"
 
-TOTAL_CONFIGS = 10000
-SUB_COUNT = 5
+# =========================================================
+# GENERAL SETTINGS
+# =========================================================
+
+TOTAL_CONFIGS = 20000
+
+SUB_COUNT = 10
 SUB_SIZE = 2000
 
-PROTOCOL_SIZE = 100
-IRAN_SIZE = 200
+# =========================================================
+# PROTOCOL SETTINGS
+# =========================================================
+
+PROTOCOL_SIZE = 1000
+
+# =========================================================
+# IRAN SETTINGS
+# =========================================================
+
+IRAN_SIZE = 1000
+
+# =========================================================
+# BOT SETTINGS
+# =========================================================
+
+BOT_SIZE = 1000
+
+# =========================================================
+# NETWORK SETTINGS
+# =========================================================
 
 FETCH_TIMEOUT = 15
 TEST_TIMEOUT = 2.0
@@ -31,173 +55,112 @@ TEST_TIMEOUT = 2.0
 FETCH_WORKERS = 30
 TEST_WORKERS = 150
 
-# Maximum configs taken from each source.
-# Large verified sources are allowed to contribute more.
-SOURCE_LIMIT = 5000
+SOURCE_LIMIT = 10000
+
+
+# =========================================================
+# SUPPORTED PROTOCOLS
+# =========================================================
 
 SUPPORTED_PROTOCOLS = {
     "vless",
     "vmess",
     "trojan",
     "ss",
-    "hysteria2",
-    "hy2",
 }
 
 
 # =========================================================
-# SOURCES
+# BOT SOURCES
+# =========================================================
+#
+# پنج منبع خالی برای خودت.
+# فقط URL هر منبع را داخل "" قرار بده.
+#
+# مثال:
+#
+# "https://example.com/source.txt",
+#
 # =========================================================
 
-# High-quality / heavily tested public aggregators.
-# 0xRadikal publishes a verified tier based on real HTTP
-# requests performed in multiple rounds.
-#
-# morpheusadam publishes measured bundles and an Iran bundle.
+BOT_SOURCES = [
+
+    # BOT SOURCE 1
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
+
+    # BOT SOURCE 2
+    "",
+
+    # BOT SOURCE 3
+    "",
+
+    # BOT SOURCE 4
+    "",
+
+    # BOT SOURCE 5
+    "",
+
+]
+
+
+# =========================================================
+# MAIN SOURCES
+# =========================================================
 
 SOURCES_PRIORITY = [
 
-    # -----------------------------------------------------
+    # =====================================================
     # 0xRadikal
-    # -----------------------------------------------------
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "0xRadikal/Free-v2ray-Configs/main/"
-        "verified/configs.txt"
-    ),
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/fast/configs.txt",
+    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "0xRadikal/Free-v2ray-Configs/main/"
-        "fast/configs.txt"
-    ),
+    # =====================================================
+    # FastNodes
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "0xRadikal/Free-v2ray-Configs/main/"
-        "all/configs.txt"
-    ),
+    "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/verified.txt",
+    "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/top.txt",
+    "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/everything.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "0xRadikal/Free-v2ray-Configs/main/"
-        "heavy/configs.txt"
-    ),
-
-    # -----------------------------------------------------
+    # =====================================================
     # morpheusadam
-    # -----------------------------------------------------
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "morpheusadam/v2ray-config/main/"
-        "subs/bundles/best.txt"
-    ),
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/lite.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/all.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/vless.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/vmess.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/trojan.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/shadowsocks.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "morpheusadam/v2ray-config/main/"
-        "subs/bundles/iran.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "morpheusadam/v2ray-config/main/"
-        "subs/bundles/lite.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "morpheusadam/v2ray-config/main/"
-        "subs/bundles/all.txt"
-    ),
-
-    # -----------------------------------------------------
+    # =====================================================
     # Iranian collectors
-    # -----------------------------------------------------
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "HosseinKoofi/GO_V2rayCollector/main/"
-        "mixed_iran.txt"
-    ),
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "HosseinKoofi/GO_V2rayCollector/main/"
-        "vless_iran.txt"
-    ),
+    # =====================================================
+    # Config Collector
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "HosseinKoofi/GO_V2rayCollector/main/"
-        "vmess_iran.txt"
-    ),
+    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "HosseinKoofi/GO_V2rayCollector/main/"
-        "trojan_iran.txt"
-    ),
+    # =====================================================
+    # snaCW
+    # =====================================================
 
-    (
-        "https://raw.githubusercontent.com/"
-        "HosseinKoofi/GO_V2rayCollector/main/"
-        "ss_iran.txt"
-    ),
+    "https://raw.githubusercontent.com/snaCW/Config/main/config.txt",
+    "https://raw.githubusercontent.com/snaCW/Config/main/proxy.txt",
 
-    (
-        "https://raw.githubusercontent.com/"
-        "youfoundamin/V2rayCollector/main/"
-        "vless_iran.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "youfoundamin/V2rayCollector/main/"
-        "ss_iran.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "iboxz/free-v2ray-collector/main/"
-        "main/mix"
-    ),
-
-    # -----------------------------------------------------
-    # General public sources
-    # -----------------------------------------------------
-
-    (
-        "https://raw.githubusercontent.com/"
-        "Epodonios/v2ray-configs/main/"
-        "All_Configs_Sub.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "barry-far/V2ray-Config/main/"
-        "All_Configs_Sub.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "SoliSpirit/v2ray-configs/main/"
-        "all_configs.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "mahdibland/ShadowsocksAggregator/master/"
-        "sub/sub_merge.txt"
-    ),
-
-    (
-        "https://raw.githubusercontent.com/"
-        "awesome-vpn/awesome-vpn/master/"
-        "all"
-    ),
 ]
 
 
@@ -206,6 +169,7 @@ SOURCES_PRIORITY = [
 # =========================================================
 
 def make_session():
+
     session = requests.Session()
 
     session.headers.update(
@@ -224,11 +188,13 @@ def make_session():
 
 
 # =========================================================
-# BASE64
+# BASE64 DECODER
 # =========================================================
 
 def decode64(value):
+
     try:
+
         if not value:
             return ""
 
@@ -252,6 +218,7 @@ def decode64(value):
         )
 
     except Exception:
+
         return ""
 
 
@@ -260,28 +227,30 @@ def decode64(value):
 # =========================================================
 
 def protocol(config):
+
     try:
-        scheme = (
+
+        return (
             config
-            .split("://", 1)[0]
+            .split(
+                "://",
+                1,
+            )[0]
             .strip()
             .lower()
         )
 
-        if scheme == "hy2":
-            return "hysteria2"
-
-        return scheme
-
     except Exception:
+
         return ""
 
 
 # =========================================================
-# CLEAN
+# CLEAN CONFIG
 # =========================================================
 
 def clean_config(config):
+
     if not config:
         return ""
 
@@ -294,8 +263,8 @@ def clean_config(config):
         .strip()
     )
 
-    # Remove existing remark.
     if "#" in config:
+
         config = config.split(
             "#",
             1,
@@ -314,27 +283,28 @@ URI_PATTERN = re.compile(
     r"vless|"
     r"vmess|"
     r"trojan|"
-    r"ss|"
-    r"hysteria2|"
-    r"hy2"
+    r"ss"
     r")://"
     r"[^\s<>'\"`]+"
 )
 
 
 def extract_uris(text):
+
     if not text:
         return []
 
     found = []
 
     def extract_from(value):
+
         if not value:
             return
 
         for item in URI_PATTERN.findall(
             value
         ):
+
             item = clean_config(
                 item.rstrip(
                     ".,;)]}>\"'`"
@@ -345,32 +315,47 @@ def extract_uris(text):
                 continue
 
             if protocol(item) in SUPPORTED_PROTOCOLS:
-                found.append(item)
 
-    # Plain text.
+                found.append(
+                    item
+                )
+
+    # Plain text
     extract_from(text)
 
-    # Base64.
-    decoded = decode64(text)
+    # Base64
+    decoded = decode64(
+        text
+    )
 
     if decoded:
-        extract_from(decoded)
 
-        # Some sources are encoded twice.
-        decoded2 = decode64(decoded)
+        extract_from(
+            decoded
+        )
+
+        # Double base64
+        decoded2 = decode64(
+            decoded
+        )
 
         if decoded2:
-            extract_from(decoded2)
+
+            extract_from(
+                decoded2
+            )
 
     return found
 
 
 # =========================================================
-# VMESS
+# VMESS PARSER
 # =========================================================
 
 def parse_vmess(config):
+
     try:
+
         payload = config.split(
             "://",
             1,
@@ -410,15 +395,18 @@ def parse_vmess(config):
         return host, port
 
     except Exception:
+
         return None
 
 
 # =========================================================
-# SS
+# SHADOWSOCKS PARSER
 # =========================================================
 
 def parse_ss(config):
+
     try:
+
         value = config.split(
             "://",
             1,
@@ -429,7 +417,6 @@ def parse_ss(config):
             1,
         )[0]
 
-        # ss://BASE64
         if "@" not in value:
 
             decoded = decode64(
@@ -477,6 +464,7 @@ def parse_ss(config):
         return host, port
 
     except Exception:
+
         return None
 
 
@@ -485,17 +473,21 @@ def parse_ss(config):
 # =========================================================
 
 def endpoint(config):
+
     try:
+
         p = protocol(
             config
         )
 
         if p == "vmess":
+
             return parse_vmess(
                 config
             )
 
         if p == "ss":
+
             return parse_ss(
                 config
             )
@@ -510,8 +502,11 @@ def endpoint(config):
             return None
 
         try:
+
             port = parsed.port
+
         except ValueError:
+
             return None
 
         if not port:
@@ -523,6 +518,7 @@ def endpoint(config):
         return host, port
 
     except Exception:
+
         return None
 
 
@@ -531,7 +527,9 @@ def endpoint(config):
 # =========================================================
 
 def valid_config(config):
+
     try:
+
         config = clean_config(
             config
         )
@@ -560,7 +558,7 @@ def valid_config(config):
         if not host:
             return False
 
-        if host in {
+        if host.lower() in {
             "localhost",
             "0.0.0.0",
             "::",
@@ -570,6 +568,7 @@ def valid_config(config):
         return True
 
     except Exception:
+
         return False
 
 
@@ -578,6 +577,7 @@ def valid_config(config):
 # =========================================================
 
 def fingerprint(config):
+
     return hashlib.sha256(
         clean_config(
             config
@@ -593,15 +593,18 @@ def fingerprint(config):
 # =========================================================
 
 def fetch_source(url):
+
     session = make_session()
 
     try:
+
         response = session.get(
             url,
             timeout=FETCH_TIMEOUT,
         )
 
         if response.status_code != 200:
+
             print(
                 f"[HTTP {response.status_code}] "
                 f"{url}"
@@ -614,6 +617,7 @@ def fetch_source(url):
         )
 
         result = []
+
         seen = set()
 
         for config in configs:
@@ -634,7 +638,9 @@ def fetch_source(url):
             if key in seen:
                 continue
 
-            seen.add(key)
+            seen.add(
+                key
+            )
 
             result.append(
                 config
@@ -652,6 +658,7 @@ def fetch_source(url):
         return result
 
     except Exception as exc:
+
         print(
             f"[FAILED] "
             f"{url} -> {exc}"
@@ -660,15 +667,71 @@ def fetch_source(url):
         return []
 
     finally:
+
         session.close()
 
 
 # =========================================================
-# COLLECT
+# UNIQUE
+# =========================================================
+
+def unique(configs):
+
+    result = []
+
+    seen = set()
+
+    for config in configs:
+
+        key = fingerprint(
+            config
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(
+            key
+        )
+
+        result.append(
+            config
+        )
+
+    return result
+
+
+# =========================================================
+# COLLECT ALL SOURCES
 # =========================================================
 
 def collect_sources():
+
     all_configs = []
+
+    sources = list(
+        SOURCES_PRIORITY
+    )
+
+    for url in BOT_SOURCES:
+
+        url = url.strip()
+
+        if url:
+
+            sources.append(
+                url
+            )
+
+    sources = list(
+        dict.fromkeys(
+            sources
+        )
+    )
+
+    print(
+        f"[SOURCES] {len(sources)}"
+    )
 
     with ThreadPoolExecutor(
         max_workers=FETCH_WORKERS
@@ -679,7 +742,7 @@ def collect_sources():
                 fetch_source,
                 url,
             ): url
-            for url in SOURCES_PRIORITY
+            for url in sources
         }
 
         for job in as_completed(
@@ -687,35 +750,18 @@ def collect_sources():
         ):
 
             try:
-                configs = job.result()
 
                 all_configs.extend(
-                    configs
+                    job.result()
                 )
 
             except Exception:
+
                 pass
 
-    # Global dedupe.
-    result = []
-    seen = set()
-
-    for config in all_configs:
-
-        key = fingerprint(
-            config
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        result.append(
-            config
-        )
-
-    return result
+    return unique(
+        all_configs
+    )
 
 
 # =========================================================
@@ -723,6 +769,7 @@ def collect_sources():
 # =========================================================
 
 def tcp_test(config):
+
     target = endpoint(
         config
     )
@@ -733,6 +780,7 @@ def tcp_test(config):
     host, port = target
 
     try:
+
         with socket.create_connection(
             (
                 host,
@@ -740,17 +788,24 @@ def tcp_test(config):
             ),
             timeout=TEST_TIMEOUT,
         ):
+
             return True
 
     except Exception:
+
         return False
 
 
+# =========================================================
+# BENCHMARK
+# =========================================================
+
 def benchmark(configs):
+
     alive = []
 
     print(
-        f"Testing {len(configs)} configs..."
+        f"[TEST] {len(configs)} configs"
     )
 
     with ThreadPoolExecutor(
@@ -772,108 +827,142 @@ def benchmark(configs):
             config = jobs[job]
 
             try:
+
                 if job.result():
+
                     alive.append(
                         config
                     )
 
             except Exception:
+
                 pass
 
-    alive.sort(
-        key=lambda x: fingerprint(x)
+    return unique(
+        alive
     )
 
-    return alive
+
+# =========================================================
+# PROTOCOL NAME
+# =========================================================
+
+def protocol_name(config):
+
+    p = protocol(
+        config
+    )
+
+    if p in {
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+    }:
+
+        return p
+
+    return ""
 
 
 # =========================================================
-# DEDUPE
+# MIXED POOL
 # =========================================================
 
-def unique(configs):
-    result = []
-    seen = set()
+def build_mixed_pool(configs):
+
+    pools = {
+        "vless": [],
+        "vmess": [],
+        "trojan": [],
+        "ss": [],
+    }
 
     for config in configs:
 
-        key = fingerprint(
+        p = protocol_name(
             config
         )
 
-        if key in seen:
-            continue
+        if p in pools:
 
-        seen.add(key)
+            pools[p].append(
+                config
+            )
 
-        result.append(
-            config
-        )
+    mixed = []
 
-    return result
+    indexes = {
+        "vless": 0,
+        "vmess": 0,
+        "trojan": 0,
+        "ss": 0,
+    }
 
+    order = [
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+    ]
 
-# =========================================================
-# PRIORITY ORDER
-# =========================================================
+    while len(mixed) < TOTAL_CONFIGS:
 
-def prioritize(configs):
-    """
-    Put preferred protocols and configs first.
-    No protocol is removed.
-    """
+        added = False
 
-    def score(config):
-        p = protocol(
-            config
-        )
+        for p in order:
 
-        value = 0
+            index = indexes[p]
 
-        if p == "vless":
-            value += 5
+            if index >= len(
+                pools[p]
+            ):
+                continue
 
-        elif p == "trojan":
-            value += 4
+            mixed.append(
+                pools[p][index]
+            )
 
-        elif p == "vmess":
-            value += 3
+            indexes[p] += 1
 
-        elif p == "hysteria2":
-            value += 3
+            added = True
 
-        elif p == "ss":
-            value += 2
+            if len(mixed) >= TOTAL_CONFIGS:
+                break
 
-        return -value
+        if not added:
+            break
 
-    return sorted(
-        configs,
-        key=score,
+    if len(mixed) < TOTAL_CONFIGS:
+
+        used = {
+            fingerprint(x)
+            for x in mixed
+        }
+
+        for config in configs:
+
+            key = fingerprint(
+                config
+            )
+
+            if key in used:
+                continue
+
+            mixed.append(
+                config
+            )
+
+            used.add(
+                key
+            )
+
+            if len(mixed) >= TOTAL_CONFIGS:
+                break
+
+    return unique(
+        mixed
     )
-
-
-# =========================================================
-# SELECT
-# =========================================================
-
-def select_exact(
-    configs,
-    count,
-    name,
-):
-    configs = unique(
-        configs
-    )
-
-    if len(configs) < count:
-        raise RuntimeError(
-            f"{name}: need "
-            f"{count}, got "
-            f"{len(configs)}"
-        )
-
-    return configs[:count]
 
 
 # =========================================================
@@ -881,6 +970,7 @@ def select_exact(
 # =========================================================
 
 def render(configs):
+
     lines = []
 
     for config in configs:
@@ -900,13 +990,14 @@ def render(configs):
 
 
 # =========================================================
-# ATOMIC WRITE
+# WRITE FILE
 # =========================================================
 
 def write_file(
     name,
     configs,
 ):
+
     os.makedirs(
         OUT_DIR,
         exist_ok=True,
@@ -930,12 +1021,14 @@ def write_file(
     ) as file:
 
         file.write(
-            render(configs)
+            render(
+                configs
+            )
         )
 
     os.replace(
         temp,
-        path,
+        path
     )
 
 
@@ -946,47 +1039,115 @@ def write_file(
 def write_protocols(
     configs
 ):
+
     protocols = {
         "vless": [],
         "vmess": [],
         "trojan": [],
         "ss": [],
-        "hysteria2": [],
     }
 
     for config in configs:
 
-        p = protocol(
+        p = protocol_name(
             config
         )
 
         if p in protocols:
+
             protocols[p].append(
                 config
             )
 
     for name, pool in protocols.items():
 
-        if not pool:
-            print(
-                f"[SKIP] {name}: no configs"
-            )
-            continue
+        pool = unique(
+            pool
+        )
 
-        selected = pool[
-            :PROTOCOL_SIZE
-        ]
+        if len(pool) < PROTOCOL_SIZE:
+
+            raise RuntimeError(
+                f"{name}.txt requires "
+                f"{PROTOCOL_SIZE}, "
+                f"got {len(pool)}"
+            )
 
         write_file(
             f"{name}.txt",
-            selected,
+            pool[:PROTOCOL_SIZE],
         )
 
         print(
             f"[WRITE] "
-            f"{name}.txt -> "
-            f"{len(selected)}"
+            f"{name}.txt = "
+            f"{PROTOCOL_SIZE}"
         )
+
+
+# =========================================================
+# IRAN SOURCES
+# =========================================================
+
+IRAN_SOURCE_KEYS = [
+    "iran",
+    "GO_V2rayCollector",
+    "Config-Collector",
+    "snaCW",
+]
+
+
+def get_iran_sources():
+
+    return [
+        url
+        for url in SOURCES_PRIORITY
+        if any(
+            key in url
+            for key in IRAN_SOURCE_KEYS
+        )
+    ]
+
+
+# =========================================================
+# COLLECT IRAN
+# =========================================================
+
+def collect_iran():
+
+    urls = get_iran_sources()
+
+    configs = []
+
+    with ThreadPoolExecutor(
+        max_workers=10
+    ) as executor:
+
+        jobs = [
+            executor.submit(
+                fetch_source,
+                url,
+            )
+            for url in urls
+        ]
+
+        for job in as_completed(
+            jobs
+        ):
+
+            try:
+
+                configs.extend(
+                    job.result()
+                )
+
+            except Exception:
+
+                pass
+
+    return unique(
+        configs
+    )
 
 
 # =========================================================
@@ -994,26 +1155,29 @@ def write_protocols(
 # =========================================================
 
 def write_iran(
-    iran_pool,
-    all_pool,
+    iran_configs,
+    global_configs,
 ):
-    iran_pool = unique(
-        iran_pool
+
+    iran_alive = benchmark(
+        iran_configs
     )
 
-    all_pool = unique(
-        all_pool
+    iran_alive = unique(
+        iran_alive
     )
 
-    # Use Iran pool first,
-    # then global verified/alive pool.
     combined = unique(
-        iran_pool
-        + all_pool
+        iran_alive
+        + global_configs
     )
 
-    if not combined:
-        return
+    if len(combined) < IRAN_SIZE:
+
+        raise RuntimeError(
+            "Not enough configs for "
+            "Iran files."
+        )
 
     selected = combined[
         :IRAN_SIZE
@@ -1034,19 +1198,109 @@ def write_iran(
 
         print(
             f"[WRITE] "
-            f"{name} -> "
-            f"{len(selected)}"
+            f"{name} = "
+            f"{IRAN_SIZE}"
         )
 
 
 # =========================================================
-# VERIFY OUTPUT
+# BOT
 # =========================================================
 
-def verify_file(
-    name,
-    expected,
-):
+def write_bot():
+
+    bot_configs = []
+
+    for url in BOT_SOURCES:
+
+        url = url.strip()
+
+        if not url:
+            continue
+
+        try:
+
+            bot_configs.extend(
+                fetch_source(
+                    url
+                )
+            )
+
+        except Exception:
+
+            pass
+
+    bot_configs = unique(
+        bot_configs
+    )
+
+    if not bot_configs:
+
+        write_file(
+            "bot.txt",
+            [],
+        )
+
+        print(
+            "[WRITE] bot.txt = 0"
+        )
+
+        return
+
+    bot_configs = benchmark(
+        bot_configs
+    )
+
+    bot_configs = unique(
+        bot_configs
+    )
+
+    selected = bot_configs[
+        :BOT_SIZE
+    ]
+
+    write_file(
+        "bot.txt",
+        selected,
+    )
+
+    print(
+        f"[WRITE] "
+        f"bot.txt = "
+        f"{len(selected)}"
+    )
+
+
+# =========================================================
+# REMOVE HYSTERIA2
+# =========================================================
+
+def remove_hysteria2():
+
+    path = os.path.join(
+        OUT_DIR,
+        "hysteria2.txt",
+    )
+
+    if os.path.exists(
+        path
+    ):
+
+        os.remove(
+            path
+        )
+
+        print(
+            "[REMOVE] hysteria2.txt"
+        )
+
+
+# =========================================================
+# READ FILE
+# =========================================================
+
+def read_lines(name):
+
     path = os.path.join(
         OUT_DIR,
         name,
@@ -1055,6 +1309,7 @@ def verify_file(
     if not os.path.exists(
         path
     ):
+
         raise RuntimeError(
             f"Missing file: {name}"
         )
@@ -1065,13 +1320,28 @@ def verify_file(
         encoding="utf-8",
     ) as file:
 
-        lines = [
-            x.strip()
-            for x in file
-            if x.strip()
+        return [
+            line.strip()
+            for line in file
+            if line.strip()
         ]
 
+
+# =========================================================
+# VERIFY FILE
+# =========================================================
+
+def verify_file(
+    name,
+    expected,
+):
+
+    lines = read_lines(
+        name
+    )
+
     if len(lines) != expected:
+
         raise RuntimeError(
             f"{name}: expected "
             f"{expected}, got "
@@ -1083,11 +1353,107 @@ def verify_file(
         if not line.endswith(
             f"#{REMARK}"
         ):
+
             raise RuntimeError(
                 f"{name}: invalid remark"
             )
 
-    return len(lines)
+    print(
+        f"[OK] {name} = {len(lines)}"
+    )
+
+
+# =========================================================
+# VERIFY SUBSCRIPTIONS
+# =========================================================
+
+def verify_subscriptions():
+
+    all_seen = set()
+
+    for index in range(
+        1,
+        SUB_COUNT + 1,
+    ):
+
+        name = (
+            f"sub{index}.txt"
+        )
+
+        verify_file(
+            name,
+            SUB_SIZE,
+        )
+
+        for line in read_lines(
+            name
+        ):
+
+            config = clean_config(
+                line
+            )
+
+            key = fingerprint(
+                config
+            )
+
+            if key in all_seen:
+
+                raise RuntimeError(
+                    f"Duplicate config "
+                    f"between subscriptions: "
+                    f"{name}"
+                )
+
+            all_seen.add(
+                key
+            )
+
+    if len(all_seen) != TOTAL_CONFIGS:
+
+        raise RuntimeError(
+            "Subscriptions are not "
+            "exactly unique."
+        )
+
+
+# =========================================================
+# VERIFY PROTOCOLS
+# =========================================================
+
+def verify_protocols():
+
+    for name in [
+        "vless.txt",
+        "vmess.txt",
+        "trojan.txt",
+        "ss.txt",
+    ]:
+
+        verify_file(
+            name,
+            PROTOCOL_SIZE,
+        )
+
+
+# =========================================================
+# VERIFY HYSTERIA
+# =========================================================
+
+def verify_no_hysteria():
+
+    path = os.path.join(
+        OUT_DIR,
+        "hysteria2.txt",
+    )
+
+    if os.path.exists(
+        path
+    ):
+
+        raise RuntimeError(
+            "hysteria2.txt must not exist."
+        )
 
 
 # =========================================================
@@ -1107,12 +1473,26 @@ def main():
     )
 
     print(
-        "5 subscriptions x 2000"
+        "SUBSCRIPTIONS : 10 x 2000"
+    )
+
+    print(
+        "TOTAL         : 20000"
+    )
+
+    print(
+        "PROTOCOLS     : 1000 EACH"
     )
 
     print(
         "=" * 70
     )
+
+    # -----------------------------------------------------
+    # REMOVE HYSTERIA2
+    # -----------------------------------------------------
+
+    remove_hysteria2()
 
     # -----------------------------------------------------
     # COLLECT
@@ -1125,11 +1505,11 @@ def main():
     )
 
     print(
-        f"Collected unique: "
-        f"{len(collected)}"
+        f"[COLLECTED] {len(collected)}"
     )
 
     if not collected:
+
         raise RuntimeError(
             "No valid configs collected."
         )
@@ -1147,43 +1527,55 @@ def main():
     )
 
     print(
-        f"TCP alive: "
-        f"{len(alive)}"
+        f"[ALIVE] {len(alive)}"
     )
 
     if len(alive) < TOTAL_CONFIGS:
+
         raise RuntimeError(
             "Not enough alive configs. "
-            f"Required {TOTAL_CONFIGS}, "
-            f"got {len(alive)}."
+            f"Required: {TOTAL_CONFIGS}, "
+            f"Available: {len(alive)}"
         )
 
     # -----------------------------------------------------
-    # PRIORITIZE
+    # MIX
     # -----------------------------------------------------
 
-    alive = prioritize(
+    mixed = build_mixed_pool(
         alive
     )
 
-    # -----------------------------------------------------
-    # GENERAL 10000
-    # -----------------------------------------------------
-
-    all_configs = select_exact(
-        alive,
-        TOTAL_CONFIGS,
-        "all_configs.txt",
+    mixed = unique(
+        mixed
     )
 
-    write_file(
-        "all_configs.txt",
-        all_configs,
-    )
+    if len(mixed) < TOTAL_CONFIGS:
+
+        raise RuntimeError(
+            "Unable to create "
+            "20000 unique configs."
+        )
+
+    all_configs = mixed[
+        :TOTAL_CONFIGS
+    ]
 
     # -----------------------------------------------------
-    # SUB 1-5
+    # SUB 1 - 10
     # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "SUBSCRIPTIONS"
+    )
+
+    print(
+        "=" * 70
+    )
 
     for index in range(
         SUB_COUNT
@@ -1204,10 +1596,11 @@ def main():
         ]
 
         if len(chunk) != SUB_SIZE:
+
             raise RuntimeError(
                 f"sub{index + 1}.txt "
-                f"does not contain "
-                f"{SUB_SIZE} configs."
+                f"must contain "
+                f"{SUB_SIZE}"
             )
 
         write_file(
@@ -1215,129 +1608,136 @@ def main():
             chunk,
         )
 
-    # -----------------------------------------------------
-    # IRAN
-    # -----------------------------------------------------
-
-    iran_configs = []
-
-    for config in alive:
-
-        # Prefer endpoints that are commonly
-        # found in Iran-oriented pools.
-        #
-        # The actual network location is NOT inferred here.
-        # We simply preserve configs originating from
-        # Iran-oriented sources separately below.
-        pass
-
-    # Re-fetch Iran-oriented sources separately.
-    iran_urls = [
-        x
-        for x in SOURCES_PRIORITY
-        if any(
-            key in x
-            for key in [
-                "iran",
-                "GO_V2rayCollector",
-                "V2rayCollector",
-                "iboxz",
-            ]
-        )
-    ]
-
-    with ThreadPoolExecutor(
-        max_workers=10
-    ) as executor:
-
-        jobs = [
-            executor.submit(
-                fetch_source,
-                url,
-            )
-            for url in iran_urls
-        ]
-
-        for job in as_completed(
-            jobs
-        ):
-
-            try:
-                iran_configs.extend(
-                    job.result()
-                )
-            except Exception:
-                pass
-
-    iran_configs = unique(
-        iran_configs
-    )
-
-    iran_alive = benchmark(
-        iran_configs
-    )
-
-    iran_alive = unique(
-        iran_alive
-    )
-
-    # -----------------------------------------------------
-    # IRAN OUTPUTS
-    # -----------------------------------------------------
-
-    if iran_alive:
-        write_iran(
-            iran_alive,
-            all_configs,
+        print(
+            f"[WRITE] "
+            f"sub{index + 1}.txt = "
+            f"{len(chunk)}"
         )
 
     # -----------------------------------------------------
-    # PROTOCOL OUTPUTS
+    # PROTOCOLS
     # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "PROTOCOLS"
+    )
+
+    print(
+        "=" * 70
+    )
 
     write_protocols(
         all_configs
     )
 
     # -----------------------------------------------------
-    # VERIFY GENERAL
+    # IRAN
     # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "IRAN"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    iran_configs = collect_iran()
+
+    write_iran(
+        iran_configs,
+        all_configs,
+    )
+
+    # -----------------------------------------------------
+    # BOT
+    # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "BOT"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    write_bot()
+
+    # -----------------------------------------------------
+    # ALL CONFIGS
+    # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "ALL CONFIGS"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    write_file(
+        "all_configs.txt",
+        all_configs,
+    )
+
+    # -----------------------------------------------------
+    # VERIFY
+    # -----------------------------------------------------
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "VERIFY"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    verify_subscriptions()
+
+    verify_protocols()
 
     verify_file(
         "all_configs.txt",
         TOTAL_CONFIGS,
     )
 
-    for index in range(
-        SUB_COUNT
-    ):
-        verify_file(
-            f"sub{index + 1}.txt",
-            SUB_SIZE,
-        )
-
-    # -----------------------------------------------------
-    # VERIFY REMARK
-    # -----------------------------------------------------
-
     for name in [
-        "all_configs.txt",
-        "sub1.txt",
-        "sub2.txt",
-        "sub3.txt",
-        "sub4.txt",
-        "sub5.txt",
+        "best_iran.txt",
+        "mix_iran.txt",
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
     ]:
 
         verify_file(
             name,
-            TOTAL_CONFIGS
-            if name == "all_configs.txt"
-            else SUB_SIZE,
+            IRAN_SIZE,
         )
 
+    verify_no_hysteria()
+
     # -----------------------------------------------------
-    # SUMMARY
+    # DONE
     # -----------------------------------------------------
 
     elapsed = (
@@ -1350,7 +1750,7 @@ def main():
     )
 
     print(
-        "DONE"
+        "NUKCROW UPDATE COMPLETE"
     )
 
     print(
@@ -1362,11 +1762,15 @@ def main():
     )
 
     print(
-        f"General   : {TOTAL_CONFIGS}"
+        f"Subs      : {SUB_COUNT} x {SUB_SIZE}"
     )
 
     print(
-        f"Subs      : {SUB_COUNT} x {SUB_SIZE}"
+        f"All       : {TOTAL_CONFIGS}"
+    )
+
+    print(
+        f"Protocols : {PROTOCOL_SIZE} each"
     )
 
     print(
