@@ -52,31 +52,23 @@ SUPPORTED_PROTOCOLS = {
 # ============================================================
 
 SOURCES_PRIORITY = [
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/fast/configs.txt",
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
-
-    "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/verified.txt",
-    "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/top.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/all.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/mini.txt",
+    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/lite.txt",
     "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/everything.txt",
-
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best.txt",
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/lite.txt",
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/all.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/vless.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/vmess.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/trojan.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/shadowsocks.txt",
-
+    "https://raw.githubusercontent.com/MohammadBahemmat/V2ray-Collector/refs/heads/main/servers/vless_servers.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
-
-    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
-
+    "https://raw.githubusercontent.com/svinakraft-maker/FlareFeed/refs/heads/main/public/Top500.txt",
     "https://raw.githubusercontent.com/snaCW/Config/main/config.txt",
     "https://raw.githubusercontent.com/snaCW/Config/main/proxy.txt",
 ]
@@ -87,8 +79,8 @@ SOURCES_PRIORITY = [
 # ============================================================
 
 BOT_SOURCES = [
-    "",
-    "",
+    "https://raw.githubusercontent.com/V2RAYCONFIGSPOOL/V2RAY_SUB/refs/heads/main/v2ray_configs_no10.txt",
+    "https://raw.githubusercontent.com/iboxz/free-v2ray-collector/refs/heads/main/main/mix.txt",
     "",
     "",
     "",
