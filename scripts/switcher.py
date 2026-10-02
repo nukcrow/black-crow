@@ -3551,194 +3551,56 @@ def write_general(good):
 # PROTOCOL FILES
 # ============================================================
 
-def write_protocols(
-    good,
-    alive_all,
-    all_unique,
-):
-    print(
-        "\nWriting protocol subscriptions..."
-    )
-
-    for ptype in [
+def write_protocols(records):
+    protocol_names = [
         "vless",
         "vmess",
         "trojan",
         "ss",
         "hysteria2",
-    ]:
+    ]
 
-        def predicate(
-            config,
-            p=ptype,
-        ):
-            current = proto(
-                config
+    groups = {
+        name: []
+        for name in protocol_names
+    }
+
+    for record in records:
+        try:
+            config = record.get("config", "")
+            protocol = proto(config)
+
+            # hy2:// و hysteria2:// هر دو → hysteria2
+            if protocol == "hy2":
+                protocol = "hysteria2"
+
+            if protocol in groups:
+                groups[protocol].append(record)
+
+        except Exception:
+            continue
+
+    outputs = {}
+
+    for protocol in protocol_names:
+        pool = groups[protocol]
+
+        if not pool:
+            raise RuntimeError(
+                f"No available {protocol} configs"
             )
 
-            if p == "hysteria2":
-                return current in {
-                    "hysteria2",
-                    "hy2",
-                }
-
-            return current == p
-
-        selected = select_records(
-            good,
+        selected = select_subscription(
+            pool,
             PROTOCOL_SUB_SIZE,
-            predicate,
+            host_cap=MAX_PER_HOST,
         )
 
-        if not selected:
-            raise RuntimeError(
-                f"No available "
-                f"{ptype} configs"
-            )
-
-        rendered = render_records(
+        outputs[f"{protocol}.txt"] = render_records(
             selected
         )
 
-        if not rendered:
-            raise RuntimeError(
-                f"No rendered "
-                f"{ptype} configs"
-            )
-
-        write_file(
-            f"{ptype}.txt",
-            rendered,
-        )
-
-
-# ============================================================
-# IRAN / OPERATORS
-# ============================================================
-
-def fill_records(
-    primary,
-    fallback_groups,
-    limit,
-):
-    groups = [
-        primary,
-        *fallback_groups,
-    ]
-
-    ordered = []
-
-    for group in groups:
-        ordered.extend(
-            record
-            for record in group
-            if record.get(
-                "alive"
-            )
-        )
-
-    return select_records(
-        ordered,
-        limit,
-    )
-
-
-def write_iran(
-    good_iran,
-    good_mci,
-    good_irancell,
-    good_rightel,
-    good_all,
-):
-    print(
-        "\nWriting Iran/operator subscriptions..."
-    )
-
-    def write_operator(
-        filename,
-        primary,
-        fallbacks,
-    ):
-        selected = fill_records(
-            primary,
-            fallbacks,
-            IRAN_SUB_SIZE,
-        )
-
-        if len(selected) < IRAN_SUB_SIZE:
-            raise RuntimeError(
-                f"{filename}: only "
-                f"{len(selected)}/"
-                f"{IRAN_SUB_SIZE} "
-                f"available configs"
-            )
-
-        write_file(
-            filename,
-            render_records(
-                selected
-            ),
-        )
-
-    write_operator(
-        "mci.txt",
-        good_mci,
-        [
-            good_iran,
-            good_all,
-        ],
-    )
-
-    write_operator(
-        "irancell.txt",
-        good_irancell,
-        [
-            good_iran,
-            good_all,
-        ],
-    )
-
-    write_operator(
-        "rightel.txt",
-        good_rightel,
-        [
-            good_iran,
-            good_all,
-        ],
-    )
-
-    write_operator(
-        "best_iran.txt",
-        good_iran,
-        [
-            good_all,
-        ],
-    )
-
-    pool = select_records(
-        good_iran + good_all,
-        IRAN_SUB_SIZE * 3,
-    )
-
-    random.shuffle(pool)
-
-    mix_selected = pool[
-        :IRAN_SUB_SIZE
-    ]
-
-    if len(mix_selected) < IRAN_SUB_SIZE:
-        raise RuntimeError(
-            "Could not create "
-            "mix_iran.txt"
-        )
-
-    write_file(
-        "mix_iran.txt",
-        render_records(
-            mix_selected
-        ),
-    )
-
+    write_outputs_atomic(outputs)
 
 # ============================================================
 # SUMMARY
