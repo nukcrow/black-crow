@@ -18,6 +18,7 @@ import requests
 OUT_DIR = "sub/general"
 REMARK = "nukcrow"
 
+
 # =========================================================
 # GENERAL SETTINGS
 # =========================================================
@@ -27,11 +28,13 @@ TOTAL_CONFIGS = 20000
 SUB_COUNT = 10
 SUB_SIZE = 2000
 
+
 # =========================================================
 # PROTOCOL SETTINGS
 # =========================================================
 
 PROTOCOL_SIZE = 1000
+
 
 # =========================================================
 # IRAN SETTINGS
@@ -39,11 +42,13 @@ PROTOCOL_SIZE = 1000
 
 IRAN_SIZE = 1000
 
+
 # =========================================================
 # BOT SETTINGS
 # =========================================================
 
 BOT_SIZE = 1000
+
 
 # =========================================================
 # NETWORK SETTINGS
@@ -52,10 +57,10 @@ BOT_SIZE = 1000
 FETCH_TIMEOUT = 15
 TEST_TIMEOUT = 2.0
 
-FETCH_WORKERS = 30
-TEST_WORKERS = 150
+FETCH_WORKERS = 40
+TEST_WORKERS = 180
 
-SOURCE_LIMIT = 10000
+SOURCE_LIMIT = 50000
 
 
 # =========================================================
@@ -74,19 +79,14 @@ SUPPORTED_PROTOCOLS = {
 # BOT SOURCES
 # =========================================================
 #
-# پنج منبع خالی برای خودت.
-# فقط URL هر منبع را داخل "" قرار بده.
-#
-# مثال:
-#
-# "https://example.com/source.txt",
+# پنج جای خالی برای منابع خودت
 #
 # =========================================================
 
 BOT_SOURCES = [
 
     # BOT SOURCE 1
-    "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
+    "",
 
     # BOT SOURCE 2
     "",
@@ -165,7 +165,7 @@ SOURCES_PRIORITY = [
 
 
 # =========================================================
-# HTTP SESSION
+# SESSION
 # =========================================================
 
 def make_session():
@@ -188,7 +188,7 @@ def make_session():
 
 
 # =========================================================
-# BASE64 DECODER
+# BASE64
 # =========================================================
 
 def decode64(value):
@@ -246,7 +246,7 @@ def protocol(config):
 
 
 # =========================================================
-# CLEAN CONFIG
+# CLEAN
 # =========================================================
 
 def clean_config(config):
@@ -263,10 +263,11 @@ def clean_config(config):
         .strip()
     )
 
-    if "#" in config:
+    # فقط remark قبلی را حذف می‌کنیم
+    if "#nukcrow" in config:
 
         config = config.split(
-            "#",
+            "#nukcrow",
             1,
         )[0]
 
@@ -274,7 +275,7 @@ def clean_config(config):
 
 
 # =========================================================
-# URI EXTRACTION
+# URI PATTERN
 # =========================================================
 
 URI_PATTERN = re.compile(
@@ -289,67 +290,166 @@ URI_PATTERN = re.compile(
 )
 
 
+# =========================================================
+# ADD EXTRACTED CONFIG
+# =========================================================
+
+def add_extracted(
+    config,
+    found,
+    seen,
+):
+
+    config = clean_config(
+        config
+    )
+
+    if not config:
+        return
+
+    p = protocol(
+        config
+    )
+
+    if p not in SUPPORTED_PROTOCOLS:
+        return
+
+    if not valid_config(
+        config
+    ):
+        return
+
+    key = fingerprint(
+        config
+    )
+
+    if key in seen:
+        return
+
+    seen.add(
+        key
+    )
+
+    found.append(
+        config
+    )
+
+
+# =========================================================
+# EXTRACT URIS
+# =========================================================
+
 def extract_uris(text):
 
     if not text:
         return []
 
     found = []
+    seen = set()
 
-    def extract_from(value):
+    # =====================================================
+    # DIRECT URI SEARCH
+    # =====================================================
 
-        if not value:
-            return
+    for match in URI_PATTERN.finditer(
+        text
+    ):
 
-        for item in URI_PATTERN.findall(
-            value
+        add_extracted(
+            match.group(0),
+            found,
+            seen,
+        )
+
+    # =====================================================
+    # LINE BY LINE
+    # =====================================================
+
+    for raw_line in text.splitlines():
+
+        line = raw_line.strip()
+
+        if not line:
+            continue
+
+        line = line.strip(
+            "\"'` ,;"
+        )
+
+        # -------------------------------------------------
+        # Direct URI
+        # -------------------------------------------------
+
+        if re.match(
+            r"(?i)^(vless|vmess|trojan|ss)://",
+            line,
         ):
 
-            item = clean_config(
-                item.rstrip(
-                    ".,;)]}>\"'`"
-                )
+            add_extracted(
+                line,
+                found,
+                seen,
             )
 
-            if not item:
-                continue
+            continue
 
-            if protocol(item) in SUPPORTED_PROTOCOLS:
+        # -------------------------------------------------
+        # Multiple URIs
+        # -------------------------------------------------
 
-                found.append(
-                    item
+        for item in URI_PATTERN.findall(
+            line
+        ):
+
+            add_extracted(
+                item,
+                found,
+                seen,
+            )
+
+        # -------------------------------------------------
+        # Base64 subscription
+        # -------------------------------------------------
+
+        decoded = decode64(
+            line
+        )
+
+        if decoded:
+
+            for item in URI_PATTERN.findall(
+                decoded
+            ):
+
+                add_extracted(
+                    item,
+                    found,
+                    seen,
                 )
 
-    # Plain text
-    extract_from(text)
+            for decoded_line in decoded.splitlines():
 
-    # Base64
-    decoded = decode64(
-        text
-    )
+                decoded_line = decoded_line.strip()
 
-    if decoded:
+                if not decoded_line:
+                    continue
 
-        extract_from(
-            decoded
-        )
+                if re.match(
+                    r"(?i)^(vless|vmess|trojan|ss)://",
+                    decoded_line,
+                ):
 
-        # Double base64
-        decoded2 = decode64(
-            decoded
-        )
-
-        if decoded2:
-
-            extract_from(
-                decoded2
-            )
+                    add_extracted(
+                        decoded_line,
+                        found,
+                        seen,
+                    )
 
     return found
 
 
 # =========================================================
-# VMESS PARSER
+# VMESS
 # =========================================================
 
 def parse_vmess(config):
@@ -400,65 +500,206 @@ def parse_vmess(config):
 
 
 # =========================================================
-# SHADOWSOCKS PARSER
+# SHADOWSOCKS
 # =========================================================
 
 def parse_ss(config):
 
     try:
 
-        value = config.split(
-            "://",
-            1,
-        )[1]
+        config = clean_config(
+            config
+        )
 
+        if not config.lower().startswith(
+            "ss://"
+        ):
+            return None
+
+        value = config[5:]
+
+        # Remove remark
         value = value.split(
             "#",
             1,
         )[0]
 
-        if "@" not in value:
+        # Remove plugin/query
+        value = value.split(
+            "?",
+            1,
+        )[0]
 
-            decoded = decode64(
-                value
-            )
+        value = value.rstrip(
+            "/"
+        )
 
-            if not decoded:
-                return None
-
-            value = decoded
-
-        if "@" not in value:
+        if not value:
             return None
 
-        userinfo, address = value.rsplit(
+        # =================================================
+        # SIP002
+        #
+        # ss://userinfo@host:port
+        # =================================================
+
+        if "@" in value:
+
+            userinfo, address = value.rsplit(
+                "@",
+                1,
+            )
+
+            decoded_userinfo = decode64(
+                userinfo
+            )
+
+            if (
+                decoded_userinfo
+                and ":"
+                in decoded_userinfo
+            ):
+
+                userinfo = decoded_userinfo
+
+            if ":" not in userinfo:
+                return None
+
+            # IPv6
+            if address.startswith("["):
+
+                closing = address.find(
+                    "]"
+                )
+
+                if closing == -1:
+                    return None
+
+                host = address[
+                    1:closing
+                ]
+
+                remainder = address[
+                    closing + 1:
+                ]
+
+                if not remainder.startswith(
+                    ":"
+                ):
+                    return None
+
+                port_text = remainder[1:]
+
+            else:
+
+                if ":" not in address:
+                    return None
+
+                host, port_text = address.rsplit(
+                    ":",
+                    1,
+                )
+
+            host = host.strip()
+
+            port_text = port_text.strip()
+
+            if not host or not port_text:
+                return None
+
+            try:
+
+                port = int(
+                    port_text
+                )
+
+            except ValueError:
+
+                return None
+
+            if not 1 <= port <= 65535:
+                return None
+
+            return host, port
+
+        # =================================================
+        # LEGACY BASE64
+        #
+        # ss://BASE64(method:password@host:port)
+        # =================================================
+
+        decoded = decode64(
+            value
+        )
+
+        if not decoded:
+            return None
+
+        decoded = decoded.strip()
+
+        if "@" not in decoded:
+            return None
+
+        userinfo, address = decoded.rsplit(
             "@",
             1,
         )
 
-        if ":" not in address:
+        if ":" not in userinfo:
             return None
 
-        host, port_text = address.rsplit(
-            ":",
-            1,
-        )
+        if address.startswith("["):
 
-        host = host.strip(
-            "[] "
-        )
+            closing = address.find(
+                "]"
+            )
 
-        port = int(
-            port_text
-        )
+            if closing == -1:
+                return None
 
-        if not host:
+            host = address[
+                1:closing
+            ]
+
+            remainder = address[
+                closing + 1:
+            ]
+
+            if not remainder.startswith(
+                ":"
+            ):
+                return None
+
+            port_text = remainder[1:]
+
+        else:
+
+            if ":" not in address:
+                return None
+
+            host, port_text = address.rsplit(
+                ":",
+                1,
+            )
+
+        host = host.strip()
+
+        port_text = port_text.strip()
+
+        if not host or not port_text:
+            return None
+
+        try:
+
+            port = int(
+                port_text
+            )
+
+        except ValueError:
+
             return None
 
         if not 1 <= port <= 65535:
-            return None
-
-        if ":" not in userinfo:
             return None
 
         return host, port
@@ -589,7 +830,7 @@ def fingerprint(config):
 
 
 # =========================================================
-# FETCH SOURCE
+# FETCH
 # =========================================================
 
 def fetch_source(url):
@@ -616,46 +857,19 @@ def fetch_source(url):
             response.text
         )
 
-        result = []
+        if len(configs) > SOURCE_LIMIT:
 
-        seen = set()
-
-        for config in configs:
-
-            config = clean_config(
-                config
-            )
-
-            if not valid_config(
-                config
-            ):
-                continue
-
-            key = fingerprint(
-                config
-            )
-
-            if key in seen:
-                continue
-
-            seen.add(
-                key
-            )
-
-            result.append(
-                config
-            )
-
-            if len(result) >= SOURCE_LIMIT:
-                break
+            configs = configs[
+                :SOURCE_LIMIT
+            ]
 
         print(
             f"[SOURCE] "
-            f"{len(result):5d} "
+            f"{len(configs):5d} "
             f"{url}"
         )
 
-        return result
+        return configs
 
     except Exception as exc:
 
@@ -683,6 +897,13 @@ def unique(configs):
 
     for config in configs:
 
+        config = clean_config(
+            config
+        )
+
+        if not config:
+            continue
+
         key = fingerprint(
             config
         )
@@ -702,7 +923,7 @@ def unique(configs):
 
 
 # =========================================================
-# COLLECT ALL SOURCES
+# COLLECT
 # =========================================================
 
 def collect_sources():
@@ -804,6 +1025,9 @@ def benchmark(configs):
 
     alive = []
 
+    if not configs:
+        return alive
+
     print(
         f"[TEST] {len(configs)} configs"
     )
@@ -853,12 +1077,7 @@ def protocol_name(config):
         config
     )
 
-    if p in {
-        "vless",
-        "vmess",
-        "trojan",
-        "ss",
-    }:
+    if p in SUPPORTED_PROTOCOLS:
 
         return p
 
@@ -933,6 +1152,9 @@ def build_mixed_pool(configs):
         if not added:
             break
 
+    # اگر pool متوازن نبود،
+    # بقیه کانفیگ‌های موجود را هم اضافه کن.
+
     if len(mixed) < TOTAL_CONFIGS:
 
         used = {
@@ -971,6 +1193,9 @@ def build_mixed_pool(configs):
 
 def render(configs):
 
+    if not configs:
+        return ""
+
     lines = []
 
     for config in configs:
@@ -979,9 +1204,14 @@ def render(configs):
             config
         )
 
-        lines.append(
-            f"{config}#{REMARK}"
-        )
+        if config:
+
+            lines.append(
+                f"{config}#{REMARK}"
+            )
+
+    if not lines:
+        return ""
 
     return (
         "\n".join(lines)
@@ -990,7 +1220,7 @@ def render(configs):
 
 
 # =========================================================
-# WRITE FILE
+# WRITE
 # =========================================================
 
 def write_file(
@@ -1033,12 +1263,16 @@ def write_file(
 
 
 # =========================================================
-# PROTOCOL FILES
+# WRITE PROTOCOLS
+# =========================================================
+#
+# IMPORTANT:
+# کمتر از 1000 بودن خطا نیست.
+# همان تعداد موجود نوشته می‌شود.
+#
 # =========================================================
 
-def write_protocols(
-    configs
-):
+def write_protocols(configs):
 
     protocols = {
         "vless": [],
@@ -1065,23 +1299,19 @@ def write_protocols(
             pool
         )
 
-        if len(pool) < PROTOCOL_SIZE:
-
-            raise RuntimeError(
-                f"{name}.txt requires "
-                f"{PROTOCOL_SIZE}, "
-                f"got {len(pool)}"
-            )
+        selected = pool[
+            :PROTOCOL_SIZE
+        ]
 
         write_file(
             f"{name}.txt",
-            pool[:PROTOCOL_SIZE],
+            selected,
         )
 
         print(
             f"[WRITE] "
             f"{name}.txt = "
-            f"{PROTOCOL_SIZE}"
+            f"{len(selected)}"
         )
 
 
@@ -1119,6 +1349,9 @@ def collect_iran():
 
     configs = []
 
+    if not urls:
+        return []
+
     with ThreadPoolExecutor(
         max_workers=10
     ) as executor:
@@ -1151,7 +1384,12 @@ def collect_iran():
 
 
 # =========================================================
-# IRAN FILES
+# WRITE IRAN
+# =========================================================
+#
+# کمتر از 1000 بودن خطا نیست.
+# هر مقدار موجود نوشته می‌شود.
+#
 # =========================================================
 
 def write_iran(
@@ -1171,13 +1409,6 @@ def write_iran(
         iran_alive
         + global_configs
     )
-
-    if len(combined) < IRAN_SIZE:
-
-        raise RuntimeError(
-            "Not enough configs for "
-            "Iran files."
-        )
 
     selected = combined[
         :IRAN_SIZE
@@ -1199,7 +1430,7 @@ def write_iran(
         print(
             f"[WRITE] "
             f"{name} = "
-            f"{IRAN_SIZE}"
+            f"{len(selected)}"
         )
 
 
@@ -1247,15 +1478,15 @@ def write_bot():
 
         return
 
-    bot_configs = benchmark(
+    bot_alive = benchmark(
         bot_configs
     )
 
-    bot_configs = unique(
-        bot_configs
+    bot_alive = unique(
+        bot_alive
     )
 
-    selected = bot_configs[
+    selected = bot_alive[
         :BOT_SIZE
     ]
 
@@ -1296,7 +1527,7 @@ def remove_hysteria2():
 
 
 # =========================================================
-# READ FILE
+# READ
 # =========================================================
 
 def read_lines(name):
@@ -1328,10 +1559,10 @@ def read_lines(name):
 
 
 # =========================================================
-# VERIFY FILE
+# VERIFY EXACT FILE
 # =========================================================
 
-def verify_file(
+def verify_exact_file(
     name,
     expected,
 ):
@@ -1345,6 +1576,59 @@ def verify_file(
         raise RuntimeError(
             f"{name}: expected "
             f"{expected}, got "
+            f"{len(lines)}"
+        )
+
+    for line in lines:
+
+        if not line.endswith(
+            f"#{REMARK}"
+        ):
+
+            raise RuntimeError(
+                f"{name}: invalid remark"
+            )
+
+    print(
+        f"[OK] {name} = {len(lines)}"
+    )
+
+
+# =========================================================
+# VERIFY OPTIONAL FILE
+# =========================================================
+#
+# 0 تا 1000 قابل قبول است.
+#
+# =========================================================
+
+def verify_optional_file(
+    name,
+    maximum,
+):
+
+    path = os.path.join(
+        OUT_DIR,
+        name,
+    )
+
+    if not os.path.exists(
+        path
+    ):
+
+        raise RuntimeError(
+            f"Missing file: {name}"
+        )
+
+    lines = read_lines(
+        name
+    )
+
+    if len(lines) > maximum:
+
+        raise RuntimeError(
+            f"{name}: maximum "
+            f"{maximum}, got "
             f"{len(lines)}"
         )
 
@@ -1380,7 +1664,7 @@ def verify_subscriptions():
             f"sub{index}.txt"
         )
 
-        verify_file(
+        verify_exact_file(
             name,
             SUB_SIZE,
         )
@@ -1430,14 +1714,46 @@ def verify_protocols():
         "ss.txt",
     ]:
 
-        verify_file(
+        verify_optional_file(
             name,
             PROTOCOL_SIZE,
         )
 
 
 # =========================================================
-# VERIFY HYSTERIA
+# VERIFY IRAN
+# =========================================================
+
+def verify_iran():
+
+    for name in [
+        "best_iran.txt",
+        "mix_iran.txt",
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
+    ]:
+
+        verify_optional_file(
+            name,
+            IRAN_SIZE,
+        )
+
+
+# =========================================================
+# VERIFY BOT
+# =========================================================
+
+def verify_bot():
+
+    verify_optional_file(
+        "bot.txt",
+        BOT_SIZE,
+    )
+
+
+# =========================================================
+# VERIFY NO HYSTERIA2
 # =========================================================
 
 def verify_no_hysteria():
@@ -1481,22 +1797,30 @@ def main():
     )
 
     print(
-        "PROTOCOLS     : 1000 EACH"
+        "PROTOCOLS     : up to 1000 each"
+    )
+
+    print(
+        "IRAN          : up to 1000 each"
+    )
+
+    print(
+        "HYSTERIA2     : DISABLED"
     )
 
     print(
         "=" * 70
     )
 
-    # -----------------------------------------------------
-    # REMOVE HYSTERIA2
-    # -----------------------------------------------------
+    # =====================================================
+    # REMOVE OLD HYSTERIA2
+    # =====================================================
 
     remove_hysteria2()
 
-    # -----------------------------------------------------
+    # =====================================================
     # COLLECT
-    # -----------------------------------------------------
+    # =====================================================
 
     collected = collect_sources()
 
@@ -1514,9 +1838,9 @@ def main():
             "No valid configs collected."
         )
 
-    # -----------------------------------------------------
+    # =====================================================
     # TEST
-    # -----------------------------------------------------
+    # =====================================================
 
     alive = benchmark(
         collected
@@ -1530,17 +1854,18 @@ def main():
         f"[ALIVE] {len(alive)}"
     )
 
+    # =====================================================
+    # MAIN 20000
+    # =====================================================
+
     if len(alive) < TOTAL_CONFIGS:
 
         raise RuntimeError(
-            "Not enough alive configs. "
+            "Not enough alive configs "
+            "for the 20000 subscription pool. "
             f"Required: {TOTAL_CONFIGS}, "
             f"Available: {len(alive)}"
         )
-
-    # -----------------------------------------------------
-    # MIX
-    # -----------------------------------------------------
 
     mixed = build_mixed_pool(
         alive
@@ -1561,9 +1886,9 @@ def main():
         :TOTAL_CONFIGS
     ]
 
-    # -----------------------------------------------------
+    # =====================================================
     # SUB 1 - 10
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1595,14 +1920,6 @@ def main():
             start:end
         ]
 
-        if len(chunk) != SUB_SIZE:
-
-            raise RuntimeError(
-                f"sub{index + 1}.txt "
-                f"must contain "
-                f"{SUB_SIZE}"
-            )
-
         write_file(
             f"sub{index + 1}.txt",
             chunk,
@@ -1614,9 +1931,9 @@ def main():
             f"{len(chunk)}"
         )
 
-    # -----------------------------------------------------
+    # =====================================================
     # PROTOCOLS
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1631,12 +1948,12 @@ def main():
     )
 
     write_protocols(
-        all_configs
+        alive
     )
 
-    # -----------------------------------------------------
+    # =====================================================
     # IRAN
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1657,9 +1974,9 @@ def main():
         all_configs,
     )
 
-    # -----------------------------------------------------
+    # =====================================================
     # BOT
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1675,9 +1992,9 @@ def main():
 
     write_bot()
 
-    # -----------------------------------------------------
+    # =====================================================
     # ALL CONFIGS
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1696,9 +2013,9 @@ def main():
         all_configs,
     )
 
-    # -----------------------------------------------------
+    # =====================================================
     # VERIFY
-    # -----------------------------------------------------
+    # =====================================================
 
     print(
         "=" * 70
@@ -1712,33 +2029,30 @@ def main():
         "=" * 70
     )
 
+    # Subs must be exactly 2000 each
     verify_subscriptions()
 
+    # Protocols can be 0..1000
     verify_protocols()
 
-    verify_file(
+    # Iran can be 0..1000
+    verify_iran()
+
+    # Bot can be 0..1000
+    verify_bot()
+
+    # all_configs must be exactly 20000
+    verify_exact_file(
         "all_configs.txt",
         TOTAL_CONFIGS,
     )
 
-    for name in [
-        "best_iran.txt",
-        "mix_iran.txt",
-        "mci.txt",
-        "irancell.txt",
-        "rightel.txt",
-    ]:
-
-        verify_file(
-            name,
-            IRAN_SIZE,
-        )
-
+    # hysteria2 must not exist
     verify_no_hysteria()
 
-    # -----------------------------------------------------
+    # =====================================================
     # DONE
-    # -----------------------------------------------------
+    # =====================================================
 
     elapsed = (
         time.time()
@@ -1770,7 +2084,7 @@ def main():
     )
 
     print(
-        f"Protocols : {PROTOCOL_SIZE} each"
+        f"Protocols : up to {PROTOCOL_SIZE} each"
     )
 
     print(
@@ -1783,4 +2097,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
