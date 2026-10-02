@@ -1,4 +1,4 @@
-# 🖤 Black Crow Subscriptions
+#  Black Crow Subscriptions
 
 > Direct subscription links for Black Crow.
 
