@@ -1,71 +1,43 @@
-import base64
-import hashlib
-import json
 import os
 import re
-import socket
+import ssl
+import json
 import time
+import base64
+import socket
+import hashlib
+import threading
+from urllib.parse import urlparse, parse_qs, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
 
 import requests
 
 
-# =========================================================
-# NUKCROW COLLECTOR
-# =========================================================
+# ============================================================
+# CONFIG
+# ============================================================
 
 OUT_DIR = "sub/general"
+
 REMARK = "nukcrow"
-
-
-# =========================================================
-# GENERAL SETTINGS
-# =========================================================
 
 TOTAL_CONFIGS = 20000
 
 SUB_COUNT = 10
 SUB_SIZE = 2000
 
-
-# =========================================================
-# PROTOCOL SETTINGS
-# =========================================================
-
 PROTOCOL_SIZE = 1000
-
-
-# =========================================================
-# IRAN SETTINGS
-# =========================================================
-
 IRAN_SIZE = 1000
-
-
-# =========================================================
-# BOT SETTINGS
-# =========================================================
-
 BOT_SIZE = 1000
 
-
-# =========================================================
-# NETWORK SETTINGS
-# =========================================================
-
 FETCH_TIMEOUT = 15
+
 TEST_TIMEOUT = 2.0
 
 FETCH_WORKERS = 40
 TEST_WORKERS = 180
 
 SOURCE_LIMIT = 50000
-
-
-# =========================================================
-# SUPPORTED PROTOCOLS
-# =========================================================
 
 SUPPORTED_PROTOCOLS = {
     "vless",
@@ -75,59 +47,18 @@ SUPPORTED_PROTOCOLS = {
 }
 
 
-# =========================================================
-# BOT SOURCES
-# =========================================================
-#
-# پنج جای خالی برای منابع خودت
-#
-# =========================================================
-
-BOT_SOURCES = [
-
-    # BOT SOURCE 1
-    "",
-
-    # BOT SOURCE 2
-    "",
-
-    # BOT SOURCE 3
-    "",
-
-    # BOT SOURCE 4
-    "",
-
-    # BOT SOURCE 5
-    "",
-
-]
-
-
-# =========================================================
+# ============================================================
 # MAIN SOURCES
-# =========================================================
+# ============================================================
 
 SOURCES_PRIORITY = [
-
-    # =====================================================
-    # 0xRadikal
-    # =====================================================
-
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/verified/configs.txt",
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/fast/configs.txt",
     "https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/top100.txt",
 
-    # =====================================================
-    # FastNodes
-    # =====================================================
-
     "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/verified.txt",
     "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/top.txt",
     "https://raw.githubusercontent.com/rtwo2/FastNodes/main/sub/everything.txt",
-
-    # =====================================================
-    # morpheusadam
-    # =====================================================
 
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best.txt",
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
@@ -138,1964 +69,1869 @@ SOURCES_PRIORITY = [
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/trojan.txt",
     "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/shadowsocks.txt",
 
-    # =====================================================
-    # Iranian collectors
-    # =====================================================
-
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
     "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
 
-    # =====================================================
-    # Config Collector
-    # =====================================================
-
     "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
-
-    # =====================================================
-    # snaCW
-    # =====================================================
 
     "https://raw.githubusercontent.com/snaCW/Config/main/config.txt",
     "https://raw.githubusercontent.com/snaCW/Config/main/proxy.txt",
-
 ]
 
 
-# =========================================================
-# SESSION
-# =========================================================
+# ============================================================
+# BOT SOURCES
+# ============================================================
 
-def make_session():
+BOT_SOURCES = [
+    "",
+    "",
+    "",
+    "",
+    "",
+]
 
-    session = requests.Session()
 
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/140.0 Safari/537.36"
-            )
-        }
-    )
+# ============================================================
+# HTTP SESSION
+# ============================================================
+
+_thread_local = threading.local()
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/140.0.0.0 Safari/537.36"
+)
+
+
+def get_session():
+    session = getattr(_thread_local, "session", None)
+
+    if session is None:
+        session = requests.Session()
+
+        session.headers.update({
+            "User-Agent": USER_AGENT,
+            "Accept": "*/*",
+            "Connection": "keep-alive",
+        })
+
+        _thread_local.session = session
 
     return session
 
 
-# =========================================================
+# ============================================================
 # BASE64
-# =========================================================
+# ============================================================
 
 def decode64(value):
+    if not value:
+        return ""
+
+    value = value.strip()
+
+    value = value.replace("-", "+")
+    value = value.replace("_", "/")
+
+    value += "=" * (-len(value) % 4)
 
     try:
-
-        if not value:
-            return ""
-
-        value = re.sub(
-            r"\s+",
-            "",
+        return base64.b64decode(
             value,
-        )
-
-        value += "=" * (
-            -len(value) % 4
-        )
-
-        decoded = base64.urlsafe_b64decode(
-            value
-        )
-
-        return decoded.decode(
-            "utf-8",
-            errors="ignore",
-        )
-
+            validate=False
+        ).decode("utf-8", errors="ignore")
     except Exception:
-
         return ""
 
 
-# =========================================================
-# PROTOCOL
-# =========================================================
+# ============================================================
+# NORMALIZE INPUT
+# ============================================================
 
-def protocol(config):
-
-    try:
-
-        return (
-            config
-            .split(
-                "://",
-                1,
-            )[0]
-            .strip()
-            .lower()
-        )
-
-    except Exception:
-
+def normalize_text(text):
+    if not text:
         return ""
 
+    text = text.replace("\r", "\n")
 
-# =========================================================
-# CLEAN
-# =========================================================
+    text = text.replace("\\/", "/")
+    text = text.replace("\\.", ".")
+    text = text.replace("\\_", "_")
 
-def clean_config(config):
+    text = text.replace("&#x20;", " ")
 
-    if not config:
-        return ""
-
-    config = config.strip()
-
-    config = (
-        config
-        .replace("\r", "")
-        .replace("\n", "")
-        .strip()
-    )
-
-    # فقط remark قبلی را حذف می‌کنیم
-    if "#nukcrow" in config:
-
-        config = config.split(
-            "#nukcrow",
-            1,
-        )[0]
-
-    return config.strip()
+    return text
 
 
-# =========================================================
-# URI PATTERN
-# =========================================================
+# ============================================================
+# URI EXTRACTION
+# ============================================================
 
 URI_PATTERN = re.compile(
-    r"(?i)"
-    r"(?:"
-    r"vless|"
-    r"vmess|"
-    r"trojan|"
-    r"ss"
-    r")://"
-    r"[^\s<>'\"`]+"
+    r"(?:vless|vmess|trojan|ss)://[^\s<>'\"]+",
+    re.IGNORECASE
 )
 
 
-# =========================================================
-# ADD EXTRACTED CONFIG
-# =========================================================
-
-def add_extracted(
-    config,
-    found,
-    seen,
-):
-
-    config = clean_config(
-        config
-    )
-
-    if not config:
-        return
-
-    p = protocol(
-        config
-    )
-
-    if p not in SUPPORTED_PROTOCOLS:
-        return
-
-    if not valid_config(
-        config
-    ):
-        return
-
-    key = fingerprint(
-        config
-    )
-
-    if key in seen:
-        return
-
-    seen.add(
-        key
-    )
-
-    found.append(
-        config
-    )
-
-
-# =========================================================
-# EXTRACT URIS
-# =========================================================
-
 def extract_uris(text):
-
     if not text:
         return []
 
-    found = []
-    seen = set()
+    text = normalize_text(text)
 
-    # =====================================================
-    # DIRECT URI SEARCH
-    # =====================================================
-
-    for match in URI_PATTERN.finditer(
-        text
-    ):
-
-        add_extracted(
-            match.group(0),
-            found,
-            seen,
-        )
-
-    # =====================================================
-    # LINE BY LINE
-    # =====================================================
-
-    for raw_line in text.splitlines():
-
-        line = raw_line.strip()
-
-        if not line:
-            continue
-
-        line = line.strip(
-            "\"'` ,;"
-        )
-
-        # -------------------------------------------------
-        # Direct URI
-        # -------------------------------------------------
-
-        if re.match(
-            r"(?i)^(vless|vmess|trojan|ss)://",
-            line,
-        ):
-
-            add_extracted(
-                line,
-                found,
-                seen,
-            )
-
-            continue
-
-        # -------------------------------------------------
-        # Multiple URIs
-        # -------------------------------------------------
-
-        for item in URI_PATTERN.findall(
-            line
-        ):
-
-            add_extracted(
-                item,
-                found,
-                seen,
-            )
-
-        # -------------------------------------------------
-        # Base64 subscription
-        # -------------------------------------------------
-
-        decoded = decode64(
-            line
-        )
-
-        if decoded:
-
-            for item in URI_PATTERN.findall(
-                decoded
-            ):
-
-                add_extracted(
-                    item,
-                    found,
-                    seen,
-                )
-
-            for decoded_line in decoded.splitlines():
-
-                decoded_line = decoded_line.strip()
-
-                if not decoded_line:
-                    continue
-
-                if re.match(
-                    r"(?i)^(vless|vmess|trojan|ss)://",
-                    decoded_line,
-                ):
-
-                    add_extracted(
-                        decoded_line,
-                        found,
-                        seen,
-                    )
-
-    return found
-
-
-# =========================================================
-# VMESS
-# =========================================================
-
-def parse_vmess(config):
-
-    try:
-
-        payload = config.split(
-            "://",
-            1,
-        )[1]
-
-        decoded = decode64(
-            payload
-        )
-
-        if not decoded:
-            return None
-
-        data = json.loads(
-            decoded
-        )
-
-        host = (
-            data.get("add")
-            or data.get("address")
-            or data.get("host")
-        )
-
-        port = data.get(
-            "port"
-        )
-
-        if not host or not port:
-            return None
-
-        port = int(
-            str(port)
-        )
-
-        if not 1 <= port <= 65535:
-            return None
-
-        return host, port
-
-    except Exception:
-
-        return None
-
-
-# =========================================================
-# SHADOWSOCKS
-# =========================================================
-
-def parse_ss(config):
-
-    try:
-
-        config = clean_config(
-            config
-        )
-
-        if not config.lower().startswith(
-            "ss://"
-        ):
-            return None
-
-        value = config[5:]
-
-        # Remove remark
-        value = value.split(
-            "#",
-            1,
-        )[0]
-
-        # Remove plugin/query
-        value = value.split(
-            "?",
-            1,
-        )[0]
-
-        value = value.rstrip(
-            "/"
-        )
-
-        if not value:
-            return None
-
-        # =================================================
-        # SIP002
-        #
-        # ss://userinfo@host:port
-        # =================================================
-
-        if "@" in value:
-
-            userinfo, address = value.rsplit(
-                "@",
-                1,
-            )
-
-            decoded_userinfo = decode64(
-                userinfo
-            )
-
-            if (
-                decoded_userinfo
-                and ":"
-                in decoded_userinfo
-            ):
-
-                userinfo = decoded_userinfo
-
-            if ":" not in userinfo:
-                return None
-
-            # IPv6
-            if address.startswith("["):
-
-                closing = address.find(
-                    "]"
-                )
-
-                if closing == -1:
-                    return None
-
-                host = address[
-                    1:closing
-                ]
-
-                remainder = address[
-                    closing + 1:
-                ]
-
-                if not remainder.startswith(
-                    ":"
-                ):
-                    return None
-
-                port_text = remainder[1:]
-
-            else:
-
-                if ":" not in address:
-                    return None
-
-                host, port_text = address.rsplit(
-                    ":",
-                    1,
-                )
-
-            host = host.strip()
-
-            port_text = port_text.strip()
-
-            if not host or not port_text:
-                return None
-
-            try:
-
-                port = int(
-                    port_text
-                )
-
-            except ValueError:
-
-                return None
-
-            if not 1 <= port <= 65535:
-                return None
-
-            return host, port
-
-        # =================================================
-        # LEGACY BASE64
-        #
-        # ss://BASE64(method:password@host:port)
-        # =================================================
-
-        decoded = decode64(
-            value
-        )
-
-        if not decoded:
-            return None
-
-        decoded = decoded.strip()
-
-        if "@" not in decoded:
-            return None
-
-        userinfo, address = decoded.rsplit(
-            "@",
-            1,
-        )
-
-        if ":" not in userinfo:
-            return None
-
-        if address.startswith("["):
-
-            closing = address.find(
-                "]"
-            )
-
-            if closing == -1:
-                return None
-
-            host = address[
-                1:closing
-            ]
-
-            remainder = address[
-                closing + 1:
-            ]
-
-            if not remainder.startswith(
-                ":"
-            ):
-                return None
-
-            port_text = remainder[1:]
-
-        else:
-
-            if ":" not in address:
-                return None
-
-            host, port_text = address.rsplit(
-                ":",
-                1,
-            )
-
-        host = host.strip()
-
-        port_text = port_text.strip()
-
-        if not host or not port_text:
-            return None
-
-        try:
-
-            port = int(
-                port_text
-            )
-
-        except ValueError:
-
-            return None
-
-        if not 1 <= port <= 65535:
-            return None
-
-        return host, port
-
-    except Exception:
-
-        return None
-
-
-# =========================================================
-# ENDPOINT
-# =========================================================
-
-def endpoint(config):
-
-    try:
-
-        p = protocol(
-            config
-        )
-
-        if p == "vmess":
-
-            return parse_vmess(
-                config
-            )
-
-        if p == "ss":
-
-            return parse_ss(
-                config
-            )
-
-        parsed = urlparse(
-            config
-        )
-
-        host = parsed.hostname
-
-        if not host:
-            return None
-
-        try:
-
-            port = parsed.port
-
-        except ValueError:
-
-            return None
-
-        if not port:
-            return None
-
-        if not 1 <= port <= 65535:
-            return None
-
-        return host, port
-
-    except Exception:
-
-        return None
-
-
-# =========================================================
-# VALID CONFIG
-# =========================================================
-
-def valid_config(config):
-
-    try:
-
-        config = clean_config(
-            config
-        )
-
-        if not config:
-            return False
-
-        if protocol(config) not in SUPPORTED_PROTOCOLS:
-            return False
-
-        if any(
-            ord(c) < 32
-            for c in config
-        ):
-            return False
-
-        target = endpoint(
-            config
-        )
-
-        if not target:
-            return False
-
-        host, port = target
-
-        if not host:
-            return False
-
-        if host.lower() in {
-            "localhost",
-            "0.0.0.0",
-            "::",
-        }:
-            return False
-
-        return True
-
-    except Exception:
-
-        return False
-
-
-# =========================================================
-# FINGERPRINT
-# =========================================================
-
-def fingerprint(config):
-
-    return hashlib.sha256(
-        clean_config(
-            config
-        ).encode(
-            "utf-8",
-            errors="ignore",
-        )
-    ).hexdigest()
-
-
-# =========================================================
-# FETCH
-# =========================================================
-
-def fetch_source(url):
-
-    session = make_session()
-
-    try:
-
-        response = session.get(
-            url,
-            timeout=FETCH_TIMEOUT,
-        )
-
-        if response.status_code != 200:
-
-            print(
-                f"[HTTP {response.status_code}] "
-                f"{url}"
-            )
-
-            return []
-
-        configs = extract_uris(
-            response.text
-        )
-
-        if len(configs) > SOURCE_LIMIT:
-
-            configs = configs[
-                :SOURCE_LIMIT
-            ]
-
-        print(
-            f"[SOURCE] "
-            f"{len(configs):5d} "
-            f"{url}"
-        )
-
-        return configs
-
-    except Exception as exc:
-
-        print(
-            f"[FAILED] "
-            f"{url} -> {exc}"
-        )
-
-        return []
-
-    finally:
-
-        session.close()
-
-
-# =========================================================
-# UNIQUE
-# =========================================================
-
-def unique(configs):
+    found = URI_PATTERN.findall(text)
 
     result = []
 
-    seen = set()
+    for item in found:
+        item = item.strip()
 
-    for config in configs:
+        while item.endswith(
+            (
+                ",",
+                ";",
+                ".",
+                ")",
+                "]",
+                "}",
+            )
+        ):
+            item = item[:-1]
 
-        config = clean_config(
-            config
-        )
-
-        if not config:
-            continue
-
-        key = fingerprint(
-            config
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(
-            key
-        )
-
-        result.append(
-            config
-        )
+        if item:
+            result.append(item)
 
     return result
 
 
-# =========================================================
-# COLLECT
-# =========================================================
+# ============================================================
+# VMESS
+# ============================================================
 
-def collect_sources():
+def parse_vmess(uri):
+    try:
+        raw = uri.split("://", 1)[1]
 
-    all_configs = []
+        decoded = decode64(raw)
 
-    sources = list(
-        SOURCES_PRIORITY
-    )
+        if not decoded:
+            return None
 
-    for url in BOT_SOURCES:
+        data = json.loads(decoded)
 
-        url = url.strip()
+        return data
 
-        if url:
+    except Exception:
+        return None
 
-            sources.append(
-                url
+
+# ============================================================
+# SS
+# ============================================================
+
+def parse_ss(uri):
+    try:
+        body = uri.split("://", 1)[1]
+
+        body = body.split("#", 1)[0]
+
+        if "@" in body:
+            userinfo, address = body.rsplit("@", 1)
+
+            if ":" in address:
+                host, port = address.rsplit(":", 1)
+
+                try:
+                    port = int(port)
+                except Exception:
+                    return None
+
+                return {
+                    "host": host,
+                    "port": port,
+                    "userinfo": userinfo,
+                }
+
+        decoded = decode64(body)
+
+        if not decoded:
+            return None
+
+        if "@" not in decoded:
+            return None
+
+        userinfo, address = decoded.rsplit("@", 1)
+
+        if ":" not in address:
+            return None
+
+        host, port = address.rsplit(":", 1)
+
+        try:
+            port = int(port)
+        except Exception:
+            return None
+
+        return {
+            "host": host,
+            "port": port,
+            "userinfo": userinfo,
+        }
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# ENDPOINT
+# ============================================================
+
+def endpoint(uri):
+    try:
+        scheme = uri.split("://", 1)[0].lower()
+
+        if scheme == "vmess":
+            data = parse_vmess(uri)
+
+            if not data:
+                return None
+
+            host = (
+                data.get("add")
+                or data.get("address")
+                or ""
             )
 
-    sources = list(
-        dict.fromkeys(
-            sources
+            port = data.get("port")
+
+            try:
+                port = int(str(port))
+            except Exception:
+                return None
+
+            return {
+                "scheme": "vmess",
+                "host": host,
+                "port": port,
+                "data": data,
+            }
+
+        if scheme == "ss":
+            data = parse_ss(uri)
+
+            if not data:
+                return None
+
+            return {
+                "scheme": "ss",
+                "host": data["host"],
+                "port": data["port"],
+                "data": data,
+            }
+
+        parsed = urlparse(uri)
+
+        host = parsed.hostname
+
+        port = parsed.port
+
+        if not host or not port:
+            return None
+
+        params = parse_qs(
+            parsed.query,
+            keep_blank_values=True
+        )
+
+        return {
+            "scheme": scheme,
+            "host": host,
+            "port": port,
+            "params": params,
+            "parsed": parsed,
+        }
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# VALID CONFIG
+# ============================================================
+
+def valid_config(uri):
+    if not uri:
+        return False
+
+    uri = uri.strip()
+
+    if not uri.lower().startswith(
+        (
+            "vless://",
+            "vmess://",
+            "trojan://",
+            "ss://",
+        )
+    ):
+        return False
+
+    info = endpoint(uri)
+
+    if not info:
+        return False
+
+    host = str(info.get("host", "")).strip()
+
+    port = info.get("port")
+
+    if not host:
+        return False
+
+    if not isinstance(port, int):
+        return False
+
+    if port < 1 or port > 65535:
+        return False
+
+    return True
+
+
+# ============================================================
+# FINGERPRINT
+# ============================================================
+
+def fingerprint(uri):
+    info = endpoint(uri)
+
+    if not info:
+        return hashlib.sha256(
+            uri.encode()
+        ).hexdigest()
+
+    scheme = info.get("scheme", "")
+
+    host = info.get("host", "")
+
+    port = info.get("port", "")
+
+    if scheme == "vmess":
+        data = info.get("data", {})
+
+        key = "|".join([
+            "vmess",
+            str(data.get("id", "")),
+            str(data.get("add", "")),
+            str(data.get("port", "")),
+            str(data.get("net", "")),
+            str(data.get("path", "")),
+            str(data.get("host", "")),
+            str(data.get("tls", "")),
+            str(data.get("sni", "")),
+        ])
+
+    elif scheme == "ss":
+        data = info.get("data", {})
+
+        key = "|".join([
+            "ss",
+            str(data.get("userinfo", "")),
+            str(host),
+            str(port),
+        ])
+
+    else:
+        parsed = info.get("parsed")
+
+        username = ""
+
+        if parsed:
+            username = parsed.username or ""
+
+        params = info.get("params", {})
+
+        key = "|".join([
+            str(scheme),
+            str(username),
+            str(host),
+            str(port),
+            str(params.get("security", [""])[0]),
+            str(params.get("type", [""])[0]),
+            str(params.get("sni", [""])[0]),
+            str(params.get("host", [""])[0]),
+            str(params.get("path", [""])[0]),
+            str(params.get("flow", [""])[0]),
+        ])
+
+    return hashlib.sha256(
+        key.encode(
+            "utf-8",
+            errors="ignore"
+        )
+    ).hexdigest()
+
+
+# ============================================================
+# PATTERN SCORING
+# ============================================================
+
+def pattern_score(uri):
+    """
+    این امتیازدهی از نمونه‌هایی که فرستادی ساخته شده.
+
+    هدف:
+    پیدا کردن کانفیگ‌هایی که از نظر ساختار شبیه
+    نمونه‌های موردنظر هستند.
+
+    امتیاز بالا به معنی Ping پایین تضمین‌شده نیست.
+    بعد از این مرحله تست اتصال انجام می‌شود.
+    """
+
+    info = endpoint(uri)
+
+    if not info:
+        return -999
+
+    scheme = info.get("scheme", "").lower()
+
+    score = 0
+
+    # --------------------------------------------------------
+    # PROTOCOL
+    # --------------------------------------------------------
+
+    if scheme == "vless":
+        score += 12
+
+    elif scheme == "trojan":
+        score += 10
+
+    elif scheme == "vmess":
+        score += 8
+
+    elif scheme == "ss":
+        score += 7
+
+
+    # --------------------------------------------------------
+    # VMESS
+    # --------------------------------------------------------
+
+    if scheme == "vmess":
+        data = info.get("data", {})
+
+        network = str(
+            data.get("net", "")
+        ).lower()
+
+        tls = str(
+            data.get("tls", "")
+        ).lower()
+
+        if network == "ws":
+            score += 8
+
+        elif network == "grpc":
+            score += 6
+
+        elif network == "tcp":
+            score += 6
+
+        if tls in {
+            "tls",
+            "reality",
+        }:
+            score += 6
+
+        if data.get("path"):
+            score += 3
+
+        if data.get("host"):
+            score += 3
+
+        if data.get("sni"):
+            score += 3
+
+        return score
+
+
+    # --------------------------------------------------------
+    # SS
+    # --------------------------------------------------------
+
+    if scheme == "ss":
+        score += 5
+
+        return score
+
+
+    # --------------------------------------------------------
+    # URI PARAMETERS
+    # --------------------------------------------------------
+
+    params = info.get("params", {})
+
+    transport = str(
+        params.get(
+            "type",
+            [""]
+        )[0]
+    ).lower()
+
+    security = str(
+        params.get(
+            "security",
+            [""]
+        )[0]
+    ).lower()
+
+    host = str(
+        params.get(
+            "host",
+            [""]
+        )[0]
+    )
+
+    sni = str(
+        params.get(
+            "sni",
+            [""]
+        )[0]
+    )
+
+    path = str(
+        params.get(
+            "path",
+            [""]
+        )[0]
+    )
+
+    flow = str(
+        params.get(
+            "flow",
+            [""]
+        )[0]
+    ).lower()
+
+    alpn = str(
+        params.get(
+            "alpn",
+            [""]
+        )[0]
+    ).lower()
+
+
+    # --------------------------------------------------------
+    # TRANSPORT
+    # --------------------------------------------------------
+
+    if transport == "ws":
+        score += 12
+
+    elif transport == "xhttp":
+        score += 12
+
+    elif transport == "tcp":
+        score += 9
+
+    elif transport == "grpc":
+        score += 9
+
+    elif transport == "httpupgrade":
+        score += 8
+
+
+    # --------------------------------------------------------
+    # SECURITY
+    # --------------------------------------------------------
+
+    if security == "tls":
+        score += 10
+
+    elif security == "reality":
+        score += 12
+
+    elif security == "none":
+        score += 5
+
+
+    # --------------------------------------------------------
+    # HOST
+    # --------------------------------------------------------
+
+    if host:
+        score += 6
+
+
+    # --------------------------------------------------------
+    # SNI
+    # --------------------------------------------------------
+
+    if sni:
+        score += 6
+
+
+    # --------------------------------------------------------
+    # PATH
+    # --------------------------------------------------------
+
+    if path:
+        score += 5
+
+
+    # --------------------------------------------------------
+    # ALPN
+    # --------------------------------------------------------
+
+    if alpn:
+        score += 3
+
+
+    # --------------------------------------------------------
+    # REALITY FLOW
+    # --------------------------------------------------------
+
+    if flow == "xtls-rprx-vision":
+        score += 10
+
+
+    # --------------------------------------------------------
+    # ADDRESS DIFFERENT FROM HOST
+    # --------------------------------------------------------
+
+    endpoint_host = str(
+        info.get(
+            "host",
+            ""
+        )
+    ).lower()
+
+    config_host = host.lower()
+
+    if (
+        endpoint_host
+        and config_host
+        and endpoint_host != config_host
+    ):
+        score += 8
+
+
+    # --------------------------------------------------------
+    # NON-443 PORTS ARE VALID
+    # --------------------------------------------------------
+
+    port = int(
+        info.get(
+            "port",
+            0
         )
     )
 
+    # deliberately do NOT prefer 443 only
+    if port in {
+        80,
+        2095,
+        2082,
+        2086,
+        8080,
+        8443,
+        1001,
+        18901,
+        59924,
+    }:
+        score += 2
+
+
+    return score
+
+
+# ============================================================
+# CLEAN REMARK
+# ============================================================
+
+def clean_config(uri):
+    """
+    هر Remark قبلی را حذف می‌کند.
+    Remark نهایی فقط در render() اضافه می‌شود.
+    """
+
+    if not uri:
+        return ""
+
+    uri = uri.strip()
+
+    if "#" in uri:
+        uri = uri.split("#", 1)[0]
+
+    return uri.strip()
+
+
+# ============================================================
+# RENDER
+# ============================================================
+
+def render(uri):
+    uri = clean_config(uri)
+
+    if not uri:
+        return ""
+
+    return f"{uri}#{REMARK}"
+
+
+# ============================================================
+# FETCH SOURCE
+# ============================================================
+
+def fetch_source(url):
+    if not url:
+        return []
+
+    session = get_session()
+
+    for attempt in range(3):
+
+        try:
+            response = session.get(
+                url,
+                timeout=FETCH_TIMEOUT,
+                allow_redirects=True,
+            )
+
+            if response.status_code != 200:
+                continue
+
+            text = response.text
+
+            text = normalize_text(text)
+
+            # Direct URI extraction
+            configs = extract_uris(text)
+
+            # Sometimes source is base64 subscription
+            if not configs:
+                decoded = decode64(
+                    text.strip()
+                )
+
+                if decoded:
+                    configs = extract_uris(
+                        decoded
+                    )
+
+            valid = []
+
+            for item in configs:
+
+                if valid_config(item):
+                    valid.append(item)
+
+                if len(valid) >= SOURCE_LIMIT:
+                    break
+
+            print(
+                f"[FETCH] {url} -> {len(valid)}"
+            )
+
+            return valid
+
+        except Exception as exc:
+            if attempt == 2:
+                print(
+                    f"[FETCH-ERROR] {url} -> {exc}"
+                )
+
+            time.sleep(0.5)
+
+    return []
+
+
+# ============================================================
+# UNIQUE
+# ============================================================
+
+def unique(configs):
+    seen = set()
+
+    result = []
+
+    for uri in configs:
+
+        if not valid_config(uri):
+            continue
+
+        fp = fingerprint(uri)
+
+        if fp in seen:
+            continue
+
+        seen.add(fp)
+
+        result.append(uri)
+
+    return result
+
+
+# ============================================================
+# COLLECT SOURCES
+# ============================================================
+
+def collect_sources(sources):
+    all_configs = []
+
+    sources = [
+        x.strip()
+        for x in sources
+        if x and x.strip()
+    ]
+
     print(
-        f"[SOURCES] {len(sources)}"
+        f"[SOURCE] total sources = {len(sources)}"
     )
 
     with ThreadPoolExecutor(
         max_workers=FETCH_WORKERS
     ) as executor:
 
-        jobs = {
+        futures = {
             executor.submit(
                 fetch_source,
-                url,
-            ): url
-            for url in sources
+                source
+            ): source
+            for source in sources
         }
 
-        for job in as_completed(
-            jobs
-        ):
+        for future in as_completed(futures):
 
             try:
+                configs = future.result()
 
                 all_configs.extend(
-                    job.result()
+                    configs
                 )
 
-            except Exception:
+            except Exception as exc:
+                source = futures[future]
 
-                pass
+                print(
+                    f"[SOURCE-ERROR] {source} -> {exc}"
+                )
 
-    return unique(
+    all_configs = unique(
         all_configs
     )
 
-
-# =========================================================
-# TCP TEST
-# =========================================================
-
-def tcp_test(config):
-
-    target = endpoint(
-        config
+    print(
+        f"[COLLECT] unique = {len(all_configs)}"
     )
 
-    if not target:
-        return False
+    return all_configs
 
-    host, port = target
+
+# ============================================================
+# TCP TEST
+# ============================================================
+
+def tcp_test(uri):
+    info = endpoint(uri)
+
+    if not info:
+        return None
+
+    host = info.get("host")
+
+    port = info.get("port")
+
+    if not host or not port:
+        return None
+
+    start = time.perf_counter()
+
+    sock = None
 
     try:
-
-        with socket.create_connection(
+        sock = socket.create_connection(
             (
                 host,
-                port,
+                int(port)
             ),
-            timeout=TEST_TIMEOUT,
-        ):
+            timeout=TEST_TIMEOUT
+        )
 
-            return True
+        elapsed = (
+            time.perf_counter()
+            - start
+        ) * 1000.0
+
+        return elapsed
 
     except Exception:
+        return None
 
-        return False
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
-# =========================================================
+# ============================================================
 # BENCHMARK
-# =========================================================
+# ============================================================
 
 def benchmark(configs):
+    """
+    TCP reachability benchmark.
 
-    alive = []
-
-    if not configs:
-        return alive
+    توجه:
+    این تست TCP latency است، نه handshake کامل
+    VLESS/VMess/Trojan/SS.
+    """
 
     print(
-        f"[TEST] {len(configs)} configs"
+        f"[BENCH] testing {len(configs)} configs..."
     )
+
+    results = []
+
+    total = len(configs)
+
+    done = 0
 
     with ThreadPoolExecutor(
         max_workers=TEST_WORKERS
     ) as executor:
 
-        jobs = {
+        futures = {
             executor.submit(
                 tcp_test,
-                config,
-            ): config
-            for config in configs
+                uri
+            ): uri
+            for uri in configs
         }
 
-        for job in as_completed(
-            jobs
-        ):
+        for future in as_completed(futures):
 
-            config = jobs[job]
+            uri = futures[future]
 
             try:
-
-                if job.result():
-
-                    alive.append(
-                        config
-                    )
+                latency = future.result()
 
             except Exception:
+                latency = None
 
-                pass
+            done += 1
 
-    return unique(
-        alive
+            if latency is not None:
+                results.append(
+                    (
+                        latency,
+                        pattern_score(uri),
+                        uri,
+                    )
+                )
+
+            if done % 500 == 0:
+                print(
+                    f"[BENCH] {done}/{total} "
+                    f"alive={len(results)}"
+                )
+
+    # --------------------------------------------------------
+    # Sort:
+    # First latency
+    # Then pattern score
+    # --------------------------------------------------------
+
+    results.sort(
+        key=lambda x: (
+            x[0],
+            -x[1],
+        )
     )
 
-
-# =========================================================
-# PROTOCOL NAME
-# =========================================================
-
-def protocol_name(config):
-
-    p = protocol(
-        config
+    print(
+        f"[BENCH] alive = {len(results)}"
     )
 
-    if p in SUPPORTED_PROTOCOLS:
-
-        return p
-
-    return ""
+    return results
 
 
-# =========================================================
+# ============================================================
+# PROTOCOL
+# ============================================================
+
+def protocol_name(uri):
+    if not uri:
+        return ""
+
+    return uri.split(
+        "://",
+        1
+    )[0].lower()
+
+
+# ============================================================
 # MIXED POOL
-# =========================================================
+# ============================================================
 
-def build_mixed_pool(configs):
+def build_mixed_pool(
+    benchmarked,
+    limit=TOTAL_CONFIGS
+):
+    """
+    نتیجه نهایی بر اساس latency.
 
-    pools = {
+    Pattern score فقط tie-breaker است
+    تا کانفیگ‌های شبیه نمونه‌های کاربر
+    در Latency مشابه اولویت بگیرند.
+    """
+
+    selected = []
+
+    seen = set()
+
+    for latency, score, uri in benchmarked:
+
+        fp = fingerprint(uri)
+
+        if fp in seen:
+            continue
+
+        seen.add(fp)
+
+        selected.append(uri)
+
+        if len(selected) >= limit:
+            break
+
+    return selected
+
+
+# ============================================================
+# FILE HELPERS
+# ============================================================
+
+def ensure_out_dir():
+    os.makedirs(
+        OUT_DIR,
+        exist_ok=True
+    )
+
+
+def write_file(
+    filename,
+    configs
+):
+    ensure_out_dir()
+
+    path = os.path.join(
+        OUT_DIR,
+        filename
+    )
+
+    rendered = []
+
+    for uri in configs:
+
+        value = render(uri)
+
+        if value:
+            rendered.append(value)
+
+    with open(
+        path,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        if rendered:
+            f.write(
+                "\n".join(rendered)
+            )
+
+            f.write("\n")
+
+    print(
+        f"[WRITE] {filename} = {len(rendered)}"
+    )
+
+    return len(rendered)
+
+
+# ============================================================
+# SUBSCRIPTIONS
+# ============================================================
+
+def write_subscriptions(
+    selected
+):
+    if len(selected) < TOTAL_CONFIGS:
+        raise RuntimeError(
+            f"Need {TOTAL_CONFIGS} configs, "
+            f"got {len(selected)}"
+        )
+
+    for index in range(
+        SUB_COUNT
+    ):
+        start = index * SUB_SIZE
+
+        end = start + SUB_SIZE
+
+        chunk = selected[
+            start:end
+        ]
+
+        if len(chunk) != SUB_SIZE:
+            raise RuntimeError(
+                f"sub{index + 1}.txt "
+                f"requires {SUB_SIZE}, "
+                f"got {len(chunk)}"
+            )
+
+        write_file(
+            f"sub{index + 1}.txt",
+            chunk
+        )
+
+
+# ============================================================
+# PROTOCOL FILES
+# ============================================================
+
+def write_protocols(
+    selected
+):
+    buckets = {
         "vless": [],
         "vmess": [],
         "trojan": [],
         "ss": [],
     }
 
-    for config in configs:
+    for uri in selected:
 
-        p = protocol_name(
-            config
+        protocol = protocol_name(
+            uri
         )
 
-        if p in pools:
+        if protocol in buckets:
 
-            pools[p].append(
-                config
-            )
+            if len(
+                buckets[protocol]
+            ) < PROTOCOL_SIZE:
 
-    mixed = []
+                buckets[protocol].append(
+                    uri
+                )
 
-    indexes = {
-        "vless": 0,
-        "vmess": 0,
-        "trojan": 0,
-        "ss": 0,
-    }
-
-    order = [
+    for protocol in (
         "vless",
         "vmess",
         "trojan",
         "ss",
-    ]
+    ):
 
-    while len(mixed) < TOTAL_CONFIGS:
-
-        added = False
-
-        for p in order:
-
-            index = indexes[p]
-
-            if index >= len(
-                pools[p]
-            ):
-                continue
-
-            mixed.append(
-                pools[p][index]
-            )
-
-            indexes[p] += 1
-
-            added = True
-
-            if len(mixed) >= TOTAL_CONFIGS:
-                break
-
-        if not added:
-            break
-
-    # اگر pool متوازن نبود،
-    # بقیه کانفیگ‌های موجود را هم اضافه کن.
-
-    if len(mixed) < TOTAL_CONFIGS:
-
-        used = {
-            fingerprint(x)
-            for x in mixed
-        }
-
-        for config in configs:
-
-            key = fingerprint(
-                config
-            )
-
-            if key in used:
-                continue
-
-            mixed.append(
-                config
-            )
-
-            used.add(
-                key
-            )
-
-            if len(mixed) >= TOTAL_CONFIGS:
-                break
-
-    return unique(
-        mixed
-    )
-
-
-# =========================================================
-# RENDER
-# =========================================================
-
-def render(configs):
-
-    if not configs:
-        return ""
-
-    lines = []
-
-    for config in configs:
-
-        config = clean_config(
-            config
-        )
-
-        if config:
-
-            lines.append(
-                f"{config}#{REMARK}"
-            )
-
-    if not lines:
-        return ""
-
-    return (
-        "\n".join(lines)
-        + "\n"
-    )
-
-
-# =========================================================
-# WRITE
-# =========================================================
-
-def write_file(
-    name,
-    configs,
-):
-
-    os.makedirs(
-        OUT_DIR,
-        exist_ok=True,
-    )
-
-    path = os.path.join(
-        OUT_DIR,
-        name,
-    )
-
-    temp = (
-        path
-        + ".tmp"
-    )
-
-    with open(
-        temp,
-        "w",
-        encoding="utf-8",
-        newline="\n",
-    ) as file:
-
-        file.write(
-            render(
-                configs
-            )
-        )
-
-    os.replace(
-        temp,
-        path
-    )
-
-
-# =========================================================
-# WRITE PROTOCOLS
-# =========================================================
-#
-# IMPORTANT:
-# کمتر از 1000 بودن خطا نیست.
-# همان تعداد موجود نوشته می‌شود.
-#
-# =========================================================
-
-def write_protocols(configs):
-
-    protocols = {
-        "vless": [],
-        "vmess": [],
-        "trojan": [],
-        "ss": [],
-    }
-
-    for config in configs:
-
-        p = protocol_name(
-            config
-        )
-
-        if p in protocols:
-
-            protocols[p].append(
-                config
-            )
-
-    for name, pool in protocols.items():
-
-        pool = unique(
-            pool
-        )
-
-        selected = pool[
-            :PROTOCOL_SIZE
+        configs = buckets[
+            protocol
         ]
 
         write_file(
-            f"{name}.txt",
-            selected,
-        )
-
-        print(
-            f"[WRITE] "
-            f"{name}.txt = "
-            f"{len(selected)}"
+            f"{protocol}.txt",
+            configs
         )
 
 
-# =========================================================
+# ============================================================
 # IRAN SOURCES
-# =========================================================
+# ============================================================
 
-IRAN_SOURCE_KEYS = [
-    "iran",
-    "GO_V2rayCollector",
-    "Config-Collector",
-    "snaCW",
+IRAN_SOURCES = [
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
+    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
+    "https://raw.githubusercontent.com/miladtahanian/Config-Collector/main/mixed_iran.txt",
 ]
 
 
-def get_iran_sources():
-
-    return [
-        url
-        for url in SOURCES_PRIORITY
-        if any(
-            key in url
-            for key in IRAN_SOURCE_KEYS
-        )
-    ]
-
-
-# =========================================================
-# COLLECT IRAN
-# =========================================================
+# ============================================================
+# IRAN COLLECTION
+# ============================================================
 
 def collect_iran():
+    configs = collect_sources(
+        IRAN_SOURCES
+    )
 
-    urls = get_iran_sources()
-
-    configs = []
-
-    if not urls:
+    if not configs:
         return []
 
-    with ThreadPoolExecutor(
-        max_workers=10
-    ) as executor:
-
-        jobs = [
-            executor.submit(
-                fetch_source,
-                url,
-            )
-            for url in urls
-        ]
-
-        for job in as_completed(
-            jobs
-        ):
-
-            try:
-
-                configs.extend(
-                    job.result()
-                )
-
-            except Exception:
-
-                pass
-
-    return unique(
+    tested = benchmark(
         configs
     )
 
+    return build_mixed_pool(
+        tested,
+        IRAN_SIZE
+    )
 
-# =========================================================
-# WRITE IRAN
-# =========================================================
-#
-# کمتر از 1000 بودن خطا نیست.
-# هر مقدار موجود نوشته می‌شود.
-#
-# =========================================================
+
+# ============================================================
+# IRAN OUTPUTS
+# ============================================================
 
 def write_iran(
-    iran_configs,
-    global_configs,
+    selected
 ):
+    """
+    این فایل‌ها در این نسخه از همان
+    مجموعه‌ی تست‌شده‌ی Iran پر می‌شوند.
 
-    iran_alive = benchmark(
-        iran_configs
-    )
+    اگر بعداً بخواهی MCI / Irancell / Rightel
+    واقعاً بر اساس اپراتور جدا شوند،
+    باید برای هر اپراتور منبع یا تست جداگانه داشته باشیم.
+    """
 
-    iran_alive = unique(
-        iran_alive
-    )
-
-    combined = unique(
-        iran_alive
-        + global_configs
-    )
-
-    selected = combined[
+    selected = selected[
         :IRAN_SIZE
     ]
 
-    for name in [
+    write_file(
         "best_iran.txt",
-        "mix_iran.txt",
-        "mci.txt",
-        "irancell.txt",
-        "rightel.txt",
-    ]:
-
-        write_file(
-            name,
-            selected,
-        )
-
-        print(
-            f"[WRITE] "
-            f"{name} = "
-            f"{len(selected)}"
-        )
-
-
-# =========================================================
-# BOT
-# =========================================================
-
-def write_bot():
-
-    bot_configs = []
-
-    for url in BOT_SOURCES:
-
-        url = url.strip()
-
-        if not url:
-            continue
-
-        try:
-
-            bot_configs.extend(
-                fetch_source(
-                    url
-                )
-            )
-
-        except Exception:
-
-            pass
-
-    bot_configs = unique(
-        bot_configs
+        selected
     )
 
-    if not bot_configs:
+    write_file(
+        "mix_iran.txt",
+        selected
+    )
 
+    write_file(
+        "mci.txt",
+        selected
+    )
+
+    write_file(
+        "irancell.txt",
+        selected
+    )
+
+    write_file(
+        "rightel.txt",
+        selected
+    )
+
+
+# ============================================================
+# BOT
+# ============================================================
+
+def write_bot():
+    sources = [
+        x.strip()
+        for x in BOT_SOURCES
+        if x and x.strip()
+    ]
+
+    if not sources:
         write_file(
             "bot.txt",
-            [],
-        )
-
-        print(
-            "[WRITE] bot.txt = 0"
+            []
         )
 
         return
 
-    bot_alive = benchmark(
-        bot_configs
+    configs = collect_sources(
+        sources
     )
 
-    bot_alive = unique(
-        bot_alive
+    if not configs:
+        write_file(
+            "bot.txt",
+            []
+        )
+
+        return
+
+    tested = benchmark(
+        configs
     )
 
-    selected = bot_alive[
-        :BOT_SIZE
-    ]
+    selected = build_mixed_pool(
+        tested,
+        BOT_SIZE
+    )
 
     write_file(
         "bot.txt",
-        selected,
-    )
-
-    print(
-        f"[WRITE] "
-        f"bot.txt = "
-        f"{len(selected)}"
+        selected
     )
 
 
-# =========================================================
-# REMOVE HYSTERIA2
-# =========================================================
+# ============================================================
+# HYSTERIA2 REMOVAL
+# ============================================================
 
 def remove_hysteria2():
-
     path = os.path.join(
         OUT_DIR,
-        "hysteria2.txt",
+        "hysteria2.txt"
     )
 
-    if os.path.exists(
-        path
-    ):
+    if os.path.exists(path):
 
-        os.remove(
-            path
-        )
+        try:
+            os.remove(path)
 
-        print(
-            "[REMOVE] hysteria2.txt"
-        )
+            print(
+                "[REMOVE] hysteria2.txt"
+            )
+
+        except Exception as exc:
+
+            print(
+                f"[REMOVE-ERROR] {exc}"
+            )
 
 
-# =========================================================
-# READ
-# =========================================================
+# ============================================================
+# READ FILE
+# ============================================================
 
-def read_lines(name):
-
+def read_lines(
+    filename
+):
     path = os.path.join(
         OUT_DIR,
-        name,
+        filename
     )
 
-    if not os.path.exists(
-        path
-    ):
-
-        raise RuntimeError(
-            f"Missing file: {name}"
-        )
+    if not os.path.exists(path):
+        return []
 
     with open(
         path,
         "r",
         encoding="utf-8",
-    ) as file:
+        errors="ignore"
+    ) as f:
 
         return [
-            line.strip()
-            for line in file
-            if line.strip()
+            x.strip()
+            for x in f
+            if x.strip()
         ]
 
 
-# =========================================================
-# VERIFY EXACT FILE
-# =========================================================
+# ============================================================
+# VERIFY EXACT
+# ============================================================
 
 def verify_exact_file(
-    name,
-    expected,
+    filename,
+    expected
 ):
-
     lines = read_lines(
-        name
+        filename
     )
 
     if len(lines) != expected:
-
         raise RuntimeError(
-            f"{name}: expected "
-            f"{expected}, got "
-            f"{len(lines)}"
+            f"{filename} requires "
+            f"{expected}, got {len(lines)}"
         )
 
-    for line in lines:
-
-        if not line.endswith(
-            f"#{REMARK}"
-        ):
-
-            raise RuntimeError(
-                f"{name}: invalid remark"
-            )
-
-    print(
-        f"[OK] {name} = {len(lines)}"
-    )
+    return True
 
 
-# =========================================================
-# VERIFY OPTIONAL FILE
-# =========================================================
-#
-# 0 تا 1000 قابل قبول است.
-#
-# =========================================================
+# ============================================================
+# VERIFY OPTIONAL
+# ============================================================
 
 def verify_optional_file(
-    name,
-    maximum,
+    filename,
+    maximum
 ):
-
-    path = os.path.join(
-        OUT_DIR,
-        name,
-    )
-
-    if not os.path.exists(
-        path
-    ):
-
-        raise RuntimeError(
-            f"Missing file: {name}"
-        )
-
     lines = read_lines(
-        name
+        filename
     )
 
     if len(lines) > maximum:
-
         raise RuntimeError(
-            f"{name}: maximum "
-            f"{maximum}, got "
-            f"{len(lines)}"
+            f"{filename} exceeds "
+            f"{maximum}: {len(lines)}"
         )
 
-    for line in lines:
-
-        if not line.endswith(
-            f"#{REMARK}"
-        ):
-
-            raise RuntimeError(
-                f"{name}: invalid remark"
-            )
-
-    print(
-        f"[OK] {name} = {len(lines)}"
-    )
+    return True
 
 
-# =========================================================
+# ============================================================
 # VERIFY SUBSCRIPTIONS
-# =========================================================
+# ============================================================
 
 def verify_subscriptions():
-
     all_seen = set()
 
     for index in range(
         1,
-        SUB_COUNT + 1,
+        SUB_COUNT + 1
     ):
 
-        name = (
+        filename = (
             f"sub{index}.txt"
         )
 
-        verify_exact_file(
-            name,
-            SUB_SIZE,
+        lines = read_lines(
+            filename
         )
 
-        for line in read_lines(
-            name
-        ):
-
-            config = clean_config(
-                line
+        if len(lines) != SUB_SIZE:
+            raise RuntimeError(
+                f"{filename} requires "
+                f"{SUB_SIZE}, got {len(lines)}"
             )
 
-            key = fingerprint(
-                config
-            )
+        for line in lines:
 
-            if key in all_seen:
-
+            if line in all_seen:
                 raise RuntimeError(
                     f"Duplicate config "
                     f"between subscriptions: "
-                    f"{name}"
+                    f"{line}"
                 )
 
-            all_seen.add(
-                key
-            )
+            all_seen.add(line)
 
     if len(all_seen) != TOTAL_CONFIGS:
-
         raise RuntimeError(
-            "Subscriptions are not "
-            "exactly unique."
+            f"Subscriptions total "
+            f"must be {TOTAL_CONFIGS}, "
+            f"got {len(all_seen)}"
         )
 
+    print(
+        f"[VERIFY] subscriptions = "
+        f"{len(all_seen)} unique"
+    )
 
-# =========================================================
+
+# ============================================================
 # VERIFY PROTOCOLS
-# =========================================================
+# ============================================================
 
 def verify_protocols():
-
-    for name in [
-        "vless.txt",
-        "vmess.txt",
-        "trojan.txt",
-        "ss.txt",
-    ]:
+    for protocol in (
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+    ):
 
         verify_optional_file(
-            name,
-            PROTOCOL_SIZE,
+            f"{protocol}.txt",
+            PROTOCOL_SIZE
         )
 
+    print(
+        "[VERIFY] protocol files OK"
+    )
 
-# =========================================================
+
+# ============================================================
 # VERIFY IRAN
-# =========================================================
+# ============================================================
 
 def verify_iran():
-
-    for name in [
+    for filename in (
         "best_iran.txt",
         "mix_iran.txt",
         "mci.txt",
         "irancell.txt",
         "rightel.txt",
-    ]:
-
-        verify_optional_file(
-            name,
-            IRAN_SIZE,
-        )
-
-
-# =========================================================
-# VERIFY BOT
-# =========================================================
-
-def verify_bot():
-
-    verify_optional_file(
-        "bot.txt",
-        BOT_SIZE,
-    )
-
-
-# =========================================================
-# VERIFY NO HYSTERIA2
-# =========================================================
-
-def verify_no_hysteria():
-
-    path = os.path.join(
-        OUT_DIR,
-        "hysteria2.txt",
-    )
-
-    if os.path.exists(
-        path
     ):
 
-        raise RuntimeError(
-            "hysteria2.txt must not exist."
+        verify_optional_file(
+            filename,
+            IRAN_SIZE
         )
 
-
-# =========================================================
-# MAIN
-# =========================================================
-
-def main():
-
-    started = time.time()
-
     print(
-        "=" * 70
+        "[VERIFY] Iran files OK"
     )
 
-    print(
-        "NUKCROW COLLECTOR"
+
+# ============================================================
+# VERIFY BOT
+# ============================================================
+
+def verify_bot():
+    verify_optional_file(
+        "bot.txt",
+        BOT_SIZE
     )
 
     print(
-        "SUBSCRIPTIONS : 10 x 2000"
+        "[VERIFY] bot.txt OK"
     )
 
-    print(
-        "TOTAL         : 20000"
+
+# ============================================================
+# VERIFY NO HYSTERIA
+# ============================================================
+
+def verify_no_hysteria():
+    path = os.path.join(
+        OUT_DIR,
+        "hysteria2.txt"
     )
 
-    print(
-        "PROTOCOLS     : up to 1000 each"
-    )
-
-    print(
-        "IRAN          : up to 1000 each"
-    )
-
-    print(
-        "HYSTERIA2     : DISABLED"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    # =====================================================
-    # REMOVE OLD HYSTERIA2
-    # =====================================================
-
-    remove_hysteria2()
-
-    # =====================================================
-    # COLLECT
-    # =====================================================
-
-    collected = collect_sources()
-
-    collected = unique(
-        collected
-    )
-
-    print(
-        f"[COLLECTED] {len(collected)}"
-    )
-
-    if not collected:
-
+    if os.path.exists(path):
         raise RuntimeError(
-            "No valid configs collected."
+            "hysteria2.txt must not exist"
         )
 
-    # =====================================================
-    # TEST
-    # =====================================================
-
-    alive = benchmark(
-        collected
+    print(
+        "[VERIFY] hysteria2.txt removed"
     )
 
-    alive = unique(
-        alive
-    )
+
+# ============================================================
+# VERIFY REMARK
+# ============================================================
+
+def verify_remark():
+    files = [
+        "all_configs.txt",
+    ]
+
+    for index in range(
+        1,
+        SUB_COUNT + 1
+    ):
+        files.append(
+            f"sub{index}.txt"
+        )
+
+    for protocol in (
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+    ):
+        files.append(
+            f"{protocol}.txt"
+        )
+
+    for filename in (
+        "best_iran.txt",
+        "mix_iran.txt",
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
+        "bot.txt",
+    ):
+        files.append(filename)
+
+    expected = f"#{REMARK}"
+
+    for filename in files:
+
+        path = os.path.join(
+            OUT_DIR,
+            filename
+        )
+
+        if not os.path.exists(path):
+            continue
+
+        lines = read_lines(
+            filename
+        )
+
+        for line in lines:
+
+            if not line.endswith(
+                expected
+            ):
+                raise RuntimeError(
+                    f"Wrong remark in "
+                    f"{filename}: {line}"
+                )
 
     print(
-        f"[ALIVE] {len(alive)}"
+        f"[VERIFY] remark = #{REMARK}"
     )
 
-    # =====================================================
-    # MAIN 20000
-    # =====================================================
 
-    if len(alive) < TOTAL_CONFIGS:
+# ============================================================
+# ALL CONFIGS
+# ============================================================
 
+def write_all_configs(
+    selected
+):
+    if len(selected) < TOTAL_CONFIGS:
         raise RuntimeError(
-            "Not enough alive configs "
-            "for the 20000 subscription pool. "
-            f"Required: {TOTAL_CONFIGS}, "
-            f"Available: {len(alive)}"
+            f"all_configs requires "
+            f"{TOTAL_CONFIGS}, "
+            f"got {len(selected)}"
         )
 
-    mixed = build_mixed_pool(
-        alive
-    )
-
-    mixed = unique(
-        mixed
-    )
-
-    if len(mixed) < TOTAL_CONFIGS:
-
-        raise RuntimeError(
-            "Unable to create "
-            "20000 unique configs."
-        )
-
-    all_configs = mixed[
+    selected = selected[
         :TOTAL_CONFIGS
     ]
 
-    # =====================================================
-    # SUB 1 - 10
-    # =====================================================
+    write_file(
+        "all_configs.txt",
+        selected
+    )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    print("=" * 70)
+    print("NUKCROW CONFIG COLLECTOR")
+    print("=" * 70)
 
     print(
-        "=" * 70
+        f"[CONFIG] target = {TOTAL_CONFIGS}"
     )
 
     print(
-        "SUBSCRIPTIONS"
+        f"[CONFIG] sub size = {SUB_SIZE}"
     )
 
     print(
-        "=" * 70
+        f"[CONFIG] protocol max = "
+        f"{PROTOCOL_SIZE}"
     )
 
-    for index in range(
-        SUB_COUNT
-    ):
+    print(
+        f"[CONFIG] remark = #{REMARK}"
+    )
 
-        start = (
-            index
-            * SUB_SIZE
+    print("=" * 70)
+
+
+    # --------------------------------------------------------
+    # PREPARE
+    # --------------------------------------------------------
+
+    ensure_out_dir()
+
+    remove_hysteria2()
+
+
+    # --------------------------------------------------------
+    # COLLECT GENERAL
+    # --------------------------------------------------------
+
+    general_configs = collect_sources(
+        SOURCES_PRIORITY
+    )
+
+    if not general_configs:
+        raise RuntimeError(
+            "No general configs found"
         )
 
-        end = (
-            start
-            + SUB_SIZE
+
+    # --------------------------------------------------------
+    # PATTERN SCORE
+    # --------------------------------------------------------
+
+    scored = []
+
+    for uri in general_configs:
+
+        score = pattern_score(
+            uri
         )
 
-        chunk = all_configs[
-            start:end
-        ]
-
-        write_file(
-            f"sub{index + 1}.txt",
-            chunk,
+        scored.append(
+            (
+                score,
+                uri,
+            )
         )
 
-        print(
-            f"[WRITE] "
-            f"sub{index + 1}.txt = "
-            f"{len(chunk)}"
-        )
-
-    # =====================================================
-    # PROTOCOLS
-    # =====================================================
-
-    print(
-        "=" * 70
+    scored.sort(
+        key=lambda x: -x[0]
     )
 
     print(
-        "PROTOCOLS"
+        "[PATTERN] top scores:"
+    )
+
+    for score, uri in scored[:10]:
+
+        info = endpoint(uri)
+
+        if info:
+            print(
+                f"[PATTERN] "
+                f"score={score} "
+                f"{info.get('scheme')}://"
+                f"{info.get('host')}:"
+                f"{info.get('port')}"
+            )
+
+
+    # --------------------------------------------------------
+    # BENCHMARK ALL
+    # --------------------------------------------------------
+
+    benchmarked = benchmark(
+        general_configs
+    )
+
+
+    # --------------------------------------------------------
+    # FINAL 20K
+    # --------------------------------------------------------
+
+    selected = build_mixed_pool(
+        benchmarked,
+        TOTAL_CONFIGS
     )
 
     print(
-        "=" * 70
+        f"[FINAL] selected = "
+        f"{len(selected)}"
     )
+
+
+    if len(selected) < TOTAL_CONFIGS:
+        raise RuntimeError(
+            f"Not enough tested configs. "
+            f"Need {TOTAL_CONFIGS}, "
+            f"got {len(selected)}"
+        )
+
+
+    # --------------------------------------------------------
+    # SUB1 - SUB10
+    # --------------------------------------------------------
+
+    write_subscriptions(
+        selected
+    )
+
+
+    # --------------------------------------------------------
+    # PROTOCOL FILES
+    # --------------------------------------------------------
 
     write_protocols(
-        alive
+        selected
     )
 
-    # =====================================================
+
+    # --------------------------------------------------------
     # IRAN
-    # =====================================================
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        "IRAN"
-    )
-
-    print(
-        "=" * 70
-    )
+    # --------------------------------------------------------
 
     iran_configs = collect_iran()
 
     write_iran(
-        iran_configs,
-        all_configs,
+        iran_configs
     )
 
-    # =====================================================
+
+    # --------------------------------------------------------
     # BOT
-    # =====================================================
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        "BOT"
-    )
-
-    print(
-        "=" * 70
-    )
+    # --------------------------------------------------------
 
     write_bot()
 
-    # =====================================================
+
+    # --------------------------------------------------------
     # ALL CONFIGS
-    # =====================================================
+    # --------------------------------------------------------
 
-    print(
-        "=" * 70
+    write_all_configs(
+        selected
     )
 
-    print(
-        "ALL CONFIGS"
-    )
 
-    print(
-        "=" * 70
-    )
+    # --------------------------------------------------------
+    # REMOVE HYSTERIA
+    # --------------------------------------------------------
 
-    write_file(
-        "all_configs.txt",
-        all_configs,
-    )
+    remove_hysteria2()
 
-    # =====================================================
+
+    # --------------------------------------------------------
     # VERIFY
-    # =====================================================
+    # --------------------------------------------------------
 
-    print(
-        "=" * 70
-    )
-
-    print(
-        "VERIFY"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    # Subs must be exactly 2000 each
     verify_subscriptions()
 
-    # Protocols can be 0..1000
     verify_protocols()
 
-    # Iran can be 0..1000
     verify_iran()
 
-    # Bot can be 0..1000
     verify_bot()
 
-    # all_configs must be exactly 20000
-    verify_exact_file(
-        "all_configs.txt",
-        TOTAL_CONFIGS,
-    )
-
-    # hysteria2 must not exist
     verify_no_hysteria()
 
-    # =====================================================
+    verify_remark()
+
+
+    # --------------------------------------------------------
     # DONE
-    # =====================================================
+    # --------------------------------------------------------
 
-    elapsed = (
-        time.time()
-        - started
+    print("=" * 70)
+    print("DONE")
+    print("=" * 70)
+
+    print(
+        f"[DONE] {TOTAL_CONFIGS} configs"
     )
 
     print(
-        "=" * 70
+        "[DONE] sub1.txt ... sub10.txt"
     )
 
     print(
-        "NUKCROW UPDATE COMPLETE"
+        "[DONE] protocol files"
     )
 
     print(
-        f"Collected : {len(collected)}"
+        "[DONE] Iran files"
     )
 
     print(
-        f"Alive     : {len(alive)}"
+        "[DONE] bot.txt"
     )
 
     print(
-        f"Subs      : {SUB_COUNT} x {SUB_SIZE}"
+        "[DONE] all_configs.txt"
     )
 
     print(
-        f"All       : {TOTAL_CONFIGS}"
+        "[DONE] hysteria2.txt removed"
     )
 
-    print(
-        f"Protocols : up to {PROTOCOL_SIZE} each"
-    )
+    print("=" * 70)
 
-    print(
-        f"Time      : {elapsed:.1f}s"
-    )
 
-    print(
-        "=" * 70
-    )
-
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
-
     main()
