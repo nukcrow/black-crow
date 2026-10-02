@@ -5,7 +5,6 @@ import time
 import base64
 import socket
 import ssl
-import sys
 import queue
 import shutil
 import tempfile
@@ -14,7 +13,6 @@ import random
 import ipaddress
 import threading
 import functools
-import html as html_lib
 
 from urllib.parse import urlparse, parse_qs, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,7 +27,15 @@ import requests
 OUT_DIR = "sub/general"
 REMARK = "nukcrow"
 
-SUPPORTED_PROTOCOLS = {"vless", "vmess", "trojan", "ss", "hysteria2", "hy2"}
+SUPPORTED_PROTOCOLS = {
+    "vless",
+    "vmess",
+    "trojan",
+    "ss",
+    "hysteria2",
+    "hy2",
+}
+
 UDP_PROTOCOLS = {"hysteria2", "hy2"}
 
 GENERAL_SUB_SIZE = 1000
@@ -46,92 +52,48 @@ FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
 MAX_PER_SOURCE = 20000
 
-# Benchmark: TCP connect (+ TLS handshake for tls/reality configs)
-MAX_TEST = 20000
+# Stage 1
+MAX_TEST = 30000
 BENCH_WORKERS = 100
 BENCH_TIMEOUT = 2.0
 TLS_TIMEOUT = 2.5
 
-SECOND_PASS = 8000
-SECOND_PASS_WORKERS = 60
+SECOND_PASS = 15000
+SECOND_PASS_WORKERS = 80
 SECOND_PASS_TIMEOUT = 2.0
 
-# Output policy: only configs that really work are published.
-# Below MIN_GOOD verified configs the run is skipped and the last output stays.
-MIN_GOOD = 30
+# Minimum amount of verified configs required before replacing outputs.
+MIN_GOOD = GENERAL_TOTAL
 
-# Real end-to-end test through xray-core (HTTP 204 via the proxy)
+# Real xray end-to-end test
 XRAY_BIN = os.environ.get("XRAY_BIN", "xray")
-REAL_TEST_MAX = 8000          # configs tested end-to-end per run
-REAL_BATCH_SIZE = 50          # configs per xray process
-REAL_BATCH_PARALLEL = 4       # xray processes at the same time
+
+REAL_TEST_MAX = 30000
+REAL_BATCH_SIZE = 40
+REAL_BATCH_PARALLEL = 4
 REAL_BASE_PORT = 20000
 REAL_TIMEOUT = 5.0
+
 TEST_HOST = "www.gstatic.com"
 TEST_PORT = 80
 TEST_PATH = "/generate_204"
 
-# Persistent pool of configs that worked before (re-tested first every run)
+# Persistent known-good pool
 STATE_FILE = os.environ.get("STATE_FILE", ".state/good_pool.json")
-STATE_RETEST = 4000
-STATE_MAX = 15000
+STATE_RETEST = 5000
+STATE_MAX = 20000
 STATE_MAX_FAILS = 3
 
-PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade", "tcp"}
+PREFERRED_TYPES = {
+    "ws",
+    "grpc",
+    "xhttp",
+    "httpupgrade",
+    "tcp",
+}
 
-# Scoring bonuses (Iran oriented)
-CF_BONUS = 8              # server IP inside Cloudflare ranges (CDN fronted, stable in Iran)
-TELEGRAM_BONUS = 6        # fresh config scraped from Telegram channels
-MULTI_SOURCE_BONUS = 3    # config seen in 2+ sources
-
-# Telegram public preview scraping (https://t.me/s/<channel>)
-TELEGRAM_ENABLED = True
-TELEGRAM_PAGES = 3
-TELEGRAM_WORKERS = 8
-TELEGRAM_CHANNELS = [
-    "v2rayng_fa2",
-    "v2rayng_org",
-    "V2rayNGvpni",
-    "custom_14",
-    "v2rayNG_VPNN",
-    "V2rayNG3",
-    "MsV2ray",
-    "foxrayiran",
-    "DailyV2RY",
-    "yaney_01",
-    "FreakConfig",
-    "EliV2ray",
-    "ServerNett",
-    "proxystore11",
-    "v2ray_outlineir",
-    "v2_vmess",
-    "FreeVlessVpn",
-    "vmess_vless_v2rayng",
-    "PrivateVPNs",
-    "vmessiran",
-    "V2Ray_FreedomIran",
-]
-
-CLOUDFLARE_NETS = [
-    ipaddress.ip_network(n)
-    for n in (
-        "173.245.48.0/20",
-        "103.21.244.0/22",
-        "103.22.200.0/22",
-        "103.31.4.0/22",
-        "141.101.64.0/18",
-        "108.162.192.0/18",
-        "190.93.240.0/20",
-        "188.114.96.0/20",
-        "197.234.240.0/22",
-        "198.41.128.0/17",
-        "162.158.0.0/15",
-        "104.16.0.0/13",
-        "104.24.0.0/14",
-        "172.64.0.0/13",
-        "131.0.72.0/22",
-    )
-]
+CF_BONUS = 8
+MULTI_SOURCE_BONUS = 3
 
 
 # ============================================================
@@ -202,7 +164,7 @@ TLS_CTX = _make_tls_ctx()
 
 
 # ============================================================
-# HTTP SESSION
+# HTTP
 # ============================================================
 
 def session():
@@ -216,6 +178,7 @@ def session():
             )
         })
         _thread_local.session = s
+
     return _thread_local.session
 
 
@@ -226,11 +189,17 @@ def session():
 def decode64(value):
     if not value:
         return ""
+
     try:
         value = value.strip()
         value = value.replace("-", "+").replace("_", "/")
         value += "=" * (-len(value) % 4)
-        return base64.b64decode(value, validate=False).decode("utf-8", errors="ignore")
+
+        return base64.b64decode(
+            value,
+            validate=False,
+        ).decode("utf-8", errors="ignore")
+
     except Exception:
         return ""
 
@@ -248,21 +217,36 @@ URI_PATTERN = re.compile(
 def normalize_config(config):
     if not config:
         return ""
+
     try:
         config = config.strip()
         config = unquote(config)
-        config = config.replace("\\n", "").replace("\n", "").replace("\r", "")
+
+        config = (
+            config
+            .replace("\\\n", "")
+            .replace("\n", "")
+            .replace("\r", "")
+        )
+
         if "#" in config:
             config = config.split("#", 1)[0]
+
         config = config.strip().strip("'\"`")
+
         return config.strip()
+
     except Exception:
         return ""
 
 
 def _collect(text, found):
+    if not text:
+        return
+
     for match in URI_PATTERN.findall(text):
         config = normalize_config(match)
+
         if config:
             found.append(config)
 
@@ -277,16 +261,21 @@ def extract_uris(text):
         _collect(text, found)
 
         decoded = decode64(text.strip())
+
         if decoded:
             _collect(decoded, found)
 
         for line in text.splitlines():
             line = line.strip()
+
             if not line:
                 continue
+
             decoded_line = decode64(line)
+
             if decoded_line:
                 _collect(decoded_line, found)
+
     except Exception:
         pass
 
@@ -303,12 +292,20 @@ def config_key(config):
 
 def register_source(config, source):
     with SOURCE_META_LOCK:
-        SOURCE_META.setdefault(config_key(config), set()).add(source)
+        SOURCE_META.setdefault(
+            config_key(config),
+            set(),
+        ).add(source)
 
 
 def source_names(config):
     with SOURCE_META_LOCK:
-        return sorted(SOURCE_META.get(config_key(config), set()))
+        return sorted(
+            SOURCE_META.get(
+                config_key(config),
+                set(),
+            )
+        )
 
 
 # ============================================================
@@ -320,10 +317,17 @@ def fetch_source(url):
 
     for attempt in range(FETCH_RETRIES + 1):
         try:
-            response = session().get(url, timeout=FETCH_TIMEOUT, allow_redirects=True)
+            response = session().get(
+                url,
+                timeout=FETCH_TIMEOUT,
+                allow_redirects=True,
+            )
+
             response.raise_for_status()
 
-            configs = extract_uris(response.text)[:MAX_PER_SOURCE]
+            configs = extract_uris(response.text)
+
+            configs = configs[:MAX_PER_SOURCE]
 
             for config in configs:
                 register_source(config, url)
@@ -332,10 +336,12 @@ def fetch_source(url):
 
         except Exception as exc:
             last_error = exc
+
             if attempt < FETCH_RETRIES:
                 time.sleep(min(2 ** attempt, 5))
 
     print(f"[FETCH ERROR] {url}: {last_error}")
+
     return []
 
 
@@ -347,90 +353,57 @@ def fetch_group(sources, name):
 
     print(f"\nFetching {name}: {len(sources)} sources")
 
-    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as executor:
-        futures = {executor.submit(fetch_source, s): s for s in sources}
+    with ThreadPoolExecutor(
+        max_workers=FETCH_WORKERS
+    ) as executor:
+
+        futures = {
+            executor.submit(fetch_source, source): source
+            for source in sources
+        }
 
         for future in as_completed(futures):
             source = futures[future]
+
             try:
                 configs = future.result()
+
                 results.extend(configs)
-                print(f"[OK] {len(configs):5d} {source}")
+
+                print(
+                    f"[OK] {len(configs):5d} {source}"
+                )
+
             except Exception as exc:
-                print(f"[ERROR] {source}: {exc}")
-
-    return results
-
-
-def fetch_telegram_channel(channel):
-    found = []
-    before = None
-    label = f"tg:{channel}"
-
-    for _ in range(TELEGRAM_PAGES):
-        url = f"https://t.me/s/{channel}"
-        if before:
-            url += f"?before={before}"
-
-        try:
-            response = session().get(url, timeout=FETCH_TIMEOUT)
-            response.raise_for_status()
-        except Exception as exc:
-            print(f"[TG ERROR] {channel}: {exc}")
-            break
-
-        page = response.text
-
-        ids = [int(x) for x in re.findall(r'data-post="[^"/]+/(\d+)"', page)]
-
-        text = re.sub(r"<br\s*/?>", "\n", page)
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = html_lib.unescape(text)
-
-        for config in extract_uris(text):
-            register_source(config, label)
-            found.append(config)
-
-        if not ids:
-            break
-
-        before = min(ids)
-        time.sleep(0.4)
-
-    return found
-
-
-def fetch_telegram_group():
-    results = []
-
-    if not TELEGRAM_ENABLED or not TELEGRAM_CHANNELS:
-        return results
-
-    print(f"\nFetching TELEGRAM: {len(TELEGRAM_CHANNELS)} channels")
-
-    with ThreadPoolExecutor(max_workers=TELEGRAM_WORKERS) as executor:
-        futures = {executor.submit(fetch_telegram_channel, c): c for c in TELEGRAM_CHANNELS}
-
-        for future in as_completed(futures):
-            channel = futures[future]
-            try:
-                configs = future.result()
-                results.extend(configs)
-                print(f"[TG OK] {len(configs):5d} {channel}")
-            except Exception as exc:
-                print(f"[TG ERROR] {channel}: {exc}")
+                print(
+                    f"[ERROR] {source}: {exc}"
+                )
 
     return results
 
 
 def fetch_all():
     return {
-        "general": fetch_group(SOURCES_GENERAL, "GENERAL"),
-        "iran": fetch_group(SOURCES_IRAN, "IRAN"),
-        "mci": fetch_group(SOURCES_MCI, "MCI"),
-        "irancell": fetch_group(SOURCES_IRANCELL, "IRANCELL"),
-        "rightel": fetch_group(SOURCES_RIGHTEL, "RIGHTEL"),
-        "telegram": fetch_telegram_group(),
+        "general": fetch_group(
+            SOURCES_GENERAL,
+            "GENERAL",
+        ),
+        "iran": fetch_group(
+            SOURCES_IRAN,
+            "IRAN",
+        ),
+        "mci": fetch_group(
+            SOURCES_MCI,
+            "MCI",
+        ),
+        "irancell": fetch_group(
+            SOURCES_IRANCELL,
+            "IRANCELL",
+        ),
+        "rightel": fetch_group(
+            SOURCES_RIGHTEL,
+            "RIGHTEL",
+        ),
     }
 
 
@@ -455,9 +428,15 @@ def parsed(config):
 def query(config):
     try:
         parsed_url = parsed(config)
+
         if not parsed_url:
             return {}
-        return parse_qs(parsed_url.query, keep_blank_values=True)
+
+        return parse_qs(
+            parsed_url.query,
+            keep_blank_values=True,
+        )
+
     except Exception:
         return {}
 
@@ -465,11 +444,15 @@ def query(config):
 def q1(data, key, default=""):
     try:
         value = data.get(key)
+
         if not value:
             return default
+
         if isinstance(value, list):
             return value[0]
+
         return value
+
     except Exception:
         return default
 
@@ -479,112 +462,172 @@ def vmess_data(config):
         if not config.lower().startswith("vmess://"):
             return {}
 
-        decoded = decode64(config.split("://", 1)[1])
+        payload = config.split("://", 1)[1]
+
+        decoded = decode64(payload)
+
         if not decoded:
             return {}
 
         data = json.loads(decoded)
+
         if isinstance(data, dict):
             return data
+
     except Exception:
         pass
 
     return {}
 
 
-def ss_data(config):
+# ============================================================
+# SHADOWSOCKS PARSER
+# ============================================================
+
+def _parse_host_port(value):
+    if not value:
+        return "", 0
+
+    value = value.strip()
+
     try:
-        parsed_url = urlparse(config)
+        if value.startswith("["):
+            closing = value.find("]")
 
-        if parsed_url.scheme.lower() != "ss":
-            return None
+            if closing == -1:
+                return "", 0
 
-        try:
-            port = parsed_url.port
-        except (ValueError, TypeError):
-            return None
+            host = value[1:closing]
 
-        if not port or not (1 <= port <= 65535):
-            return None
+            rest = value[closing + 1:]
 
-        try:
-            host = parsed_url.hostname
-        except (ValueError, TypeError):
-            return None
+            if not rest.startswith(":"):
+                return "", 0
+
+            port_text = rest[1:]
+
+        else:
+            if ":" not in value:
+                return "", 0
+
+            host, port_text = value.rsplit(":", 1)
+
+        host = host.strip()
+
+        port = int(port_text.strip())
 
         if not host:
+            return "", 0
+
+        if not (1 <= port <= 65535):
+            return "", 0
+
+        return host, port
+
+    except Exception:
+        return "", 0
+
+
+def _parse_ss_method_password(value):
+    if not value:
+        return "", ""
+
+    value = unquote(value.strip())
+
+    if ":" not in value:
+        decoded = decode64(value)
+
+        if decoded and ":" in decoded:
+            value = decoded
+
+    if ":" not in value:
+        return "", ""
+
+    method, password = value.split(":", 1)
+
+    method = unquote(method.strip())
+    password = unquote(password.strip())
+
+    if not method or not password:
+        return "", ""
+
+    return method, password
+
+
+def ss_data(config):
+    try:
+        if not config.lower().startswith("ss://"):
             return None
 
-        raw_netloc = parsed_url.netloc
+        payload = config.split("://", 1)[1]
 
-        # SIP002: ss://BASE64(method:password)@host:port
-        if "@" in raw_netloc:
-            userinfo, _ = raw_netloc.rsplit("@", 1)
-            userinfo = unquote(userinfo)
+        payload = payload.split("#", 1)[0]
+        payload = payload.strip()
 
-            method = ""
-            secret = ""
+        if not payload:
+            return None
 
-            if ":" in userinfo:
-                method, secret = userinfo.split(":", 1)
-            else:
-                decoded_userinfo = decode64(userinfo)
-                if ":" in decoded_userinfo:
-                    method, secret = decoded_userinfo.split(":", 1)
+        # SIP002:
+        # ss://BASE64(method:password)@host:port
+        if "@" in payload:
+            user_part, endpoint_part = payload.rsplit("@", 1)
 
-            method = unquote(method.strip())
-            secret = unquote(secret.strip())
+            endpoint_part = unquote(endpoint_part)
 
-            if not method or not secret:
+            host, port = _parse_host_port(endpoint_part)
+
+            if not host or not port:
                 return None
 
-            return {"method": method, "password": secret, "host": host, "port": port}
+            method, password = _parse_ss_method_password(
+                user_part
+            )
 
-        # Legacy: ss://BASE64(method:password@host:port)
-        payload = config.split("://", 1)[1].split("#", 1)[0]
-        decoded_payload = decode64(payload)
+            if not method or not password:
+                return None
 
-        if not decoded_payload or "@" not in decoded_payload:
+            return {
+                "method": method,
+                "password": password,
+                "host": host,
+                "port": port,
+            }
+
+        # Legacy:
+        # ss://BASE64(method:password@host:port)
+        decoded = decode64(payload)
+
+        if not decoded or "@" not in decoded:
             return None
 
-        userinfo, endpoint_part = decoded_payload.rsplit("@", 1)
+        user_part, endpoint_part = decoded.rsplit("@", 1)
 
-        if ":" not in userinfo:
+        method, password = _parse_ss_method_password(
+            user_part
+        )
+
+        if not method or not password:
             return None
 
-        method, secret = userinfo.split(":", 1)
+        host, port = _parse_host_port(endpoint_part)
 
-        endpoint_url = urlparse("ss://" + endpoint_part)
-
-        try:
-            decoded_port = endpoint_url.port
-        except (ValueError, TypeError):
-            return None
-
-        decoded_host = endpoint_url.hostname
-
-        if not decoded_host or not decoded_port:
-            return None
-
-        if not (1 <= decoded_port <= 65535):
-            return None
-
-        method = unquote(method.strip())
-        secret = unquote(secret.strip())
-
-        if not method or not secret:
+        if not host or not port:
             return None
 
         return {
             "method": method,
-            "password": secret,
-            "host": decoded_host,
-            "port": decoded_port,
+            "password": password,
+            "host": host,
+            "port": port,
         }
 
     except Exception:
         return None
 
+
+# ============================================================
+# ENDPOINT
+# ============================================================
 
 @functools.lru_cache(maxsize=None)
 def endpoint(config):
@@ -593,35 +636,46 @@ def endpoint(config):
 
         if ptype == "vmess":
             data = vmess_data(config)
-            host = data.get("add") or data.get("address") or ""
+
+            host = (
+                data.get("add")
+                or data.get("address")
+                or ""
+            )
+
             try:
-                port = int(data.get("port") or 0)
+                port = int(
+                    data.get("port") or 0
+                )
             except Exception:
                 port = 0
+
             return host, port
 
         if ptype == "ss":
             data = ss_data(config)
+
             if not data:
                 return "", 0
-            try:
-                port = int(data.get("port", 0) or 0)
-            except Exception:
-                port = 0
-            return data.get("host", ""), port
+
+            return (
+                data.get("host", ""),
+                int(data.get("port", 0)),
+            )
 
         parsed_url = parsed(config)
+
         if not parsed_url:
             return "", 0
 
         try:
             host = parsed_url.hostname or ""
-        except (ValueError, TypeError):
+        except Exception:
             return "", 0
 
         try:
             port = parsed_url.port or 0
-        except (ValueError, TypeError):
+        except Exception:
             return host, 0
 
         return host, port
@@ -630,8 +684,11 @@ def endpoint(config):
         return "", 0
 
 
+# ============================================================
+# PARAMETERS
+# ============================================================
+
 def config_params(config):
-    """Unified transport/security/etc. extraction for every protocol."""
     ptype = proto(config)
 
     if ptype == "vmess":
@@ -641,6 +698,7 @@ def config_params(config):
             for key in keys:
                 if data.get(key):
                     return str(data[key])
+
             return ""
 
         return {
@@ -659,10 +717,30 @@ def config_params(config):
     q = query(config)
 
     return {
-        "transport": (q1(q, "type") or q1(q, "mode") or "").lower(),
-        "security": (q1(q, "security") or q1(q, "tls") or "").lower(),
-        "sni": (q1(q, "sni") or q1(q, "serverName") or "").lower(),
-        "host_header": (q1(q, "host") or q1(q, "hostHeader") or "").lower(),
+        "transport": (
+            q1(q, "type")
+            or q1(q, "mode")
+            or ""
+        ).lower(),
+
+        "security": (
+            q1(q, "security")
+            or q1(q, "tls")
+            or ""
+        ).lower(),
+
+        "sni": (
+            q1(q, "sni")
+            or q1(q, "serverName")
+            or ""
+        ).lower(),
+
+        "host_header": (
+            q1(q, "host")
+            or q1(q, "hostHeader")
+            or ""
+        ).lower(),
+
         "path": q1(q, "path"),
         "service_name": q1(q, "serviceName"),
         "pbk": q1(q, "pbk"),
@@ -686,7 +764,10 @@ def is_junk_host(host):
         if not host:
             return True
 
-        if host in {"localhost", "localhost.localdomain"}:
+        if host in {
+            "localhost",
+            "localhost.localdomain",
+        }:
             return True
 
         if host.endswith(".local"):
@@ -694,6 +775,7 @@ def is_junk_host(host):
 
         try:
             ip = ipaddress.ip_address(host)
+
             if (
                 ip.is_private
                 or ip.is_loopback
@@ -703,6 +785,7 @@ def is_junk_host(host):
                 or ip.is_link_local
             ):
                 return True
+
         except ValueError:
             pass
 
@@ -713,9 +796,16 @@ def is_junk_host(host):
 
 
 _DOMAIN_RE = re.compile(
-    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$"
+    r"^(?=.{1,253}$)"
+    r"(?:[A-Za-z0-9]"
+    r"(?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63}$"
 )
-_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+
+_LABEL_RE = re.compile(
+    r"^[A-Za-z0-9]"
+    r"(?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+)
 
 
 def valid_host(host):
@@ -734,17 +824,24 @@ def valid_host(host):
         try:
             ipaddress.ip_address(host)
             return True
+
         except ValueError:
             pass
 
         if "%" in host:
             try:
-                ipaddress.IPv6Address(host.split("%", 1)[0])
+                ipaddress.IPv6Address(
+                    host.split("%", 1)[0]
+                )
                 return True
+
             except ValueError:
                 return False
 
-        if not _DOMAIN_RE.match(host) and not _LABEL_RE.match(host):
+        if (
+            not _DOMAIN_RE.match(host)
+            and not _LABEL_RE.match(host)
+        ):
             return False
 
         return True
@@ -779,13 +876,19 @@ def valid_config(config):
 
         if p == "vmess":
             data = vmess_data(config)
+
             if not data:
                 return False
-            if not (data.get("id") or data.get("uuid")):
+
+            if not (
+                data.get("id")
+                or data.get("uuid")
+            ):
                 return False
 
-        if p == "ss" and not ss_data(config):
-            return False
+        if p == "ss":
+            if not ss_data(config):
+                return False
 
         host, port = endpoint(config)
 
@@ -794,7 +897,7 @@ def valid_config(config):
 
         try:
             port = int(port)
-        except (ValueError, TypeError):
+        except Exception:
             return False
 
         if not (1 <= port <= 65535):
@@ -803,13 +906,21 @@ def valid_config(config):
         if not valid_host(host):
             return False
 
-        if p in {"vless", "trojan", "hysteria2", "hy2"}:
+        if p in {
+            "vless",
+            "trojan",
+            "hysteria2",
+            "hy2",
+        }:
             parsed_url = parsed(config)
+
             if not parsed_url:
                 return False
 
             try:
-                username = unquote(parsed_url.username or "")
+                username = unquote(
+                    parsed_url.username or ""
+                )
             except Exception:
                 username = ""
 
@@ -832,20 +943,33 @@ def config_identity(config):
 
         if ptype == "vmess":
             data = vmess_data(config)
-            return str(data.get("id") or data.get("uuid") or "").lower()
+
+            return str(
+                data.get("id")
+                or data.get("uuid")
+                or ""
+            ).lower()
 
         if ptype == "ss":
             data = ss_data(config)
+
             if not data:
                 return ""
-            return f"{data.get('method', '')}:{data.get('password', '')}"
+
+            return (
+                f"{data.get('method', '')}:"
+                f"{data.get('password', '')}"
+            )
 
         parsed_url = parsed(config)
+
         if not parsed_url:
             return ""
 
         try:
-            return unquote(parsed_url.username or "")
+            return unquote(
+                parsed_url.username or ""
+            )
         except Exception:
             return ""
 
@@ -857,6 +981,7 @@ def config_identity(config):
 def config_fingerprint(config):
     try:
         ptype = proto(config)
+
         host, port = endpoint(config)
 
         if not host or not port:
@@ -893,7 +1018,10 @@ def dedupe(configs):
         try:
             config = normalize_config(config)
 
-            if not config or not valid_config(config):
+            if not config:
+                continue
+
+            if not valid_config(config):
                 continue
 
             key = config_fingerprint(config)
@@ -911,13 +1039,14 @@ def dedupe(configs):
 
 
 # ============================================================
-# QUALITY SCORE (Iran oriented)
+# QUALITY
 # ============================================================
 
 @functools.lru_cache(maxsize=None)
 def quality_score(config):
     try:
         score = 0
+
         ptype = proto(config)
 
         if ptype in SUPPORTED_PROTOCOLS:
@@ -927,7 +1056,15 @@ def quality_score(config):
 
         if port == 443:
             score += 8
-        elif port in {80, 8443, 2053, 2083, 2087, 2096}:
+
+        elif port in {
+            80,
+            8443,
+            2053,
+            2083,
+            2087,
+            2096,
+        }:
             score += 4
 
         p = config_params(config)
@@ -938,28 +1075,40 @@ def quality_score(config):
         if ptype == "trojan" and not security:
             security = "tls"
 
-        secure = security in {"tls", "reality"}
+        secure = security in {
+            "tls",
+            "reality",
+        }
 
         if transport in PREFERRED_TYPES:
             score += 8
 
         if security == "reality":
             score += 22
+
         elif security == "tls":
             score += 8
 
-        # TLS/REALITY on port 80 is almost always a fake/broken config
         if secure and port == 80:
             score -= 20
 
-        # Plain (no TLS) transports are easily fingerprinted by DPI
-        if not secure and ptype in {"vless", "vmess"}:
+        if (
+            not secure
+            and ptype in {"vless", "vmess"}
+        ):
             score -= 6
 
-        if transport in {"grpc", "xhttp", "httpupgrade"}:
+        if transport in {
+            "grpc",
+            "xhttp",
+            "httpupgrade",
+        }:
             score += 4
 
-        if transport == "ws" and security == "tls":
+        if (
+            transport == "ws"
+            and security == "tls"
+        ):
             score += 3
 
         if p["sni"]:
@@ -977,11 +1126,9 @@ def quality_score(config):
         if p["sid"]:
             score += 2
 
-        # Plain Shadowsocks is commonly throttled/blocked by DPI
         if ptype == "ss":
             score -= 4
 
-        # Hysteria2 is UDP/QUIC: often throttled and not TCP-testable
         if ptype in UDP_PROTOCOLS:
             score -= 2
 
@@ -989,9 +1136,6 @@ def quality_score(config):
             score += 3
 
         names = source_names(config)
-
-        if any(n.startswith("tg:") for n in names):
-            score += TELEGRAM_BONUS
 
         if len(names) >= 2:
             score += MULTI_SOURCE_BONUS
@@ -1003,7 +1147,7 @@ def quality_score(config):
 
 
 # ============================================================
-# BENCHMARK (TCP + TLS handshake)
+# DNS / TCP / TLS
 # ============================================================
 
 def resolve(host):
@@ -1017,12 +1161,26 @@ def resolve(host):
     ip = ""
 
     try:
-        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        infos = socket.getaddrinfo(
+            host,
+            None,
+            type=socket.SOCK_STREAM,
+        )
 
-        v4 = [i[4][0] for i in infos if i[0] == socket.AF_INET]
-        v6 = [i[4][0] for i in infos if i[0] == socket.AF_INET6]
+        v4 = [
+            i[4][0]
+            for i in infos
+            if i[0] == socket.AF_INET
+        ]
+
+        v6 = [
+            i[4][0]
+            for i in infos
+            if i[0] == socket.AF_INET6
+        ]
 
         ip = (v4 or v6 or [""])[0]
+
     except Exception:
         ip = ""
 
@@ -1032,19 +1190,49 @@ def resolve(host):
     return ip
 
 
+CLOUDFLARE_NETS = [
+    ipaddress.ip_network(n)
+    for n in (
+        "173.245.48.0/20",
+        "103.21.244.0/22",
+        "103.22.200.0/22",
+        "103.31.4.0/22",
+        "141.101.64.0/18",
+        "108.162.192.0/18",
+        "190.93.240.0/20",
+        "188.114.96.0/20",
+        "197.234.240.0/22",
+        "198.41.128.0/17",
+        "162.158.0.0/15",
+        "104.16.0.0/13",
+        "104.24.0.0/14",
+        "172.64.0.0/13",
+        "131.0.72.0/22",
+    )
+]
+
+
 def is_cloudflare(ip):
     try:
         addr = ipaddress.ip_address(ip)
+
     except ValueError:
         return False
 
-    return addr.version == 4 and any(addr in net for net in CLOUDFLARE_NETS)
+    return (
+        addr.version == 4
+        and any(
+            addr in net
+            for net in CLOUDFLARE_NETS
+        )
+    )
 
 
 def _probe(config, timeout):
-    """Returns (latency_ms, ip) or None. UDP protocols are not probed."""
     ptype = proto(config)
 
+    # Hysteria2 / Hy2 is UDP/QUIC.
+    # Do not falsely mark it alive through TCP.
     if ptype in UDP_PROTOCOLS:
         return None
 
@@ -1059,9 +1247,23 @@ def _probe(config, timeout):
         return None
 
     p = config_params(config)
-    need_tls = p["security"] in {"tls", "reality"} or (ptype == "trojan" and p["security"] != "none")
 
-    sni = p["sni"] if p["sni"] and valid_host(p["sni"]) else None
+    need_tls = (
+        p["security"] in {
+            "tls",
+            "reality",
+        }
+        or (
+            ptype == "trojan"
+            and p["security"] != "none"
+        )
+    )
+
+    sni = (
+        p["sni"]
+        if p["sni"] and valid_host(p["sni"])
+        else None
+    )
 
     if need_tls and not sni and not is_ip(host):
         sni = host
@@ -1069,13 +1271,24 @@ def _probe(config, timeout):
     started = time.perf_counter()
 
     try:
-        with socket.create_connection((ip, port), timeout=timeout) as sock:
+        with socket.create_connection(
+            (ip, port),
+            timeout=timeout,
+        ) as sock:
+
             if need_tls:
                 sock.settimeout(TLS_TIMEOUT)
-                with TLS_CTX.wrap_socket(sock, server_hostname=sni):
+
+                with TLS_CTX.wrap_socket(
+                    sock,
+                    server_hostname=sni,
+                ):
                     pass
 
-        return (time.perf_counter() - started) * 1000, ip
+        return (
+            (time.perf_counter() - started) * 1000,
+            ip,
+        )
 
     except Exception:
         return None
@@ -1087,26 +1300,46 @@ def config_record(config):
         "latency": 999.0,
         "score": quality_score(config),
         "alive": False,
+        "verified": False,
         "ip": "",
     }
 
 
 def rank_key(record):
-    """Higher is better: quality score minus a latency penalty."""
-    return record["score"] - min(record["latency"] / 40.0, 20.0)
+    return (
+        record["score"]
+        - min(
+            record["latency"] / 40.0,
+            20.0,
+        )
+    )
 
 
 def _run_probes(configs, workers, timeout):
     alive = []
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {executor.submit(_probe, c, timeout): c for c in configs}
+    if not configs:
+        return alive
+
+    with ThreadPoolExecutor(
+        max_workers=workers
+    ) as executor:
+
+        futures = {
+            executor.submit(
+                _probe,
+                config,
+                timeout,
+            ): config
+            for config in configs
+        }
 
         for future in as_completed(futures):
             config = futures[future]
 
             try:
                 result = future.result()
+
             except Exception:
                 continue
 
@@ -1116,6 +1349,7 @@ def _run_probes(configs, workers, timeout):
             latency, ip = result
 
             record = config_record(config)
+
             record["latency"] = latency
             record["alive"] = True
             record["ip"] = ip
@@ -1134,39 +1368,75 @@ def benchmark(configs):
 
     candidates = configs[:MAX_TEST]
 
-    print(f"\nBenchmarking {len(candidates)} configs (TCP + TLS)...")
+    print(
+        f"\nBenchmarking {len(candidates)} "
+        f"configs (TCP + TLS)..."
+    )
 
-    alive = _run_probes(candidates, BENCH_WORKERS, BENCH_TIMEOUT)
+    alive = _run_probes(
+        candidates,
+        BENCH_WORKERS,
+        BENCH_TIMEOUT,
+    )
 
-    if len(alive) < SECOND_PASS and len(configs) > len(candidates):
-        extra = configs[len(candidates):len(candidates) + SECOND_PASS]
+    if (
+        len(alive) < SECOND_PASS
+        and len(configs) > len(candidates)
+    ):
+        extra_end = min(
+            len(configs),
+            len(candidates) + SECOND_PASS,
+        )
 
-        print(f"Second benchmark pass: {len(extra)} configs")
+        extra = configs[
+            len(candidates):extra_end
+        ]
 
-        alive.extend(_run_probes(extra, SECOND_PASS_WORKERS, SECOND_PASS_TIMEOUT))
+        print(
+            f"Second benchmark pass: "
+            f"{len(extra)} configs"
+        )
+
+        alive.extend(
+            _run_probes(
+                extra,
+                SECOND_PASS_WORKERS,
+                SECOND_PASS_TIMEOUT,
+            )
+        )
 
     unique = {}
 
     for record in alive:
-        fp = config_fingerprint(record["config"])
+        fp = config_fingerprint(
+            record["config"]
+        )
 
         if not fp:
             continue
 
         old = unique.get(fp)
 
-        if old is None or record["latency"] < old["latency"]:
+        if (
+            old is None
+            or record["latency"] < old["latency"]
+        ):
             unique[fp] = record
 
-    alive = sorted(unique.values(), key=rank_key, reverse=True)
+    alive = sorted(
+        unique.values(),
+        key=rank_key,
+        reverse=True,
+    )
 
-    print(f"Alive configs: {len(alive)}")
+    print(
+        f"TCP/TLS alive configs: {len(alive)}"
+    )
 
     return alive
 
 
 def subset_alive(alive_map, configs):
-    """Reuse the shared benchmark results for a group instead of re-testing."""
     result = []
     seen = set()
 
@@ -1182,13 +1452,16 @@ def subset_alive(alive_map, configs):
             seen.add(fp)
             result.append(record)
 
-    result.sort(key=rank_key, reverse=True)
+    result.sort(
+        key=rank_key,
+        reverse=True,
+    )
 
     return result
 
 
 # ============================================================
-# REAL TEST (xray-core, end-to-end HTTP 204 through the proxy)
+# XRAY REAL TEST
 # ============================================================
 
 def xray_path():
@@ -1203,26 +1476,53 @@ def full_params(config):
 
         def g(key):
             value = d.get(key)
-            return "" if value is None else str(value)
+
+            if value is None:
+                return ""
+
+            return str(value)
 
         net = g("net") or "tcp"
 
         return {
             "type": net,
-            "security": "tls" if g("tls").lower() == "tls" else "",
+            "security": (
+                "tls"
+                if g("tls").lower() == "tls"
+                else ""
+            ),
             "sni": g("sni"),
             "host": g("host"),
             "path": g("path"),
-            "serviceName": g("path") if net == "grpc" else "",
+            "serviceName": (
+                g("path")
+                if net == "grpc"
+                else ""
+            ),
             "alpn": g("alpn"),
             "fp": g("fp"),
-            "headerType": g("type") if g("type") in {"none", "http"} else "",
-            "mode": "multi" if g("type") == "multi" else "",
+            "headerType": (
+                g("type")
+                if g("type") in {
+                    "none",
+                    "http",
+                }
+                else ""
+            ),
+            "mode": (
+                "multi"
+                if g("type") == "multi"
+                else ""
+            ),
             "allowInsecure": g("allowInsecure"),
             "aid": g("aid"),
             "scy": g("scy"),
             "encryption": "",
-            "pbk": "", "sid": "", "spx": "", "flow": "", "extra": "",
+            "pbk": "",
+            "sid": "",
+            "spx": "",
+            "flow": "",
+            "extra": "",
         }
 
     q = query(config)
@@ -1230,22 +1530,40 @@ def full_params(config):
     def g(*keys):
         for key in keys:
             value = q1(q, key)
+
             if value:
                 return str(value)
+
         return ""
 
     return {
-        "type": g("type", "network") or "tcp",
-        "security": g("security", "tls"),
-        "sni": g("sni", "serverName", "peer"),
-        "host": g("host", "hostHeader"),
+        "type": (
+            g("type", "network")
+            or "tcp"
+        ),
+        "security": g(
+            "security",
+            "tls",
+        ),
+        "sni": g(
+            "sni",
+            "serverName",
+            "peer",
+        ),
+        "host": g(
+            "host",
+            "hostHeader",
+        ),
         "path": g("path"),
         "serviceName": g("serviceName"),
         "alpn": g("alpn"),
         "fp": g("fp"),
         "headerType": g("headerType"),
         "mode": g("mode"),
-        "allowInsecure": g("allowInsecure", "insecure"),
+        "allowInsecure": g(
+            "allowInsecure",
+            "insecure",
+        ),
         "aid": "",
         "scy": "",
         "encryption": g("encryption"),
@@ -1257,8 +1575,15 @@ def full_params(config):
     }
 
 
-def build_stream(p, address, default_security=""):
-    net = (p["type"] or "tcp").lower()
+def build_stream(
+    p,
+    address,
+    default_security="",
+):
+    net = (
+        p["type"]
+        or "tcp"
+    ).lower()
 
     if net == "splithttp":
         net = "xhttp"
@@ -1266,76 +1591,150 @@ def build_stream(p, address, default_security=""):
     if net == "raw":
         net = "tcp"
 
-    if net not in {"tcp", "ws", "grpc", "httpupgrade", "xhttp"}:
+    if net not in {
+        "tcp",
+        "ws",
+        "grpc",
+        "httpupgrade",
+        "xhttp",
+    }:
         return None
 
-    sec = (p["security"] or default_security or "none").lower()
+    sec = (
+        p["security"]
+        or default_security
+        or "none"
+    ).lower()
 
-    if sec not in {"none", "tls", "reality"}:
+    if sec not in {
+        "none",
+        "tls",
+        "reality",
+    }:
         return None
 
-    stream = {"network": net, "security": sec}
+    stream = {
+        "network": net,
+        "security": sec,
+    }
 
     host_header = p["host"]
     path = p["path"] or "/"
 
     if net == "ws":
-        ws = {"path": path}
+        ws = {
+            "path": path,
+        }
+
         if host_header:
-            ws["headers"] = {"Host": host_header}
+            ws["headers"] = {
+                "Host": host_header,
+            }
+
         stream["wsSettings"] = ws
 
     elif net == "grpc":
         stream["grpcSettings"] = {
             "serviceName": p["serviceName"],
-            "multiMode": p["mode"] == "multi",
+            "multiMode": (
+                p["mode"] == "multi"
+            ),
         }
 
     elif net == "httpupgrade":
-        hu = {"path": path}
+        hu = {
+            "path": path,
+        }
+
         if host_header:
             hu["host"] = host_header
+
         stream["httpupgradeSettings"] = hu
 
     elif net == "xhttp":
-        xh = {"path": path, "mode": p["mode"] or "auto"}
+        xh = {
+            "path": path,
+            "mode": p["mode"] or "auto",
+        }
+
         if host_header:
             xh["host"] = host_header
+
         if p["extra"]:
             try:
-                extra = json.loads(p["extra"])
+                extra = json.loads(
+                    p["extra"]
+                )
+
                 if isinstance(extra, dict):
                     xh["extra"] = extra
+
             except Exception:
                 pass
+
         stream["xhttpSettings"] = xh
 
-    elif net == "tcp" and p["headerType"] == "http":
-        hosts = [h for h in host_header.split(",") if h]
+    elif (
+        net == "tcp"
+        and p["headerType"] == "http"
+    ):
+        hosts = [
+            h.strip()
+            for h in host_header.split(",")
+            if h.strip()
+        ]
+
         stream["tcpSettings"] = {
             "header": {
                 "type": "http",
                 "request": {
                     "path": [path],
-                    "headers": {"Host": hosts} if hosts else {},
+                    "headers": (
+                        {"Host": hosts}
+                        if hosts
+                        else {}
+                    ),
                 },
             }
         }
 
     if sec == "tls":
-        sni = p["sni"] or host_header or ("" if is_ip(address) else address)
+        sni = (
+            p["sni"]
+            or host_header
+            or (
+                ""
+                if is_ip(address)
+                else address
+            )
+        )
 
-        tls = {"fingerprint": p["fp"] or "chrome"}
+        tls = {
+            "fingerprint": (
+                p["fp"]
+                or "chrome"
+            )
+        }
 
         if sni:
             tls["serverName"] = sni
 
-        alpn = [a for a in p["alpn"].split(",") if a]
+        alpn = [
+            a.strip()
+            for a in p["alpn"].split(",")
+            if a.strip()
+        ]
 
         if alpn:
             tls["alpn"] = alpn
 
-        if str(p["allowInsecure"]).lower() in {"1", "true", "yes"}:
+        if str(
+            p["allowInsecure"]
+        ).lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
             tls["allowInsecure"] = True
 
         stream["tlsSettings"] = tls
@@ -1345,7 +1744,10 @@ def build_stream(p, address, default_security=""):
             return None
 
         reality = {
-            "fingerprint": p["fp"] or "chrome",
+            "fingerprint": (
+                p["fp"]
+                or "chrome"
+            ),
             "publicKey": p["pbk"],
             "shortId": p["sid"],
             "spiderX": p["spx"],
@@ -1360,9 +1762,9 @@ def build_stream(p, address, default_security=""):
 
 
 def to_outbound(config):
-    """Convert a share URI to an xray outbound dict (None = unsupported)."""
     try:
         ptype = proto(config)
+
         host, port = endpoint(config)
 
         if not host or not port:
@@ -1371,14 +1773,20 @@ def to_outbound(config):
         p = full_params(config)
 
         if ptype == "vless":
-            stream = build_stream(p, host)
+            stream = build_stream(
+                p,
+                host,
+            )
 
             if not stream:
                 return None
 
             user = {
                 "id": config_identity(config),
-                "encryption": p["encryption"] or "none",
+                "encryption": (
+                    p["encryption"]
+                    or "none"
+                ),
             }
 
             if p["flow"]:
@@ -1386,26 +1794,51 @@ def to_outbound(config):
 
             return {
                 "protocol": "vless",
-                "settings": {"vnext": [{"address": host, "port": port, "users": [user]}]},
+                "settings": {
+                    "vnext": [{
+                        "address": host,
+                        "port": port,
+                        "users": [user],
+                    }]
+                },
                 "streamSettings": stream,
             }
 
         if ptype == "vmess":
-            stream = build_stream(p, host)
+            stream = build_stream(
+                p,
+                host,
+            )
 
             if not stream:
                 return None
 
-            user = {"id": config_identity(config), "security": p["scy"] or "auto"}
+            user = {
+                "id": config_identity(config),
+                "security": (
+                    p["scy"]
+                    or "auto"
+                ),
+            }
 
             return {
                 "protocol": "vmess",
-                "settings": {"vnext": [{"address": host, "port": port, "users": [user]}]},
+                "settings": {
+                    "vnext": [{
+                        "address": host,
+                        "port": port,
+                        "users": [user],
+                    }]
+                },
                 "streamSettings": stream,
             }
 
         if ptype == "trojan":
-            stream = build_stream(p, host, default_security="tls")
+            stream = build_stream(
+                p,
+                host,
+                default_security="tls",
+            )
 
             if not stream:
                 return None
@@ -1416,14 +1849,19 @@ def to_outbound(config):
                     "servers": [{
                         "address": host,
                         "port": port,
-                        "password": config_identity(config),
+                        "password": (
+                            config_identity(config)
+                        ),
                     }]
                 },
                 "streamSettings": stream,
             }
 
         if ptype == "ss":
-            if q1(query(config), "plugin"):
+            if q1(
+                query(config),
+                "plugin",
+            ):
                 return None
 
             data = ss_data(config)
@@ -1449,11 +1887,17 @@ def to_outbound(config):
     return None
 
 
+# ============================================================
+# SOCKS PROBE
+# ============================================================
+
 def _recv_exact(sock, size):
     data = b""
 
     while len(data) < size:
-        chunk = sock.recv(size - len(data))
+        chunk = sock.recv(
+            size - len(data)
+        )
 
         if not chunk:
             return None
@@ -1463,8 +1907,13 @@ def _recv_exact(sock, size):
     return data
 
 
-def _socks_probe(port, host=None, dport=None, path=None, timeout=None):
-    """HTTP 204 request through the local socks inbound. Returns ms or None."""
+def _socks_probe(
+    port,
+    host=None,
+    dport=None,
+    path=None,
+    timeout=None,
+):
     host = host or TEST_HOST
     dport = dport or TEST_PORT
     path = path or TEST_PATH
@@ -1473,24 +1922,45 @@ def _socks_probe(port, host=None, dport=None, path=None, timeout=None):
     started = time.perf_counter()
 
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+        with socket.create_connection(
+            ("127.0.0.1", port),
+            timeout=timeout,
+        ) as sock:
+
             sock.settimeout(timeout)
 
-            sock.sendall(b"\x05\x01\x00")
+            sock.sendall(
+                b"\x05\x01\x00"
+            )
 
-            if _recv_exact(sock, 2) != b"\x05\x00":
+            if _recv_exact(
+                sock,
+                2,
+            ) != b"\x05\x00":
                 return None
 
-            name = host.encode()
+            name = host.encode(
+                "idna",
+                errors="ignore",
+            )
+
+            if len(name) > 255:
+                return None
 
             sock.sendall(
                 b"\x05\x01\x00\x03"
                 + bytes([len(name)])
                 + name
-                + dport.to_bytes(2, "big")
+                + dport.to_bytes(
+                    2,
+                    "big",
+                )
             )
 
-            head = _recv_exact(sock, 4)
+            head = _recv_exact(
+                sock,
+                4,
+            )
 
             if not head or head[1] != 0:
                 return None
@@ -1499,32 +1969,52 @@ def _socks_probe(port, host=None, dport=None, path=None, timeout=None):
 
             if atyp == 1:
                 skip = 4
+
             elif atyp == 4:
                 skip = 16
+
             else:
-                length = _recv_exact(sock, 1)
+                length = _recv_exact(
+                    sock,
+                    1,
+                )
 
                 if not length:
                     return None
 
                 skip = length[0]
 
-            if _recv_exact(sock, skip + 2) is None:
+            if _recv_exact(
+                sock,
+                skip + 2,
+            ) is None:
                 return None
 
             sock.sendall(
                 (
-                    f"GET {path} HTTP/1.1\r\nHost: {host}\r\n"
-                    "User-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n"
+                    f"GET {path} HTTP/1.1\r\n"
+                    f"Host: {host}\r\n"
+                    "User-Agent: Mozilla/5.0\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
                 ).encode()
             )
 
             data = sock.recv(512)
 
-            first = data.split(b"\r\n", 1)[0]
+            first = data.split(
+                b"\r\n",
+                1,
+            )[0]
 
-            if first.startswith(b"HTTP/") and b" 204" in first:
-                return (time.perf_counter() - started) * 1000
+            if (
+                first.startswith(b"HTTP/")
+                and b" 204" in first
+            ):
+                return (
+                    (time.perf_counter() - started)
+                    * 1000
+                )
 
     except Exception:
         return None
@@ -1543,10 +2033,20 @@ def _probe_with_retry(port):
 
     second = _socks_probe(port)
 
-    return min(first, second) if second is not None else first
+    if second is None:
+        return first
+
+    return min(
+        first,
+        second,
+    )
 
 
-def _wait_ready(proc, port, timeout=8.0):
+def _wait_ready(
+    proc,
+    port,
+    timeout=8.0,
+):
     end = time.time() + timeout
 
     while time.time() < end:
@@ -1554,8 +2054,14 @@ def _wait_ready(proc, port, timeout=8.0):
             return False
 
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            sock = socket.create_connection(
+                ("127.0.0.1", port),
+                timeout=0.3,
+            )
+            sock.close()
+
             return True
+
         except OSError:
             time.sleep(0.1)
 
@@ -1563,19 +2069,23 @@ def _wait_ready(proc, port, timeout=8.0):
 
 
 def _stop(proc):
+    if proc is None:
+        return
+
     try:
         proc.terminate()
         proc.wait(timeout=3)
+
     except Exception:
         try:
             proc.kill()
             proc.wait(timeout=3)
+
         except Exception:
             pass
 
 
 def _run_batch(batch, base):
-    """batch: [(record, outbound)] -> [(record, latency_ms)]"""
     if not batch:
         return []
 
@@ -1592,7 +2102,10 @@ def _run_batch(batch, base):
             "listen": "127.0.0.1",
             "port": base + i,
             "protocol": "socks",
-            "settings": {"auth": "noauth", "udp": False},
+            "settings": {
+                "auth": "noauth",
+                "udp": False,
+            },
         })
 
         outbounds.append(ob)
@@ -1603,46 +2116,87 @@ def _run_batch(batch, base):
             "outboundTag": f"o{i}",
         })
 
-    outbounds.append({"protocol": "freedom", "tag": "direct"})
+    outbounds.append({
+        "protocol": "freedom",
+        "tag": "direct",
+    })
 
     cfg = {
-        "log": {"loglevel": "none"},
+        "log": {
+            "loglevel": "none",
+        },
         "inbounds": inbounds,
         "outbounds": outbounds,
-        "routing": {"domainStrategy": "AsIs", "rules": rules},
+        "routing": {
+            "domainStrategy": "AsIs",
+            "rules": rules,
+        },
     }
 
-    fd, path = tempfile.mkstemp(suffix=".json", prefix="xray_")
+    fd, path = tempfile.mkstemp(
+        suffix=".json",
+        prefix="xray_",
+    )
 
-    with os.fdopen(fd, "w") as f:
-        json.dump(cfg, f)
+    with os.fdopen(
+        fd,
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(
+            cfg,
+            f,
+            ensure_ascii=False,
+        )
 
     proc = None
 
     try:
         proc = subprocess.Popen(
-            [xray_path(), "run", "-c", path],
+            [
+                xray_path(),
+                "run",
+                "-c",
+                path,
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
 
-        if not _wait_ready(proc, base + len(batch) - 1):
+        if not _wait_ready(
+            proc,
+            base + len(batch) - 1,
+        ):
             _stop(proc)
             proc = None
 
             if len(batch) == 1:
                 return []
 
-            # one invalid outbound breaks the whole process: bisect
             mid = len(batch) // 2
 
-            return _run_batch(batch[:mid], base) + _run_batch(batch[mid:], base)
+            return (
+                _run_batch(
+                    batch[:mid],
+                    base,
+                )
+                + _run_batch(
+                    batch[mid:],
+                    base + mid,
+                )
+            )
 
         results = []
 
-        with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+        with ThreadPoolExecutor(
+            max_workers=len(batch)
+        ) as executor:
+
             futures = {
-                executor.submit(_probe_with_retry, base + i): batch[i][0]
+                executor.submit(
+                    _probe_with_retry,
+                    base + i,
+                ): batch[i][0]
                 for i in range(len(batch))
             }
 
@@ -1653,7 +2207,12 @@ def _run_batch(batch, base):
                     latency = None
 
                 if latency is not None:
-                    results.append((futures[future], latency))
+                    results.append(
+                        (
+                            futures[future],
+                            latency,
+                        )
+                    )
 
         return results
 
@@ -1661,8 +2220,7 @@ def _run_batch(batch, base):
         return []
 
     finally:
-        if proc is not None:
-            _stop(proc)
+        _stop(proc)
 
         try:
             os.remove(path)
@@ -1671,164 +2229,311 @@ def _run_batch(batch, base):
 
 
 def real_test(records):
-    """End-to-end test. Returns verified records (latency = real delay)."""
     items = []
 
     for record in records:
-        outbound = to_outbound(record["config"])
+        outbound = to_outbound(
+            record["config"]
+        )
 
         if outbound:
-            items.append((record, outbound))
+            items.append(
+                (
+                    record,
+                    outbound,
+                )
+            )
+
+        if len(items) >= REAL_TEST_MAX:
+            break
 
     print(
-        f"\nReal test (xray): {len(items)} testable of "
-        f"{len(records)} candidates"
+        f"\nReal test (xray): "
+        f"{len(items)} testable"
     )
+
+    if not items:
+        return []
 
     batches = [
         items[i:i + REAL_BATCH_SIZE]
-        for i in range(0, len(items), REAL_BATCH_SIZE)
+        for i in range(
+            0,
+            len(items),
+            REAL_BATCH_SIZE,
+        )
     ]
 
     slots = queue.Queue()
 
-    for slot in range(REAL_BATCH_PARALLEL):
-        slots.put(REAL_BASE_PORT + slot * (REAL_BATCH_SIZE + 10))
+    for slot in range(
+        REAL_BATCH_PARALLEL
+    ):
+        slots.put(
+            REAL_BASE_PORT
+            + slot * (
+                REAL_BATCH_SIZE + 20
+            )
+        )
 
     def work(batch):
         base = slots.get()
 
         try:
-            return _run_batch(batch, base)
+            return _run_batch(
+                batch,
+                base,
+            )
         finally:
             slots.put(base)
 
     verified = []
     done = 0
 
-    with ThreadPoolExecutor(max_workers=REAL_BATCH_PARALLEL) as executor:
-        futures = [executor.submit(work, b) for b in batches]
+    with ThreadPoolExecutor(
+        max_workers=REAL_BATCH_PARALLEL
+    ) as executor:
+
+        futures = [
+            executor.submit(work, batch)
+            for batch in batches
+        ]
 
         for future in as_completed(futures):
             done += 1
 
             try:
-                for record, latency in future.result():
-                    record = dict(record)
-                    record["latency"] = latency
-                    record["alive"] = True
-                    record["verified"] = True
-                    verified.append(record)
-            except Exception:
-                pass
+                results = future.result()
 
-            if done % 10 == 0 or done == len(batches):
+            except Exception:
+                results = []
+
+            for record, latency in results:
+                record = dict(record)
+
+                record["latency"] = latency
+                record["alive"] = True
+                record["verified"] = True
+
+                verified.append(record)
+
+            if (
+                done % 10 == 0
+                or done == len(batches)
+            ):
                 print(
-                    f"  batches {done}/{len(batches)} "
-                    f"verified so far: {len(verified)}"
+                    f"  batches "
+                    f"{done}/{len(batches)} "
+                    f"verified: "
+                    f"{len(verified)}"
                 )
 
-    verified.sort(key=rank_key, reverse=True)
+    unique = {}
 
-    print(f"Verified configs: {len(verified)}")
+    for record in verified:
+        fp = config_fingerprint(
+            record["config"]
+        )
+
+        if not fp:
+            continue
+
+        old = unique.get(fp)
+
+        if (
+            old is None
+            or record["latency"]
+            < old["latency"]
+        ):
+            unique[fp] = record
+
+    verified = sorted(
+        unique.values(),
+        key=rank_key,
+        reverse=True,
+    )
+
+    print(
+        f"Verified configs: "
+        f"{len(verified)}"
+    )
 
     return verified
 
 
 # ============================================================
-# PERSISTENT STATE (configs that worked before)
+# STATE
 # ============================================================
 
 def load_state():
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+        with open(
+            STATE_FILE,
+            "r",
+            encoding="utf-8",
+        ) as f:
             data = json.load(f)
 
+        if not isinstance(data, dict):
+            return {}
+
         return {
-            k: v for k, v in data.items()
-            if isinstance(v, dict) and v.get("c")
+            k: v
+            for k, v in data.items()
+            if (
+                isinstance(v, dict)
+                and v.get("c")
+            )
         }
+
     except Exception:
         return {}
 
 
 def save_state(state):
     try:
-        directory = os.path.dirname(STATE_FILE)
+        directory = os.path.dirname(
+            STATE_FILE
+        )
 
         if directory:
-            os.makedirs(directory, exist_ok=True)
+            os.makedirs(
+                directory,
+                exist_ok=True,
+            )
 
         temp = STATE_FILE + ".tmp"
 
-        with open(temp, "w", encoding="utf-8") as f:
-            json.dump(state, f)
+        with open(
+            temp,
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(
+                state,
+                f,
+                ensure_ascii=False,
+            )
 
-        os.replace(temp, STATE_FILE)
+        os.replace(
+            temp,
+            STATE_FILE,
+        )
 
     except Exception as exc:
-        print(f"[STATE] save failed: {exc}")
+        print(
+            f"[STATE] save failed: {exc}"
+        )
 
 
 def load_previous_outputs():
     configs = []
 
     for filename in EXPECTED_FILES:
-        for line in read_lines(os.path.join(OUT_DIR, filename)):
-            configs.append(line.rsplit("#", 1)[0])
+        path = os.path.join(
+            OUT_DIR,
+            filename,
+        )
+
+        for line in read_lines(path):
+            if "#" in line:
+                configs.append(
+                    line.rsplit("#", 1)[0]
+                )
 
     return configs
 
 
-def update_state(state, tested_fps, verified, alive_fps):
+def update_state(
+    state,
+    tested_fps,
+    verified,
+    alive_fps,
+):
     now = int(time.time())
+
     ok = {}
 
     for record in verified:
-        fp = config_fingerprint(record["config"])
+        fp = config_fingerprint(
+            record["config"]
+        )
 
-        if fp:
-            ok[fp] = record
-            state[fp] = {
-                "c": record["config"],
-                "fails": 0,
-                "lat": round(record["latency"]),
-                "ts": now,
-            }
+        if not fp:
+            continue
+
+        ok[fp] = record
+
+        state[fp] = {
+            "c": record["config"],
+            "fails": 0,
+            "lat": round(
+                record["latency"]
+            ),
+            "ts": now,
+        }
 
     for fp in list(state):
         if fp in ok:
             continue
 
-        # failed the end-to-end test, or TCP/TLS dead this run
-        if fp in tested_fps or fp not in alive_fps:
-            state[fp]["fails"] = state[fp].get("fails", 0) + 1
+        if (
+            fp in tested_fps
+            or fp not in alive_fps
+        ):
+            state[fp]["fails"] = (
+                state[fp].get(
+                    "fails",
+                    0,
+                )
+                + 1
+            )
 
-            if state[fp]["fails"] >= STATE_MAX_FAILS:
+            if (
+                state[fp]["fails"]
+                >= STATE_MAX_FAILS
+            ):
                 del state[fp]
 
     if len(state) > STATE_MAX:
         keep = sorted(
             state.items(),
-            key=lambda kv: (kv[1].get("fails", 0), kv[1].get("lat", 9999)),
+            key=lambda kv: (
+                kv[1].get(
+                    "fails",
+                    0,
+                ),
+                kv[1].get(
+                    "lat",
+                    9999,
+                ),
+            ),
         )[:STATE_MAX]
 
         state.clear()
-        state.update(dict(keep))
+        state.update(
+            dict(keep)
+        )
 
     return state
 
 
 # ============================================================
-# RECORD MERGE / SELECTION
+# SELECTION
 # ============================================================
 
-def merge_records(alive_records, valid_configs, fallback=False):
+def merge_records(
+    alive_records,
+    valid_configs,
+    fallback=False,
+):
     result = []
     seen = set()
 
     for record in alive_records:
-        fp = config_fingerprint(record["config"])
+        fp = config_fingerprint(
+            record["config"]
+        )
 
         if not fp or fp in seen:
             continue
@@ -1840,23 +2545,36 @@ def merge_records(alive_records, valid_configs, fallback=False):
         fallback_records = []
 
         for config in valid_configs:
-            fp = config_fingerprint(config)
+            fp = config_fingerprint(
+                config
+            )
 
             if not fp or fp in seen:
                 continue
 
             seen.add(fp)
-            fallback_records.append(config_record(config))
 
-        # untested configs: best static score first
-        fallback_records.sort(key=lambda r: r["score"], reverse=True)
+            fallback_records.append(
+                config_record(config)
+            )
 
-        result.extend(fallback_records)
+        fallback_records.sort(
+            key=lambda r: r["score"],
+            reverse=True,
+        )
+
+        result.extend(
+            fallback_records
+        )
 
     return result
 
 
-def select_records(results, limit, predicate=None):
+def select_records(
+    results,
+    limit,
+    predicate=None,
+):
     selected = []
     seen = set()
     host_counts = {}
@@ -1865,10 +2583,15 @@ def select_records(results, limit, predicate=None):
         try:
             config = record["config"]
 
-            if predicate and not predicate(config):
+            if (
+                predicate
+                and not predicate(config)
+            ):
                 continue
 
-            fp = config_fingerprint(config)
+            fp = config_fingerprint(
+                config
+            )
 
             if not fp or fp in seen:
                 continue
@@ -1880,11 +2603,25 @@ def select_records(results, limit, predicate=None):
 
             host_key = host.lower()
 
-            if host_counts.get(host_key, 0) >= MAX_PER_HOST:
+            if (
+                host_counts.get(
+                    host_key,
+                    0,
+                )
+                >= MAX_PER_HOST
+            ):
                 continue
 
             seen.add(fp)
-            host_counts[host_key] = host_counts.get(host_key, 0) + 1
+
+            host_counts[host_key] = (
+                host_counts.get(
+                    host_key,
+                    0,
+                )
+                + 1
+            )
+
             selected.append(record)
 
             if len(selected) >= limit:
@@ -1896,17 +2633,16 @@ def select_records(results, limit, predicate=None):
     return selected
 
 
-def select_subscription(alive_records, valid_configs, limit, predicate=None, fallback=False):
-    merged = merge_records(alive_records, valid_configs, fallback)
-    return select_records(merged, limit, predicate)
-
-
 # ============================================================
 # RENDER
 # ============================================================
 
 def config_line(config):
-    return normalize_config(config) + "#" + REMARK
+    return (
+        normalize_config(config)
+        + "#"
+        + REMARK
+    )
 
 
 def render_records(records):
@@ -1914,7 +2650,18 @@ def render_records(records):
 
     for record in records:
         try:
-            lines.append(config_line(record["config"]))
+            line = config_line(
+                record["config"]
+            )
+
+            if line.startswith(
+                tuple(
+                    p + "://"
+                    for p in SUPPORTED_PROTOCOLS
+                )
+            ):
+                lines.append(line)
+
         except Exception:
             continue
 
@@ -1922,27 +2669,54 @@ def render_records(records):
 
 
 # ============================================================
-# FILE WRITING
+# FILES
 # ============================================================
 
 def atomic_write_lines(path, lines):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    directory = os.path.dirname(path)
 
-    temp_path = path + ".tmp"
+    if directory:
+        os.makedirs(
+            directory,
+            exist_ok=True,
+        )
+
+    temp_path = (
+        path + ".tmp"
+    )
 
     try:
-        with open(temp_path, "w", encoding="utf-8", newline="\n") as f:
-            for line in lines:
-                f.write(line.rstrip("\r\n") + "\n")
+        with open(
+            temp_path,
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        ) as f:
 
-        os.replace(temp_path, path)
+            for line in lines:
+                f.write(
+                    line.rstrip(
+                        "\r\n"
+                    )
+                    + "\n"
+                )
+
+        os.replace(
+            temp_path,
+            path,
+        )
 
     except Exception:
         try:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            if os.path.exists(
+                temp_path
+            ):
+                os.remove(
+                    temp_path
+                )
         except Exception:
             pass
+
         raise
 
 
@@ -1951,155 +2725,367 @@ def count_nonempty_lines(path):
         return 0
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return sum(1 for line in f if line.strip())
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            return sum(
+                1
+                for line in f
+                if line.strip()
+            )
+
     except Exception:
         return 0
 
 
 def write_file(filename, lines):
-    atomic_write_lines(os.path.join(OUT_DIR, filename), lines)
-    print(f"[WRITE] {filename}: {len(lines)}")
+    atomic_write_lines(
+        os.path.join(
+            OUT_DIR,
+            filename,
+        ),
+        lines,
+    )
+
+    print(
+        f"[WRITE] {filename}: "
+        f"{len(lines)}"
+    )
 
 
 # ============================================================
-# GENERAL SUBSCRIPTIONS
+# GENERAL
 # ============================================================
-
-def split_sizes(total, parts):
-    base, rem = divmod(total, parts)
-    return [base + 1 if i < rem else base for i in range(parts)]
-
 
 def write_general(good):
-    print("\nWriting general subscriptions...")
+    print(
+        "\nWriting general subscriptions..."
+    )
 
-    selected = select_records(good, GENERAL_TOTAL)
+    selected = select_records(
+        good,
+        GENERAL_TOTAL,
+    )
 
-    if len(selected) < GENERAL_SUB_COUNT:
-        raise RuntimeError(f"Not enough verified configs: {len(selected)}")
+    if len(selected) < GENERAL_TOTAL:
+        raise RuntimeError(
+            f"Not enough verified configs: "
+            f"{len(selected)}/{GENERAL_TOTAL}"
+        )
 
-    all_lines = render_records(selected)
+    all_lines = render_records(
+        selected
+    )
 
-    write_file("all_configs.txt", all_lines)
+    if len(all_lines) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"Rendered configs: "
+            f"{len(all_lines)}/{GENERAL_TOTAL}"
+        )
 
-    start = 0
+    write_file(
+        "all_configs.txt",
+        all_lines,
+    )
 
-    for index, size in enumerate(split_sizes(len(all_lines), GENERAL_SUB_COUNT)):
-        write_file(f"sub{index + 1}.txt", all_lines[start:start + size])
-        start += size
+    for index in range(
+        GENERAL_SUB_COUNT
+    ):
+        start = (
+            index
+            * GENERAL_SUB_SIZE
+        )
+
+        end = (
+            start
+            + GENERAL_SUB_SIZE
+        )
+
+        chunk = all_lines[
+            start:end
+        ]
+
+        if len(chunk) != GENERAL_SUB_SIZE:
+            raise RuntimeError(
+                f"sub{index + 1}.txt "
+                f"has {len(chunk)} configs"
+            )
+
+        write_file(
+            f"sub{index + 1}.txt",
+            chunk,
+        )
 
     rebuilt = []
 
-    for index in range(GENERAL_SUB_COUNT):
-        rebuilt.extend(read_lines(os.path.join(OUT_DIR, f"sub{index + 1}.txt")))
+    for index in range(
+        GENERAL_SUB_COUNT
+    ):
+        rebuilt.extend(
+            read_lines(
+                os.path.join(
+                    OUT_DIR,
+                    f"sub{index + 1}.txt",
+                )
+            )
+        )
 
     if rebuilt != all_lines:
-        raise RuntimeError("sub1..sub10 order does not match all_configs.txt")
+        raise RuntimeError(
+            "sub1..sub10 order does "
+            "not match all_configs.txt"
+        )
 
 
 # ============================================================
 # PROTOCOL FILES
 # ============================================================
 
-def write_protocols(good, alive_all, all_unique):
-    print("\nWriting protocol subscriptions...")
+def write_protocols(
+    good,
+    alive_all,
+    all_unique,
+):
+    print(
+        "\nWriting protocol subscriptions..."
+    )
 
-    for ptype in ["vless", "vmess", "trojan", "ss", "hysteria2"]:
-        def predicate(c, p=ptype):
-            return proto(c) == p or (p == "hysteria2" and proto(c) == "hy2")
+    for ptype in [
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+        "hysteria2",
+    ]:
 
-        selected = select_records(good, PROTOCOL_SUB_SIZE, predicate)
+        def predicate(
+            config,
+            p=ptype,
+        ):
+            current = proto(config)
 
-        # Nothing verified for this protocol (e.g. hysteria2 is UDP and
-        # cannot be tested): small best-effort list so the file exists.
+            if p == "hysteria2":
+                return current in {
+                    "hysteria2",
+                    "hy2",
+                }
+
+            return current == p
+
+        selected = select_records(
+            good,
+            PROTOCOL_SUB_SIZE,
+            predicate,
+        )
+
         if not selected:
-            fallback = merge_records(alive_all, all_unique, fallback=True)
-            selected = select_records(fallback, 20, predicate)
-
-        if not selected:
-            print(f"[WARN] No {ptype} configs")
+            print(
+                f"[WARN] No verified "
+                f"{ptype} configs"
+            )
             continue
 
-        write_file(f"{ptype}.txt", render_records(selected))
+        write_file(
+            f"{ptype}.txt",
+            render_records(selected),
+        )
 
 
 # ============================================================
 # IRAN / OPERATORS
 # ============================================================
 
-def fill_records(primary, fallback_groups, limit):
-    """Alive records of every group first (in priority order), untested last."""
-    groups = [primary, *fallback_groups]
+def fill_records(
+    primary,
+    fallback_groups,
+    limit,
+):
+    groups = [
+        primary,
+        *fallback_groups,
+    ]
 
-    ordered = [r for g in groups for r in g if r.get("alive")]
-    ordered += [r for g in groups for r in g if not r.get("alive")]
+    ordered = []
 
-    return select_records(ordered, limit)
+    for group in groups:
+        ordered.extend(
+            r
+            for r in group
+            if r.get("verified")
+        )
+
+    return select_records(
+        ordered,
+        limit,
+    )
 
 
-def write_iran(good_iran, good_mci, good_irancell, good_rightel, good_all):
-    print("\nWriting Iran/operator subscriptions...")
+def write_iran(
+    good_iran,
+    good_mci,
+    good_irancell,
+    good_rightel,
+    good_all,
+):
+    print(
+        "\nWriting Iran/operator subscriptions..."
+    )
 
-    def write_operator(filename, primary, fallbacks):
-        selected = fill_records(primary, fallbacks, IRAN_SUB_SIZE)
+    def write_operator(
+        filename,
+        primary,
+        fallbacks,
+    ):
+        selected = fill_records(
+            primary,
+            fallbacks,
+            IRAN_SUB_SIZE,
+        )
 
-        if not selected:
-            raise RuntimeError(f"Could not create {filename}")
+        if len(selected) < IRAN_SUB_SIZE:
+            raise RuntimeError(
+                f"{filename}: only "
+                f"{len(selected)}/"
+                f"{IRAN_SUB_SIZE} verified configs"
+            )
 
-        write_file(filename, render_records(selected))
+        write_file(
+            filename,
+            render_records(selected),
+        )
 
-    write_operator("mci.txt", good_mci, [good_iran, good_all])
-    write_operator("irancell.txt", good_irancell, [good_iran, good_all])
-    write_operator("rightel.txt", good_rightel, [good_iran, good_all])
-    write_operator("best_iran.txt", good_iran, [good_all])
+    write_operator(
+        "mci.txt",
+        good_mci,
+        [
+            good_iran,
+            good_all,
+        ],
+    )
 
-    # mix_iran: shuffle the best verified pool
-    pool = select_records(good_iran + good_all, IRAN_SUB_SIZE * 3)
+    write_operator(
+        "irancell.txt",
+        good_irancell,
+        [
+            good_iran,
+            good_all,
+        ],
+    )
+
+    write_operator(
+        "rightel.txt",
+        good_rightel,
+        [
+            good_iran,
+            good_all,
+        ],
+    )
+
+    write_operator(
+        "best_iran.txt",
+        good_iran,
+        [good_all],
+    )
+
+    pool = select_records(
+        good_iran + good_all,
+        IRAN_SUB_SIZE * 3,
+    )
 
     random.shuffle(pool)
 
-    mix_selected = pool[:IRAN_SUB_SIZE]
+    mix_selected = pool[
+        :IRAN_SUB_SIZE
+    ]
 
-    if not mix_selected:
-        raise RuntimeError("Could not create mix_iran.txt")
+    if len(mix_selected) < IRAN_SUB_SIZE:
+        raise RuntimeError(
+            "Could not create "
+            "mix_iran.txt"
+        )
 
-    write_file("mix_iran.txt", render_records(mix_selected))
+    write_file(
+        "mix_iran.txt",
+        render_records(
+            mix_selected
+        ),
+    )
 
 
 # ============================================================
-# SUMMARIES
+# SUMMARY
 # ============================================================
 
 def print_source_summary():
-    print("\n" + "=" * 65)
+    print(
+        "\n"
+        + "=" * 65
+    )
+
     print("SOURCE SUMMARY")
-    print("=" * 65)
+
+    print(
+        "=" * 65
+    )
 
     with SOURCE_META_LOCK:
-        items = list(SOURCE_META.items())
+        items = list(
+            SOURCE_META.items()
+        )
 
     source_counts = {}
 
     for _, sources in items:
         for source in sources:
-            source_counts[source] = source_counts.get(source, 0) + 1
+            source_counts[source] = (
+                source_counts.get(
+                    source,
+                    0,
+                )
+                + 1
+            )
 
-    for source, count in sorted(source_counts.items(), key=lambda x: -x[1]):
-        print(f"{count:6d}  {source}")
+    for source, count in sorted(
+        source_counts.items(),
+        key=lambda x: -x[1],
+    ):
+        print(
+            f"{count:6d}  {source}"
+        )
 
 
 # ============================================================
-# OUTPUT VERIFICATION
+# EXPECTED FILES
 # ============================================================
 
 EXPECTED_FILES = [
     "all_configs.txt",
-    "sub1.txt", "sub2.txt", "sub3.txt", "sub4.txt", "sub5.txt",
-    "sub6.txt", "sub7.txt", "sub8.txt", "sub9.txt", "sub10.txt",
-    "mci.txt", "irancell.txt", "rightel.txt",
-    "best_iran.txt", "mix_iran.txt",
-    "vless.txt", "vmess.txt", "trojan.txt", "ss.txt", "hysteria2.txt",
+
+    "sub1.txt",
+    "sub2.txt",
+    "sub3.txt",
+    "sub4.txt",
+    "sub5.txt",
+    "sub6.txt",
+    "sub7.txt",
+    "sub8.txt",
+    "sub9.txt",
+    "sub10.txt",
+
+    "mci.txt",
+    "irancell.txt",
+    "rightel.txt",
+
+    "best_iran.txt",
+    "mix_iran.txt",
+
+    "vless.txt",
+    "vmess.txt",
+    "trojan.txt",
+    "ss.txt",
+    "hysteria2.txt",
 ]
 
 
@@ -2108,101 +3094,276 @@ def read_lines(path):
         return []
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return [line.rstrip("\r\n") for line in f if line.strip()]
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            return [
+                line.rstrip("\r\n")
+                for line in f
+                if line.strip()
+            ]
+
     except Exception:
         return []
 
 
-def verify_outputs():
-    print("\nVerifying outputs...")
+# ============================================================
+# VERIFY
+# ============================================================
 
-    expected = set(EXPECTED_FILES)
+def verify_outputs():
+    print(
+        "\nVerifying outputs..."
+    )
+
+    expected = set(
+        EXPECTED_FILES
+    )
 
     if not os.path.isdir(OUT_DIR):
-        raise RuntimeError(f"Output directory does not exist: {OUT_DIR}")
+        raise RuntimeError(
+            f"Output directory does not exist: "
+            f"{OUT_DIR}"
+        )
 
-    actual = {n for n in os.listdir(OUT_DIR) if n.endswith(".txt")}
+    actual = {
+        name
+        for name in os.listdir(OUT_DIR)
+        if name.endswith(".txt")
+    }
 
-    unexpected = actual - expected
+    unexpected = (
+        actual - expected
+    )
+
     if unexpected:
-        raise RuntimeError("Unexpected output files: " + ", ".join(sorted(unexpected)))
+        raise RuntimeError(
+            "Unexpected output files: "
+            + ", ".join(
+                sorted(unexpected)
+            )
+        )
 
-    if os.path.exists(os.path.join(OUT_DIR, "random_200.txt")):
-        raise RuntimeError("random_200.txt must not exist")
+    if os.path.exists(
+        os.path.join(
+            OUT_DIR,
+            "random_200.txt",
+        )
+    ):
+        raise RuntimeError(
+            "random_200.txt must not exist"
+        )
 
-    missing = expected - actual
+    missing = (
+        expected - actual
+    )
+
     if missing:
-        raise RuntimeError("Missing output files: " + ", ".join(sorted(missing)))
+        raise RuntimeError(
+            "Missing output files: "
+            + ", ".join(
+                sorted(missing)
+            )
+        )
 
-    all_lines = read_lines(os.path.join(OUT_DIR, "all_configs.txt"))
+    all_lines = read_lines(
+        os.path.join(
+            OUT_DIR,
+            "all_configs.txt",
+        )
+    )
 
-    if not (GENERAL_SUB_COUNT <= len(all_lines) <= GENERAL_TOTAL):
-        raise RuntimeError(f"all_configs.txt has {len(all_lines)} configs")
+    if len(all_lines) != GENERAL_TOTAL:
+        raise RuntimeError(
+            f"all_configs.txt has "
+            f"{len(all_lines)} configs, "
+            f"expected {GENERAL_TOTAL}"
+        )
 
-    sizes = split_sizes(len(all_lines), GENERAL_SUB_COUNT)
     rebuilt = []
 
-    for index in range(GENERAL_SUB_COUNT):
-        filename = f"sub{index + 1}.txt"
-        lines = read_lines(os.path.join(OUT_DIR, filename))
+    for index in range(
+        GENERAL_SUB_COUNT
+    ):
+        filename = (
+            f"sub{index + 1}.txt"
+        )
 
-        if len(lines) != sizes[index] or len(lines) > GENERAL_SUB_SIZE:
-            raise RuntimeError(f"{filename} has {len(lines)} configs, expected {sizes[index]}")
+        lines = read_lines(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            )
+        )
+
+        if len(lines) != GENERAL_SUB_SIZE:
+            raise RuntimeError(
+                f"{filename} has "
+                f"{len(lines)} configs, "
+                f"expected {GENERAL_SUB_SIZE}"
+            )
 
         rebuilt.extend(lines)
 
     if rebuilt != all_lines:
-        raise RuntimeError("sub1.txt to sub10.txt are not in the exact same order as all_configs.txt")
+        raise RuntimeError(
+            "sub1..sub10 do not match "
+            "all_configs.txt"
+        )
 
-    for filename in ["mci.txt", "irancell.txt", "rightel.txt", "best_iran.txt", "mix_iran.txt"]:
-        lines = read_lines(os.path.join(OUT_DIR, filename))
+    for filename in [
+        "mci.txt",
+        "irancell.txt",
+        "rightel.txt",
+        "best_iran.txt",
+        "mix_iran.txt",
+    ]:
+        lines = read_lines(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            )
+        )
 
-        if not (1 <= len(lines) <= IRAN_SUB_SIZE):
-            raise RuntimeError(f"{filename} must contain 1-{IRAN_SUB_SIZE} configs, got {len(lines)}")
+        if len(lines) != IRAN_SUB_SIZE:
+            raise RuntimeError(
+                f"{filename} has "
+                f"{len(lines)} configs, "
+                f"expected {IRAN_SUB_SIZE}"
+            )
 
-    for ptype in ["vless", "vmess", "trojan", "ss", "hysteria2"]:
-        filename = f"{ptype}.txt"
-        lines = read_lines(os.path.join(OUT_DIR, filename))
+    for ptype in [
+        "vless",
+        "vmess",
+        "trojan",
+        "ss",
+        "hysteria2",
+    ]:
+        filename = (
+            f"{ptype}.txt"
+        )
 
-        if not (1 <= len(lines) <= PROTOCOL_SUB_SIZE):
-            raise RuntimeError(f"{filename} must contain 1-{PROTOCOL_SUB_SIZE} configs, got {len(lines)}")
+        lines = read_lines(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            )
+        )
+
+        if not (
+            1
+            <= len(lines)
+            <= PROTOCOL_SUB_SIZE
+        ):
+            raise RuntimeError(
+                f"{filename} has "
+                f"{len(lines)} configs"
+            )
 
         for line in lines:
-            actual_proto = proto(line.rsplit("#", 1)[0])
+            raw_config = line.rsplit(
+                "#",
+                1,
+            )[0]
 
-            ok = actual_proto in UDP_PROTOCOLS if ptype == "hysteria2" else actual_proto == ptype
+            actual_proto = proto(
+                raw_config
+            )
+
+            if ptype == "hysteria2":
+                ok = (
+                    actual_proto
+                    in UDP_PROTOCOLS
+                )
+            else:
+                ok = (
+                    actual_proto
+                    == ptype
+                )
 
             if not ok:
-                raise RuntimeError(f"{filename} contains wrong protocol: {line}")
+                raise RuntimeError(
+                    f"{filename} contains "
+                    f"wrong protocol: {line}"
+                )
 
     for filename in EXPECTED_FILES:
-        lines = read_lines(os.path.join(OUT_DIR, filename))
+        lines = read_lines(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            )
+        )
 
         if not lines:
-            raise RuntimeError(f"{filename} is empty")
+            raise RuntimeError(
+                f"{filename} is empty"
+            )
 
         if len(set(lines)) != len(lines):
-            raise RuntimeError(f"Duplicate lines found in {filename}")
+            raise RuntimeError(
+                f"Duplicate lines found "
+                f"in {filename}"
+            )
 
         for line in lines:
-            if not line.endswith(f"#{REMARK}") or line.count("#") != 1:
-                raise RuntimeError(f"Invalid remark in {filename}: {line}")
+            if (
+                not line.endswith(
+                    f"#{REMARK}"
+                )
+                or line.count("#") != 1
+            ):
+                raise RuntimeError(
+                    f"Invalid remark in "
+                    f"{filename}: {line}"
+                )
 
-            if not valid_config(line.rsplit("#", 1)[0]):
-                raise RuntimeError(f"Invalid config in {filename}: {line}")
+            raw_config = line.rsplit(
+                "#",
+                1,
+            )[0]
 
-    print("OUTPUT VERIFICATION PASSED")
+            if not valid_config(
+                raw_config
+            ):
+                raise RuntimeError(
+                    f"Invalid config in "
+                    f"{filename}: {line}"
+                )
+
+    print(
+        "OUTPUT VERIFICATION PASSED"
+    )
 
 
 def print_summary():
-    print("\n" + "=" * 65)
-    print("FINAL OUTPUT SUMMARY")
-    print("=" * 65)
+    print(
+        "\n"
+        + "=" * 65
+    )
+
+    print(
+        "FINAL OUTPUT SUMMARY"
+    )
+
+    print(
+        "=" * 65
+    )
 
     for filename in EXPECTED_FILES:
-        count = count_nonempty_lines(os.path.join(OUT_DIR, filename))
-        print(f"{filename:20s} {count:6d}")
+        count = count_nonempty_lines(
+            os.path.join(
+                OUT_DIR,
+                filename,
+            )
+        )
+
+        print(
+            f"{filename:20s} "
+            f"{count:6d}"
+        )
 
 
 # ============================================================
@@ -2212,126 +3373,299 @@ def print_summary():
 def main():
     started = time.time()
 
-    real = bool(xray_path())
+    real = bool(
+        xray_path()
+    )
 
-    print("=" * 65)
-    print("NUKCROW COLLECTOR")
-    print(f"Telegram Collector: {'ENABLED' if TELEGRAM_ENABLED else 'DISABLED'}")
-    print(f"Real xray test:     {'ENABLED' if real else 'DISABLED (xray not found)'}")
-    print("=" * 65)
+    print(
+        "=" * 65
+    )
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    print(
+        "NUKCROW COLLECTOR"
+    )
+
+    print(
+        f"Real xray test: "
+        f"{'ENABLED' if real else 'DISABLED'}"
+    )
+
+    print(
+        "=" * 65
+    )
+
+    os.makedirs(
+        OUT_DIR,
+        exist_ok=True,
+    )
 
     # --------------------------------------------------------
-    # KNOWN-GOOD POOL (previous runs + previous outputs)
+    # KNOWN GOOD
     # --------------------------------------------------------
 
     state = load_state()
 
-    known = dedupe([v["c"] for v in state.values()] + load_previous_outputs())
-    known_fps = {config_fingerprint(c) for c in known}
+    previous = load_previous_outputs()
 
-    print(f"\nKnown-good pool: {len(known)}")
+    state_configs = [
+        value["c"]
+        for value in state.values()
+        if isinstance(value, dict)
+        and value.get("c")
+    ]
+
+    known = dedupe(
+        state_configs
+        + previous
+    )
+
+    known_fps = {
+        config_fingerprint(config)
+        for config in known
+    }
+
+    print(
+        f"\nKnown-good pool: "
+        f"{len(known)}"
+    )
 
     # --------------------------------------------------------
-    # FETCH + DEDUPE
+    # FETCH
     # --------------------------------------------------------
 
     raw = fetch_all()
 
-    general_unique = dedupe(raw["general"])
-    telegram_unique = dedupe(raw["telegram"])
-    iran_unique = dedupe(raw["iran"] + raw["telegram"])
-    mci_unique = dedupe(raw["mci"])
-    irancell_unique = dedupe(raw["irancell"])
-    rightel_unique = dedupe(raw["rightel"])
+    general_unique = dedupe(
+        raw["general"]
+    )
 
-    random.shuffle(general_unique)
+    iran_unique = dedupe(
+        raw["iran"]
+    )
+
+    mci_unique = dedupe(
+        raw["mci"]
+    )
+
+    irancell_unique = dedupe(
+        raw["irancell"]
+    )
+
+    rightel_unique = dedupe(
+        raw["rightel"]
+    )
+
+    random.shuffle(
+        general_unique
+    )
 
     priority = dedupe(
         known
-        + telegram_unique
         + iran_unique
         + mci_unique
         + irancell_unique
         + rightel_unique
     )
 
-    all_unique = dedupe(priority + general_unique)
+    all_unique = dedupe(
+        priority
+        + general_unique
+    )
 
-    print("\nUnique configs:")
-    print(f"  General:   {len(general_unique)}")
-    print(f"  Telegram:  {len(telegram_unique)}")
-    print(f"  Iran:      {len(iran_unique)}")
-    print(f"  MCI:       {len(mci_unique)}")
-    print(f"  Irancell:  {len(irancell_unique)}")
-    print(f"  Rightel:   {len(rightel_unique)}")
-    print(f"  Global:    {len(all_unique)}")
+    print(
+        "\nUnique configs:"
+    )
+
+    print(
+        f"  General:  "
+        f"{len(general_unique)}"
+    )
+
+    print(
+        f"  Iran:     "
+        f"{len(iran_unique)}"
+    )
+
+    print(
+        f"  MCI:      "
+        f"{len(mci_unique)}"
+    )
+
+    print(
+        f"  Irancell: "
+        f"{len(irancell_unique)}"
+    )
+
+    print(
+        f"  Rightel:  "
+        f"{len(rightel_unique)}"
+    )
+
+    print(
+        f"  Global:   "
+        f"{len(all_unique)}"
+    )
 
     # --------------------------------------------------------
-    # STAGE 1: TCP + TLS handshake (cheap filter)
+    # STAGE 1
     # --------------------------------------------------------
 
-    alive_all = benchmark(all_unique)
+    alive_all = benchmark(
+        all_unique
+    )
 
-    alive_map = {config_fingerprint(r["config"]): r for r in alive_all}
+    alive_map = {
+        config_fingerprint(
+            record["config"]
+        ): record
+        for record in alive_all
+    }
 
     # --------------------------------------------------------
-    # STAGE 2: real end-to-end test through xray
+    # STAGE 2
     # --------------------------------------------------------
 
-    if real:
-        known_alive = [r for r in alive_all if config_fingerprint(r["config"]) in known_fps]
-        fresh_alive = [r for r in alive_all if config_fingerprint(r["config"]) not in known_fps]
-
-        candidates = (known_alive[:STATE_RETEST] + fresh_alive)[:REAL_TEST_MAX]
-
-        good = real_test(candidates)
-
-        tested_fps = {config_fingerprint(r["config"]) for r in candidates}
-
-        save_state(update_state(state, tested_fps, good, set(alive_map)))
-
-    else:
-        print("[WARN] xray not found: publishing TCP/TLS-alive configs only")
-        good = alive_all
-
-    print(f"\nGood configs this run: {len(good)}")
-
-    if len(good) < MIN_GOOD:
+    if not real:
         print(
-            f"[SKIP] fewer than {MIN_GOOD} good configs: "
-            "keeping the previous output untouched"
+            "[ERROR] xray-core not found."
+        )
+        print(
+            "[ERROR] No unverified configs "
+            "will be published."
         )
         return
 
-    good_map = {config_fingerprint(r["config"]): r for r in good}
+    known_alive = [
+        record
+        for record in alive_all
+        if config_fingerprint(
+            record["config"]
+        ) in known_fps
+    ]
+
+    fresh_alive = [
+        record
+        for record in alive_all
+        if config_fingerprint(
+            record["config"]
+        ) not in known_fps
+    ]
+
+    candidates = (
+        known_alive[:STATE_RETEST]
+        + fresh_alive
+    )
+
+    candidates = candidates[
+        :REAL_TEST_MAX
+    ]
+
+    good = real_test(
+        candidates
+    )
+
+    tested_fps = {
+        config_fingerprint(
+            record["config"]
+        )
+        for record in candidates
+    }
+
+    save_state(
+        update_state(
+            state,
+            tested_fps,
+            good,
+            set(alive_map),
+        )
+    )
+
+    print(
+        f"\nGood configs this run: "
+        f"{len(good)}"
+    )
+
+    # --------------------------------------------------------
+    # NEVER REPLACE OLD OUTPUT WITH A BAD RUN
+    # --------------------------------------------------------
+
+    if len(good) < GENERAL_TOTAL:
+        print(
+            f"[SKIP] only "
+            f"{len(good)}/{GENERAL_TOTAL} "
+            f"verified configs"
+        )
+
+        print(
+            "[SKIP] Previous outputs "
+            "remain untouched."
+        )
+
+        return
 
     # --------------------------------------------------------
     # WRITE
     # --------------------------------------------------------
 
-    write_general(good)
+    good_map = {
+        config_fingerprint(
+            record["config"]
+        ): record
+        for record in good
+    }
+
+    good_iran = subset_alive(
+        good_map,
+        iran_unique,
+    )
+
+    good_mci = subset_alive(
+        good_map,
+        mci_unique,
+    )
+
+    good_irancell = subset_alive(
+        good_map,
+        irancell_unique,
+    )
+
+    good_rightel = subset_alive(
+        good_map,
+        rightel_unique,
+    )
+
+    write_general(
+        good
+    )
 
     write_iran(
-        subset_alive(good_map, iran_unique),
-        subset_alive(good_map, mci_unique),
-        subset_alive(good_map, irancell_unique),
-        subset_alive(good_map, rightel_unique),
+        good_iran,
+        good_mci,
+        good_irancell,
+        good_rightel,
         good,
     )
 
-    write_protocols(good, alive_all, all_unique)
+    write_protocols(
+        good,
+        alive_all,
+        all_unique,
+    )
 
     # --------------------------------------------------------
     # VERIFY
     # --------------------------------------------------------
 
     verify_outputs()
+
     print_source_summary()
+
     print_summary()
 
-    print(f"\nDONE: {time.time() - started:.2f}s")
+    print(
+        f"\nDONE: "
+        f"{time.time() - started:.2f}s"
+    )
 
 
 if __name__ == "__main__":
