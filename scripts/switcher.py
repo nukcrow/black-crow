@@ -5,6 +5,11 @@ import time
 import base64
 import socket
 import ssl
+import sys
+import queue
+import shutil
+import tempfile
+import subprocess
 import random
 import ipaddress
 import threading
@@ -36,22 +41,41 @@ IRAN_SUB_SIZE = 200
 
 MAX_PER_HOST = 8
 
-FETCH_WORKERS = 5
+FETCH_WORKERS = 10
 FETCH_TIMEOUT = 15
 FETCH_RETRIES = 3
-MAX_PER_SOURCE = 8000
+MAX_PER_SOURCE = 20000
 
 # Benchmark: TCP connect (+ TLS handshake for tls/reality configs)
-MAX_TEST = 10000
-BENCH_WORKERS = 80
+MAX_TEST = 20000
+BENCH_WORKERS = 100
 BENCH_TIMEOUT = 2.0
 TLS_TIMEOUT = 2.5
 
-SECOND_PASS = 2000
-SECOND_PASS_WORKERS = 40
+SECOND_PASS = 8000
+SECOND_PASS_WORKERS = 60
 SECOND_PASS_TIMEOUT = 2.0
 
-ALLOW_VALID_FALLBACK = True
+# Output policy: only configs that really work are published.
+# Below MIN_GOOD verified configs the run is skipped and the last output stays.
+MIN_GOOD = 30
+
+# Real end-to-end test through xray-core (HTTP 204 via the proxy)
+XRAY_BIN = os.environ.get("XRAY_BIN", "xray")
+REAL_TEST_MAX = 8000          # configs tested end-to-end per run
+REAL_BATCH_SIZE = 50          # configs per xray process
+REAL_BATCH_PARALLEL = 4       # xray processes at the same time
+REAL_BASE_PORT = 20000
+REAL_TIMEOUT = 5.0
+TEST_HOST = "www.gstatic.com"
+TEST_PORT = 80
+TEST_PATH = "/generate_204"
+
+# Persistent pool of configs that worked before (re-tested first every run)
+STATE_FILE = os.environ.get("STATE_FILE", ".state/good_pool.json")
+STATE_RETEST = 4000
+STATE_MAX = 15000
+STATE_MAX_FAILS = 3
 
 PREFERRED_TYPES = {"ws", "grpc", "xhttp", "httpupgrade", "tcp"}
 
@@ -62,8 +86,8 @@ MULTI_SOURCE_BONUS = 3    # config seen in 2+ sources
 
 # Telegram public preview scraping (https://t.me/s/<channel>)
 TELEGRAM_ENABLED = True
-TELEGRAM_PAGES = 2
-TELEGRAM_WORKERS = 4
+TELEGRAM_PAGES = 3
+TELEGRAM_WORKERS = 8
 TELEGRAM_CHANNELS = [
     "v2rayng_fa2",
     "v2rayng_org",
@@ -309,15 +333,7 @@ def fetch_source(url):
         except Exception as exc:
             last_error = exc
             if attempt < FETCH_RETRIES:
-                # Respect HTTP rate limits when a source responds with 429.
-                retry_after = 0
-                response_obj = locals().get("response")
-                if response_obj is not None and getattr(response_obj, "status_code", None) == 429:
-                    try:
-                        retry_after = int(response_obj.headers.get("Retry-After", "0"))
-                    except (TypeError, ValueError):
-                        retry_after = 0
-                time.sleep(min(max(retry_after, 2 ** attempt), 60))
+                time.sleep(min(2 ** attempt, 5))
 
     print(f"[FETCH ERROR] {url}: {last_error}")
     return []
@@ -360,13 +376,6 @@ def fetch_telegram_channel(channel):
             response = session().get(url, timeout=FETCH_TIMEOUT)
             response.raise_for_status()
         except Exception as exc:
-            response_obj = locals().get("response")
-            if response_obj is not None and getattr(response_obj, "status_code", None) == 429:
-                try:
-                    wait_seconds = int(response_obj.headers.get("Retry-After", "10"))
-                except (TypeError, ValueError):
-                    wait_seconds = 10
-                time.sleep(min(max(wait_seconds, 1), 60))
             print(f"[TG ERROR] {channel}: {exc}")
             break
 
@@ -386,7 +395,7 @@ def fetch_telegram_channel(channel):
             break
 
         before = min(ids)
-        time.sleep(1.2)
+        time.sleep(0.4)
 
     return found
 
@@ -1179,10 +1188,642 @@ def subset_alive(alive_map, configs):
 
 
 # ============================================================
+# REAL TEST (xray-core, end-to-end HTTP 204 through the proxy)
+# ============================================================
+
+def xray_path():
+    return shutil.which(XRAY_BIN)
+
+
+def full_params(config):
+    ptype = proto(config)
+
+    if ptype == "vmess":
+        d = vmess_data(config)
+
+        def g(key):
+            value = d.get(key)
+            return "" if value is None else str(value)
+
+        net = g("net") or "tcp"
+
+        return {
+            "type": net,
+            "security": "tls" if g("tls").lower() == "tls" else "",
+            "sni": g("sni"),
+            "host": g("host"),
+            "path": g("path"),
+            "serviceName": g("path") if net == "grpc" else "",
+            "alpn": g("alpn"),
+            "fp": g("fp"),
+            "headerType": g("type") if g("type") in {"none", "http"} else "",
+            "mode": "multi" if g("type") == "multi" else "",
+            "allowInsecure": g("allowInsecure"),
+            "aid": g("aid"),
+            "scy": g("scy"),
+            "encryption": "",
+            "pbk": "", "sid": "", "spx": "", "flow": "", "extra": "",
+        }
+
+    q = query(config)
+
+    def g(*keys):
+        for key in keys:
+            value = q1(q, key)
+            if value:
+                return str(value)
+        return ""
+
+    return {
+        "type": g("type", "network") or "tcp",
+        "security": g("security", "tls"),
+        "sni": g("sni", "serverName", "peer"),
+        "host": g("host", "hostHeader"),
+        "path": g("path"),
+        "serviceName": g("serviceName"),
+        "alpn": g("alpn"),
+        "fp": g("fp"),
+        "headerType": g("headerType"),
+        "mode": g("mode"),
+        "allowInsecure": g("allowInsecure", "insecure"),
+        "aid": "",
+        "scy": "",
+        "encryption": g("encryption"),
+        "pbk": g("pbk"),
+        "sid": g("sid"),
+        "spx": g("spx"),
+        "flow": g("flow"),
+        "extra": g("extra"),
+    }
+
+
+def build_stream(p, address, default_security=""):
+    net = (p["type"] or "tcp").lower()
+
+    if net == "splithttp":
+        net = "xhttp"
+
+    if net == "raw":
+        net = "tcp"
+
+    if net not in {"tcp", "ws", "grpc", "httpupgrade", "xhttp"}:
+        return None
+
+    sec = (p["security"] or default_security or "none").lower()
+
+    if sec not in {"none", "tls", "reality"}:
+        return None
+
+    stream = {"network": net, "security": sec}
+
+    host_header = p["host"]
+    path = p["path"] or "/"
+
+    if net == "ws":
+        ws = {"path": path}
+        if host_header:
+            ws["headers"] = {"Host": host_header}
+        stream["wsSettings"] = ws
+
+    elif net == "grpc":
+        stream["grpcSettings"] = {
+            "serviceName": p["serviceName"],
+            "multiMode": p["mode"] == "multi",
+        }
+
+    elif net == "httpupgrade":
+        hu = {"path": path}
+        if host_header:
+            hu["host"] = host_header
+        stream["httpupgradeSettings"] = hu
+
+    elif net == "xhttp":
+        xh = {"path": path, "mode": p["mode"] or "auto"}
+        if host_header:
+            xh["host"] = host_header
+        if p["extra"]:
+            try:
+                extra = json.loads(p["extra"])
+                if isinstance(extra, dict):
+                    xh["extra"] = extra
+            except Exception:
+                pass
+        stream["xhttpSettings"] = xh
+
+    elif net == "tcp" and p["headerType"] == "http":
+        hosts = [h for h in host_header.split(",") if h]
+        stream["tcpSettings"] = {
+            "header": {
+                "type": "http",
+                "request": {
+                    "path": [path],
+                    "headers": {"Host": hosts} if hosts else {},
+                },
+            }
+        }
+
+    if sec == "tls":
+        sni = p["sni"] or host_header or ("" if is_ip(address) else address)
+
+        tls = {"fingerprint": p["fp"] or "chrome"}
+
+        if sni:
+            tls["serverName"] = sni
+
+        alpn = [a for a in p["alpn"].split(",") if a]
+
+        if alpn:
+            tls["alpn"] = alpn
+
+        if str(p["allowInsecure"]).lower() in {"1", "true", "yes"}:
+            tls["allowInsecure"] = True
+
+        stream["tlsSettings"] = tls
+
+    elif sec == "reality":
+        if not p["pbk"]:
+            return None
+
+        reality = {
+            "fingerprint": p["fp"] or "chrome",
+            "publicKey": p["pbk"],
+            "shortId": p["sid"],
+            "spiderX": p["spx"],
+        }
+
+        if p["sni"]:
+            reality["serverName"] = p["sni"]
+
+        stream["realitySettings"] = reality
+
+    return stream
+
+
+def to_outbound(config):
+    """Convert a share URI to an xray outbound dict (None = unsupported)."""
+    try:
+        ptype = proto(config)
+        host, port = endpoint(config)
+
+        if not host or not port:
+            return None
+
+        p = full_params(config)
+
+        if ptype == "vless":
+            stream = build_stream(p, host)
+
+            if not stream:
+                return None
+
+            user = {
+                "id": config_identity(config),
+                "encryption": p["encryption"] or "none",
+            }
+
+            if p["flow"]:
+                user["flow"] = p["flow"]
+
+            return {
+                "protocol": "vless",
+                "settings": {"vnext": [{"address": host, "port": port, "users": [user]}]},
+                "streamSettings": stream,
+            }
+
+        if ptype == "vmess":
+            stream = build_stream(p, host)
+
+            if not stream:
+                return None
+
+            user = {"id": config_identity(config), "security": p["scy"] or "auto"}
+
+            return {
+                "protocol": "vmess",
+                "settings": {"vnext": [{"address": host, "port": port, "users": [user]}]},
+                "streamSettings": stream,
+            }
+
+        if ptype == "trojan":
+            stream = build_stream(p, host, default_security="tls")
+
+            if not stream:
+                return None
+
+            return {
+                "protocol": "trojan",
+                "settings": {
+                    "servers": [{
+                        "address": host,
+                        "port": port,
+                        "password": config_identity(config),
+                    }]
+                },
+                "streamSettings": stream,
+            }
+
+        if ptype == "ss":
+            if q1(query(config), "plugin"):
+                return None
+
+            data = ss_data(config)
+
+            if not data:
+                return None
+
+            return {
+                "protocol": "shadowsocks",
+                "settings": {
+                    "servers": [{
+                        "address": data["host"],
+                        "port": data["port"],
+                        "method": data["method"],
+                        "password": data["password"],
+                    }]
+                },
+            }
+
+    except Exception:
+        return None
+
+    return None
+
+
+def _recv_exact(sock, size):
+    data = b""
+
+    while len(data) < size:
+        chunk = sock.recv(size - len(data))
+
+        if not chunk:
+            return None
+
+        data += chunk
+
+    return data
+
+
+def _socks_probe(port, host=None, dport=None, path=None, timeout=None):
+    """HTTP 204 request through the local socks inbound. Returns ms or None."""
+    host = host or TEST_HOST
+    dport = dport or TEST_PORT
+    path = path or TEST_PATH
+    timeout = timeout or REAL_TIMEOUT
+
+    started = time.perf_counter()
+
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+
+            sock.sendall(b"\x05\x01\x00")
+
+            if _recv_exact(sock, 2) != b"\x05\x00":
+                return None
+
+            name = host.encode()
+
+            sock.sendall(
+                b"\x05\x01\x00\x03"
+                + bytes([len(name)])
+                + name
+                + dport.to_bytes(2, "big")
+            )
+
+            head = _recv_exact(sock, 4)
+
+            if not head or head[1] != 0:
+                return None
+
+            atyp = head[3]
+
+            if atyp == 1:
+                skip = 4
+            elif atyp == 4:
+                skip = 16
+            else:
+                length = _recv_exact(sock, 1)
+
+                if not length:
+                    return None
+
+                skip = length[0]
+
+            if _recv_exact(sock, skip + 2) is None:
+                return None
+
+            sock.sendall(
+                (
+                    f"GET {path} HTTP/1.1\r\nHost: {host}\r\n"
+                    "User-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n"
+                ).encode()
+            )
+
+            data = sock.recv(512)
+
+            first = data.split(b"\r\n", 1)[0]
+
+            if first.startswith(b"HTTP/") and b" 204" in first:
+                return (time.perf_counter() - started) * 1000
+
+    except Exception:
+        return None
+
+    return None
+
+
+def _probe_with_retry(port):
+    first = _socks_probe(port)
+
+    if first is None:
+        first = _socks_probe(port)
+
+    if first is None:
+        return None
+
+    second = _socks_probe(port)
+
+    return min(first, second) if second is not None else first
+
+
+def _wait_ready(proc, port, timeout=8.0):
+    end = time.time() + timeout
+
+    while time.time() < end:
+        if proc.poll() is not None:
+            return False
+
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            return True
+        except OSError:
+            time.sleep(0.1)
+
+    return False
+
+
+def _stop(proc):
+    try:
+        proc.terminate()
+        proc.wait(timeout=3)
+    except Exception:
+        try:
+            proc.kill()
+            proc.wait(timeout=3)
+        except Exception:
+            pass
+
+
+def _run_batch(batch, base):
+    """batch: [(record, outbound)] -> [(record, latency_ms)]"""
+    if not batch:
+        return []
+
+    inbounds = []
+    outbounds = []
+    rules = []
+
+    for i, (_, outbound) in enumerate(batch):
+        ob = dict(outbound)
+        ob["tag"] = f"o{i}"
+
+        inbounds.append({
+            "tag": f"i{i}",
+            "listen": "127.0.0.1",
+            "port": base + i,
+            "protocol": "socks",
+            "settings": {"auth": "noauth", "udp": False},
+        })
+
+        outbounds.append(ob)
+
+        rules.append({
+            "type": "field",
+            "inboundTag": [f"i{i}"],
+            "outboundTag": f"o{i}",
+        })
+
+    outbounds.append({"protocol": "freedom", "tag": "direct"})
+
+    cfg = {
+        "log": {"loglevel": "none"},
+        "inbounds": inbounds,
+        "outbounds": outbounds,
+        "routing": {"domainStrategy": "AsIs", "rules": rules},
+    }
+
+    fd, path = tempfile.mkstemp(suffix=".json", prefix="xray_")
+
+    with os.fdopen(fd, "w") as f:
+        json.dump(cfg, f)
+
+    proc = None
+
+    try:
+        proc = subprocess.Popen(
+            [xray_path(), "run", "-c", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        if not _wait_ready(proc, base + len(batch) - 1):
+            _stop(proc)
+            proc = None
+
+            if len(batch) == 1:
+                return []
+
+            # one invalid outbound breaks the whole process: bisect
+            mid = len(batch) // 2
+
+            return _run_batch(batch[:mid], base) + _run_batch(batch[mid:], base)
+
+        results = []
+
+        with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+            futures = {
+                executor.submit(_probe_with_retry, base + i): batch[i][0]
+                for i in range(len(batch))
+            }
+
+            for future in as_completed(futures):
+                try:
+                    latency = future.result()
+                except Exception:
+                    latency = None
+
+                if latency is not None:
+                    results.append((futures[future], latency))
+
+        return results
+
+    except Exception:
+        return []
+
+    finally:
+        if proc is not None:
+            _stop(proc)
+
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def real_test(records):
+    """End-to-end test. Returns verified records (latency = real delay)."""
+    items = []
+
+    for record in records:
+        outbound = to_outbound(record["config"])
+
+        if outbound:
+            items.append((record, outbound))
+
+    print(
+        f"\nReal test (xray): {len(items)} testable of "
+        f"{len(records)} candidates"
+    )
+
+    batches = [
+        items[i:i + REAL_BATCH_SIZE]
+        for i in range(0, len(items), REAL_BATCH_SIZE)
+    ]
+
+    slots = queue.Queue()
+
+    for slot in range(REAL_BATCH_PARALLEL):
+        slots.put(REAL_BASE_PORT + slot * (REAL_BATCH_SIZE + 10))
+
+    def work(batch):
+        base = slots.get()
+
+        try:
+            return _run_batch(batch, base)
+        finally:
+            slots.put(base)
+
+    verified = []
+    done = 0
+
+    with ThreadPoolExecutor(max_workers=REAL_BATCH_PARALLEL) as executor:
+        futures = [executor.submit(work, b) for b in batches]
+
+        for future in as_completed(futures):
+            done += 1
+
+            try:
+                for record, latency in future.result():
+                    record = dict(record)
+                    record["latency"] = latency
+                    record["alive"] = True
+                    record["verified"] = True
+                    verified.append(record)
+            except Exception:
+                pass
+
+            if done % 10 == 0 or done == len(batches):
+                print(
+                    f"  batches {done}/{len(batches)} "
+                    f"verified so far: {len(verified)}"
+                )
+
+    verified.sort(key=rank_key, reverse=True)
+
+    print(f"Verified configs: {len(verified)}")
+
+    return verified
+
+
+# ============================================================
+# PERSISTENT STATE (configs that worked before)
+# ============================================================
+
+def load_state():
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        return {
+            k: v for k, v in data.items()
+            if isinstance(v, dict) and v.get("c")
+        }
+    except Exception:
+        return {}
+
+
+def save_state(state):
+    try:
+        directory = os.path.dirname(STATE_FILE)
+
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        temp = STATE_FILE + ".tmp"
+
+        with open(temp, "w", encoding="utf-8") as f:
+            json.dump(state, f)
+
+        os.replace(temp, STATE_FILE)
+
+    except Exception as exc:
+        print(f"[STATE] save failed: {exc}")
+
+
+def load_previous_outputs():
+    configs = []
+
+    for filename in EXPECTED_FILES:
+        for line in read_lines(os.path.join(OUT_DIR, filename)):
+            configs.append(line.rsplit("#", 1)[0])
+
+    return configs
+
+
+def update_state(state, tested_fps, verified, alive_fps):
+    now = int(time.time())
+    ok = {}
+
+    for record in verified:
+        fp = config_fingerprint(record["config"])
+
+        if fp:
+            ok[fp] = record
+            state[fp] = {
+                "c": record["config"],
+                "fails": 0,
+                "lat": round(record["latency"]),
+                "ts": now,
+            }
+
+    for fp in list(state):
+        if fp in ok:
+            continue
+
+        # failed the end-to-end test, or TCP/TLS dead this run
+        if fp in tested_fps or fp not in alive_fps:
+            state[fp]["fails"] = state[fp].get("fails", 0) + 1
+
+            if state[fp]["fails"] >= STATE_MAX_FAILS:
+                del state[fp]
+
+    if len(state) > STATE_MAX:
+        keep = sorted(
+            state.items(),
+            key=lambda kv: (kv[1].get("fails", 0), kv[1].get("lat", 9999)),
+        )[:STATE_MAX]
+
+        state.clear()
+        state.update(dict(keep))
+
+    return state
+
+
+# ============================================================
 # RECORD MERGE / SELECTION
 # ============================================================
 
-def merge_records(alive_records, valid_configs):
+def merge_records(alive_records, valid_configs, fallback=False):
     result = []
     seen = set()
 
@@ -1195,8 +1836,8 @@ def merge_records(alive_records, valid_configs):
         seen.add(fp)
         result.append(record)
 
-    if ALLOW_VALID_FALLBACK:
-        fallback = []
+    if fallback:
+        fallback_records = []
 
         for config in valid_configs:
             fp = config_fingerprint(config)
@@ -1205,12 +1846,12 @@ def merge_records(alive_records, valid_configs):
                 continue
 
             seen.add(fp)
-            fallback.append(config_record(config))
+            fallback_records.append(config_record(config))
 
         # untested configs: best static score first
-        fallback.sort(key=lambda r: r["score"], reverse=True)
+        fallback_records.sort(key=lambda r: r["score"], reverse=True)
 
-        result.extend(fallback)
+        result.extend(fallback_records)
 
     return result
 
@@ -1255,8 +1896,8 @@ def select_records(results, limit, predicate=None):
     return selected
 
 
-def select_subscription(alive_records, valid_configs, limit, predicate=None):
-    merged = merge_records(alive_records, valid_configs)
+def select_subscription(alive_records, valid_configs, limit, predicate=None, fallback=False):
+    merged = merge_records(alive_records, valid_configs, fallback)
     return select_records(merged, limit, predicate)
 
 
@@ -1325,32 +1966,28 @@ def write_file(filename, lines):
 # GENERAL SUBSCRIPTIONS
 # ============================================================
 
-def write_general(alive_all, all_unique):
+def split_sizes(total, parts):
+    base, rem = divmod(total, parts)
+    return [base + 1 if i < rem else base for i in range(parts)]
+
+
+def write_general(good):
     print("\nWriting general subscriptions...")
 
-    selected = select_subscription(alive_all, all_unique, GENERAL_TOTAL)
+    selected = select_records(good, GENERAL_TOTAL)
 
-    if len(selected) < GENERAL_TOTAL:
-        raise RuntimeError(
-            f"Not enough configs for general subscriptions: "
-            f"{len(selected)}/{GENERAL_TOTAL}"
-        )
+    if len(selected) < GENERAL_SUB_COUNT:
+        raise RuntimeError(f"Not enough verified configs: {len(selected)}")
 
-    all_lines = render_records(selected[:GENERAL_TOTAL])
-
-    if len(all_lines) != GENERAL_TOTAL:
-        raise RuntimeError(f"Rendered general output does not contain exactly {GENERAL_TOTAL} lines")
+    all_lines = render_records(selected)
 
     write_file("all_configs.txt", all_lines)
 
-    for index in range(GENERAL_SUB_COUNT):
-        start = index * GENERAL_SUB_SIZE
-        sub_lines = all_lines[start:start + GENERAL_SUB_SIZE]
+    start = 0
 
-        if len(sub_lines) != GENERAL_SUB_SIZE:
-            raise RuntimeError(f"sub{index + 1}.txt must contain {GENERAL_SUB_SIZE} configs")
-
-        write_file(f"sub{index + 1}.txt", sub_lines)
+    for index, size in enumerate(split_sizes(len(all_lines), GENERAL_SUB_COUNT)):
+        write_file(f"sub{index + 1}.txt", all_lines[start:start + size])
+        start += size
 
     rebuilt = []
 
@@ -1365,30 +2002,26 @@ def write_general(alive_all, all_unique):
 # PROTOCOL FILES
 # ============================================================
 
-def write_protocols(alive_all, all_unique):
+def write_protocols(good, alive_all, all_unique):
     print("\nWriting protocol subscriptions...")
 
     for ptype in ["vless", "vmess", "trojan", "ss", "hysteria2"]:
-        selected = select_subscription(
-            alive_all,
-            all_unique,
-            PROTOCOL_SUB_SIZE,
-            predicate=lambda c, p=ptype: (
-                proto(c) == p or (p == "hysteria2" and proto(c) == "hy2")
-            ),
-        )
+        def predicate(c, p=ptype):
+            return proto(c) == p or (p == "hysteria2" and proto(c) == "hy2")
+
+        selected = select_records(good, PROTOCOL_SUB_SIZE, predicate)
+
+        # Nothing verified for this protocol (e.g. hysteria2 is UDP and
+        # cannot be tested): small best-effort list so the file exists.
+        if not selected:
+            fallback = merge_records(alive_all, all_unique, fallback=True)
+            selected = select_records(fallback, 20, predicate)
 
         if not selected:
             print(f"[WARN] No {ptype} configs")
             continue
 
-        lines = render_records(selected)
-
-        if not lines:
-            print(f"[WARN] No rendered {ptype} configs")
-            continue
-
-        write_file(f"{ptype}.txt", lines)
+        write_file(f"{ptype}.txt", render_records(selected))
 
 
 # ============================================================
@@ -1405,48 +2038,30 @@ def fill_records(primary, fallback_groups, limit):
     return select_records(ordered, limit)
 
 
-def write_iran(
-    alive_iran, iran_unique,
-    alive_mci, mci_unique,
-    alive_irancell, irancell_unique,
-    alive_rightel, rightel_unique,
-    alive_all, all_unique,
-):
+def write_iran(good_iran, good_mci, good_irancell, good_rightel, good_all):
     print("\nWriting Iran/operator subscriptions...")
-
-    global_records = merge_records(alive_all, all_unique)
-    iran_records = merge_records(alive_iran, iran_unique)
-    mci_records = merge_records(alive_mci, mci_unique)
-    irancell_records = merge_records(alive_irancell, irancell_unique)
-    rightel_records = merge_records(alive_rightel, rightel_unique)
 
     def write_operator(filename, primary, fallbacks):
         selected = fill_records(primary, fallbacks, IRAN_SUB_SIZE)
 
-        if len(selected) < IRAN_SUB_SIZE:
+        if not selected:
             raise RuntimeError(f"Could not create {filename}")
 
         write_file(filename, render_records(selected))
 
-    write_operator("mci.txt", mci_records, [iran_records, global_records])
-    write_operator("irancell.txt", irancell_records, [iran_records, global_records])
-    write_operator("rightel.txt", rightel_records, [iran_records, global_records])
-    write_operator("best_iran.txt", iran_records, [global_records])
+    write_operator("mci.txt", good_mci, [good_iran, good_all])
+    write_operator("irancell.txt", good_irancell, [good_iran, good_all])
+    write_operator("rightel.txt", good_rightel, [good_iran, good_all])
+    write_operator("best_iran.txt", good_iran, [good_all])
 
-    # mix_iran: shuffle only the best alive pool, untested configs stay last
-    pool = iran_records + global_records
+    # mix_iran: shuffle the best verified pool
+    pool = select_records(good_iran + good_all, IRAN_SUB_SIZE * 3)
 
-    alive_pool = sorted((r for r in pool if r.get("alive")), key=rank_key, reverse=True)
-    untested = [r for r in pool if not r.get("alive")]
+    random.shuffle(pool)
 
-    top = alive_pool[:IRAN_SUB_SIZE * 8]
-    rest = alive_pool[IRAN_SUB_SIZE * 8:]
+    mix_selected = pool[:IRAN_SUB_SIZE]
 
-    random.shuffle(top)
-
-    mix_selected = select_records(top + rest + untested, IRAN_SUB_SIZE)
-
-    if len(mix_selected) < IRAN_SUB_SIZE:
+    if not mix_selected:
         raise RuntimeError("Could not create mix_iran.txt")
 
     write_file("mix_iran.txt", render_records(mix_selected))
@@ -1522,31 +2137,29 @@ def verify_outputs():
 
     all_lines = read_lines(os.path.join(OUT_DIR, "all_configs.txt"))
 
-    if len(all_lines) != GENERAL_TOTAL:
-        raise RuntimeError(f"all_configs.txt must contain {GENERAL_TOTAL} configs, got {len(all_lines)}")
+    if not (GENERAL_SUB_COUNT <= len(all_lines) <= GENERAL_TOTAL):
+        raise RuntimeError(f"all_configs.txt has {len(all_lines)} configs")
 
+    sizes = split_sizes(len(all_lines), GENERAL_SUB_COUNT)
     rebuilt = []
 
     for index in range(GENERAL_SUB_COUNT):
         filename = f"sub{index + 1}.txt"
         lines = read_lines(os.path.join(OUT_DIR, filename))
 
-        if len(lines) != GENERAL_SUB_SIZE:
-            raise RuntimeError(f"{filename} must contain {GENERAL_SUB_SIZE} configs, got {len(lines)}")
+        if len(lines) != sizes[index] or len(lines) > GENERAL_SUB_SIZE:
+            raise RuntimeError(f"{filename} has {len(lines)} configs, expected {sizes[index]}")
 
         rebuilt.extend(lines)
 
     if rebuilt != all_lines:
         raise RuntimeError("sub1.txt to sub10.txt are not in the exact same order as all_configs.txt")
 
-    if len(set(all_lines)) != len(all_lines):
-        raise RuntimeError("Duplicate lines found in all_configs.txt")
-
     for filename in ["mci.txt", "irancell.txt", "rightel.txt", "best_iran.txt", "mix_iran.txt"]:
         lines = read_lines(os.path.join(OUT_DIR, filename))
 
-        if len(lines) != IRAN_SUB_SIZE:
-            raise RuntimeError(f"{filename} must contain {IRAN_SUB_SIZE} configs, got {len(lines)}")
+        if not (1 <= len(lines) <= IRAN_SUB_SIZE):
+            raise RuntimeError(f"{filename} must contain 1-{IRAN_SUB_SIZE} configs, got {len(lines)}")
 
     for ptype in ["vless", "vmess", "trojan", "ss", "hysteria2"]:
         filename = f"{ptype}.txt"
@@ -1556,22 +2169,12 @@ def verify_outputs():
             raise RuntimeError(f"{filename} must contain 1-{PROTOCOL_SUB_SIZE} configs, got {len(lines)}")
 
         for line in lines:
-            if "#" not in line:
-                raise RuntimeError(f"{filename} contains invalid line: {line}")
+            actual_proto = proto(line.rsplit("#", 1)[0])
 
-            config = line.rsplit("#", 1)[0]
-            actual_proto = proto(config)
-
-            if ptype == "hysteria2":
-                ok = actual_proto in UDP_PROTOCOLS
-            else:
-                ok = actual_proto == ptype
+            ok = actual_proto in UDP_PROTOCOLS if ptype == "hysteria2" else actual_proto == ptype
 
             if not ok:
                 raise RuntimeError(f"{filename} contains wrong protocol: {line}")
-
-            if not valid_config(config):
-                raise RuntimeError(f"Invalid config in {filename}: {line}")
 
     for filename in EXPECTED_FILES:
         lines = read_lines(os.path.join(OUT_DIR, filename))
@@ -1583,11 +2186,8 @@ def verify_outputs():
             raise RuntimeError(f"Duplicate lines found in {filename}")
 
         for line in lines:
-            if not line.endswith(f"#{REMARK}"):
+            if not line.endswith(f"#{REMARK}") or line.count("#") != 1:
                 raise RuntimeError(f"Invalid remark in {filename}: {line}")
-
-            if line.count("#") != 1:
-                raise RuntimeError(f"Invalid # count in {filename}: {line}")
 
             if not valid_config(line.rsplit("#", 1)[0]):
                 raise RuntimeError(f"Invalid config in {filename}: {line}")
@@ -1612,22 +2212,32 @@ def print_summary():
 def main():
     started = time.time()
 
+    real = bool(xray_path())
+
     print("=" * 65)
     print("NUKCROW COLLECTOR")
     print(f"Telegram Collector: {'ENABLED' if TELEGRAM_ENABLED else 'DISABLED'}")
+    print(f"Real xray test:     {'ENABLED' if real else 'DISABLED (xray not found)'}")
     print("=" * 65)
 
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # --------------------------------------------------------
-    # FETCH
+    # KNOWN-GOOD POOL (previous runs + previous outputs)
+    # --------------------------------------------------------
+
+    state = load_state()
+
+    known = dedupe([v["c"] for v in state.values()] + load_previous_outputs())
+    known_fps = {config_fingerprint(c) for c in known}
+
+    print(f"\nKnown-good pool: {len(known)}")
+
+    # --------------------------------------------------------
+    # FETCH + DEDUPE
     # --------------------------------------------------------
 
     raw = fetch_all()
-
-    # --------------------------------------------------------
-    # DEDUPE
-    # --------------------------------------------------------
 
     general_unique = dedupe(raw["general"])
     telegram_unique = dedupe(raw["telegram"])
@@ -1636,12 +2246,11 @@ def main():
     irancell_unique = dedupe(raw["irancell"])
     rightel_unique = dedupe(raw["rightel"])
 
-    # Iran-oriented / fresh configs are tested first; the big general pool is
-    # shuffled so a different random slice gets tested on every run.
     random.shuffle(general_unique)
 
     priority = dedupe(
-        telegram_unique
+        known
+        + telegram_unique
         + iran_unique
         + mci_unique
         + irancell_unique
@@ -1659,42 +2268,60 @@ def main():
     print(f"  Rightel:   {len(rightel_unique)}")
     print(f"  Global:    {len(all_unique)}")
 
-    if len(all_unique) < GENERAL_TOTAL:
-        raise RuntimeError(
-            f"Not enough unique valid configs for all_configs.txt: "
-            f"{len(all_unique)}/{GENERAL_TOTAL}"
-        )
-
     # --------------------------------------------------------
-    # BENCHMARK (one shared pass for every group)
+    # STAGE 1: TCP + TLS handshake (cheap filter)
     # --------------------------------------------------------
 
     alive_all = benchmark(all_unique)
 
     alive_map = {config_fingerprint(r["config"]): r for r in alive_all}
 
-    alive_iran = subset_alive(alive_map, iran_unique)
-    alive_mci = subset_alive(alive_map, mci_unique)
-    alive_irancell = subset_alive(alive_map, irancell_unique)
-    alive_rightel = subset_alive(alive_map, rightel_unique)
+    # --------------------------------------------------------
+    # STAGE 2: real end-to-end test through xray
+    # --------------------------------------------------------
 
-    print(f"Alive Iran: {len(alive_iran)} | Irancell: {len(alive_irancell)}")
+    if real:
+        known_alive = [r for r in alive_all if config_fingerprint(r["config"]) in known_fps]
+        fresh_alive = [r for r in alive_all if config_fingerprint(r["config"]) not in known_fps]
+
+        candidates = (known_alive[:STATE_RETEST] + fresh_alive)[:REAL_TEST_MAX]
+
+        good = real_test(candidates)
+
+        tested_fps = {config_fingerprint(r["config"]) for r in candidates}
+
+        save_state(update_state(state, tested_fps, good, set(alive_map)))
+
+    else:
+        print("[WARN] xray not found: publishing TCP/TLS-alive configs only")
+        good = alive_all
+
+    print(f"\nGood configs this run: {len(good)}")
+
+    if len(good) < MIN_GOOD:
+        print(
+            f"[SKIP] fewer than {MIN_GOOD} good configs: "
+            "keeping the previous output untouched"
+        )
+        return
+
+    good_map = {config_fingerprint(r["config"]): r for r in good}
 
     # --------------------------------------------------------
     # WRITE
     # --------------------------------------------------------
 
-    write_general(alive_all, all_unique)
+    write_general(good)
 
     write_iran(
-        alive_iran, iran_unique,
-        alive_mci, mci_unique,
-        alive_irancell, irancell_unique,
-        alive_rightel, rightel_unique,
-        alive_all, all_unique,
+        subset_alive(good_map, iran_unique),
+        subset_alive(good_map, mci_unique),
+        subset_alive(good_map, irancell_unique),
+        subset_alive(good_map, rightel_unique),
+        good,
     )
 
-    write_protocols(alive_all, all_unique)
+    write_protocols(good, alive_all, all_unique)
 
     # --------------------------------------------------------
     # VERIFY
