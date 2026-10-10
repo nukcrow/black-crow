@@ -44,17 +44,18 @@ TOTAL_CONFIGS = sum(size for _, size in SUBS)
 # Paste only your own subscription URLs into these ten slots. No external
 # source is prefilled, and bot.txt is otherwise generated as an empty file.
 BOT_SOURCES = [
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/iran.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/best.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/mini.txt",
-    "https://raw.githubusercontent.com/morpheusadam/v2ray-config/main/subs/bundles/lite.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
-    "https://raw.githubusercontent.com/HosseinKoofi/GO_V2rayCollector/main/ss_iran.txt",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 ]
-BOT_MAX_CONFIGS = 1000
+BOT_MAX_CONFIGS = 5000
 
 # Sources retained from the uploaded collector plus the URLs in the user's
 # supplied list. Invalid/duplicate lines are discarded by normalized_sources().
@@ -361,7 +362,10 @@ def parse_uri(uri: str) -> dict | None:
 
 def valid_config(uri: str) -> bool:
     parsed = parse_uri(uri)
-    return bool(parsed and 1 <= parsed["port"] <= 65535)
+    if not parsed:
+        return False
+    port = parsed.get("port")
+    return isinstance(port, int) and 1 <= port <= 65535
 
 
 def fingerprint(uri: str) -> str:
@@ -447,7 +451,11 @@ def collect_sources(sources: Iterable[str]) -> list[str]:
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         futures = [pool.submit(fetch_source, source) for source in sources]
         for future in as_completed(futures):
-            gathered.extend(future.result())
+            try:
+                gathered.extend(future.result())
+            except Exception as exc:
+                # A malformed response must not cancel the remaining sources.
+                print(f"[SOURCE-ERROR] skipped source: {exc}")
     unique, seen = [], set()
     for uri in gathered:
         token = fingerprint(uri)
