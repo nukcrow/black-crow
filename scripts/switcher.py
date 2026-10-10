@@ -4,7 +4,8 @@
 Writes only sub1.txt ... sub20.txt and bot.txt under sub/general.
 
 Pipeline: fetch -> parse/filter -> score (Iran profile) -> TCP + TLS/WS probe
--> diversity-capped selection -> write.
+-> real end-to-end proxy test (VLESS/Trojan over ws/tcp+TLS) -> tiered,
+diversity-capped selection -> write.
 
 NOTE: tests run from the GitHub runner, outside Iran. They prove the server is
 alive and speaks TLS / WebSocket on the given path; they cannot prove it is
@@ -22,6 +23,7 @@ import os
 import re
 import socket
 import ssl
+import struct
 import time
 import uuid
 from collections import Counter
@@ -39,12 +41,8 @@ from urllib.request import Request, urlopen
 OUT_DIR = Path("sub/general")
 REMARK = "nukcrow"
 
-# 20 general subscriptions, 20,000 configs max.
-SUBS = tuple(
-    [(f"sub{i}.txt", 2000) for i in range(1, 6)]
-    + [(f"sub{i}.txt", 1000) for i in range(6, 11)]
-    + [(f"sub{i}.txt", 500) for i in range(11, 21)]
-)
+# 20 general subscriptions, 2,000 configs each (40,000 max).
+SUBS = tuple((f"sub{i}.txt", 2000) for i in range(1, 21))
 TOTAL_CONFIGS = sum(size for _, size in SUBS)
 BOT_MAX_CONFIGS = 5000  # soft cap: fewer is fine
 
@@ -56,10 +54,11 @@ FETCH_WORKERS = 32
 MAX_FETCH_BYTES = 12_000_000
 TCP_TIMEOUT = 2.5
 PROBE_TIMEOUT = 4.0
-TEST_WORKERS = 200
+E2E_TIMEOUT = 5.0
+TEST_WORKERS = 300
 MAX_PER_SOURCE = 50_000
-MAX_CANDIDATES = 150_000   # unique parsed candidates kept
-MAX_TEST = 50_000          # best-scored candidates actually tested
+MAX_CANDIDATES = 200_000   # unique parsed candidates kept
+MAX_TEST = 80_000          # best-scored candidates actually tested
 
 # ----------------------------------------------------------------------------
 # Filter / selection knobs
@@ -74,6 +73,11 @@ BLOCKED_PORTS = {22, 25, 53, 110, 143, 465, 587, 993, 995, 3306}
 KEEP_PLAIN_VLESS = False   # vless without TLS/reality leaks traffic and is easy to fingerprint
 INCLUDE_IPV6 = False       # runner has no IPv6, so these cannot be tested; set True to pass them untested
 PROBE_ENABLED = True       # TLS handshake (+ WebSocket upgrade) on top of TCP connect
+E2E_ENABLED = True         # real VLESS/Trojan request through the proxy (ws or tcp + TLS, no flow)
+E2E_HOST = "connectivitycheck.gstatic.com"  # non-Cloudflare target (Workers cannot reach CF IPs)
+E2E_PATH = "/generate_204"
+FILL_TO_FULL = True        # top up with weaker tiers (probe/e2e failed, TCP ok) when verified ones run short
+PRIORITY_BONUS = 40        # score bonus for configs that come from Iran-checked lists
 WS_STRICT = True           # ws must answer "101 Switching Protocols"; False accepts any HTTP reply
 MAX_PER_HOST = 3           # configs per host (Cloudflare IPs: per host+SNI)
 MAX_PER_SUBNET = 20        # configs per /24 (IPv4) or /64 (IPv6); Cloudflare IPs exempt
@@ -95,21 +99,29 @@ GH = "https://raw.githubusercontent.com/"
 
 # Ten separate small collectors for bot.txt (verified alive, mixed profiles:
 # iboxz-style VLESS/Reality + Iranian TLS/WS/gRPC domain-based collectors).
+# OpenRay ranks configs using Iran-side checks (MCI / Irancell / TCI trackers).
+IRAN_CHECKED = [GH + "sakha1370/OpenRay/refs/heads/main/output_iran/" + n for n in (
+    "iran_top100_checked.txt", "mci_top100.txt", "irancell_top100.txt")]
+PRIORITY_SOURCES = set(IRAN_CHECKED)
+
 BOT_SOURCES = [GH + p for p in (
     "iboxz/free-v2ray-collector/main/main/mix.txt",
-    "mehrtat/vless-collector/main/vless.txt",
+    "sakha1370/OpenRay/refs/heads/main/output_iran/iran_top100_checked.txt",
+    "sakha1370/OpenRay/refs/heads/main/output/kind/vless.txt",
     "youfoundamin/V2rayCollector/main/mixed_iran.txt",
-    "HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
-    "HosseinKoofi/GO_V2rayCollector/main/trojan_iran.txt",
     "V2RayRoot/V2RayConfig/refs/heads/main/Config/vless.txt",
-    "wuqb2i4f/xray-config-toolkit/main/output/base64/mix-protocol-vl",
-    "wuqb2i4f/xray-config-toolkit/main/output/base64/mix-protocol-vm",
-    "Kwinshadow/TelegramV2rayCollector/refs/heads/main/sublinks/mix.txt",
+    "Leon406/SubCrawler/master/sub/share/vless",
+    "mheidari98/.proxy/refs/heads/main/vless",
     "Epodonios/v2ray-configs/main/Splitted-By-Protocol/vless.txt",
+    "barry-far/V2ray-config/main/Splitted-By-Protocol/vless.txt",
+    "SoliSpirit/v2ray-configs/refs/heads/main/Protocols/vless.txt",
 )]
 
 # Hand-picked general sources (all verified alive, dead/404 and 100 MB lists removed).
-RAW_SOURCES = [GH + p for p in (
+RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
+    # OpenRay validated pools
+    "sakha1370/OpenRay/refs/heads/main/output/kind/vless.txt",
+    "sakha1370/OpenRay/refs/heads/main/output/kind/trojan.txt",
     # Iranian collectors
     "HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
@@ -165,7 +177,7 @@ TLS_CTX.check_hostname = False
 TLS_CTX.verify_mode = ssl.CERT_NONE
 
 # fingerprint -> (tcp_ms, probe_ms | None) | None ; shared by general and bot runs
-TEST_CACHE: dict[str, tuple[float, float | None] | None] = {}
+TEST_CACHE: dict[str, tuple[float, float | None, bool | None] | None] = {}
 
 
 # ----------------------------------------------------------------------------
@@ -323,7 +335,7 @@ def iran_score(d: dict) -> int:
     domain = not is_ip(d["host"])
     cf = is_cloudflare(d["host"])
     score = {"vless": 10, "trojan": 9, "vmess": 7, "ss": 5}[d["scheme"]]
-    score += {"reality": 10, "tls": 9}.get(sec, 0)
+    score += {"reality": 5, "tls": 9}.get(sec, 0)  # reality weight lowered: reports of fast RST after its handshake
     score += {"ws": 8, "grpc": 8, "xhttp": 6, "splithttp": 6, "httpupgrade": 5, "h2": 5}.get(net, 4)
     score += 4 * (domain or cf) + 4 * cf
     if sec != "none" and (d["sni"] or d["hosthdr"]):
@@ -397,7 +409,9 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
     print(f"[SOURCE] usable sources = {len(sources)}")
     entries: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
-        for future in as_completed([pool.submit(fetch_source, s) for s in sources]):
+        futures = {pool.submit(fetch_source, src): src for src in sources}
+        for future in as_completed(futures):
+            prio = futures[future] in PRIORITY_SOURCES
             try:
                 uris = future.result()
             except Exception as exc:  # one bad source must not stop the rest
@@ -405,7 +419,15 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
                 continue
             for uri in uris:
                 entry = make_entry(uri)
-                if entry and entry["fp"] not in entries and len(entries) < MAX_CANDIDATES:
+                if not entry:
+                    continue
+                if prio:
+                    entry["score"] += PRIORITY_BONUS
+                old = entries.get(entry["fp"])
+                if old is None:
+                    if len(entries) < MAX_CANDIDATES:
+                        entries[entry["fp"]] = entry
+                elif entry["score"] > old["score"]:
                     entries[entry["fp"]] = entry
     print(f"[COLLECT] accepted unique configs = {len(entries)}")
     return list(entries.values())
@@ -414,33 +436,100 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
 # ----------------------------------------------------------------------------
 # Testing
 # ----------------------------------------------------------------------------
-def handshake(sock: socket.socket, d: dict, start: float) -> float | None:
+def ws_frame(data: bytes) -> bytes:
+    mask = os.urandom(4)
+    n = len(data)
+    head = b"\x82" + (bytes([0x80 | n]) if n < 126 else b"\xfe" + struct.pack(">H", n))
+    return head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+
+
+def ws_parse(buf: bytes) -> tuple[int, bytes, int] | None:
+    if len(buf) < 2:
+        return None
+    n, hdr = buf[1] & 0x7F, 2
+    if n == 126:
+        if len(buf) < 4:
+            return None
+        n, hdr = int.from_bytes(buf[2:4], "big"), 4
+    elif n == 127:
+        if len(buf) < 10:
+            return None
+        n, hdr = int.from_bytes(buf[2:10], "big"), 10
+    if len(buf) < hdr + n:
+        return None
+    return buf[0] & 0x0F, buf[hdr:hdr + n], hdr + n
+
+
+def e2e_capable(d: dict) -> bool:
+    return (d["scheme"] in ("vless", "trojan") and d["net"] in ("ws", "tcp")
+            and d["security"] == "tls" and not d["flow"])
+
+
+def e2e_request(d: dict) -> bytes:
+    host = E2E_HOST.encode()
+    payload = (f"GET {E2E_PATH} HTTP/1.1\r\nHost: {E2E_HOST}\r\n"
+               "User-Agent: curl/8.5\r\nConnection: close\r\n\r\n").encode()
+    if d["scheme"] == "vless":  # ver, uuid, no addons, TCP, port 80, domain
+        return (b"\x00" + uuid.UUID(d["identity"]).bytes + b"\x00\x01" + struct.pack(">H", 80)
+                + b"\x02" + bytes([len(host)]) + host + payload)
+    password = hashlib.sha224(d["identity"].encode()).hexdigest().encode()
+    return (password + b"\r\n\x01\x03" + bytes([len(host)]) + host + struct.pack(">H", 80)
+            + b"\r\n" + payload)
+
+
+def read_e2e(stream, d: dict, buf: bytes, deadline: float) -> bytes:
+    data, ws = b"", d["net"] == "ws"
+    while time.perf_counter() < deadline and len(data) < 4096:
+        if ws:
+            while (frame := ws_parse(buf)) is not None:
+                op, payload, used = frame
+                buf = buf[used:]
+                if op == 8:
+                    return data
+                if op in (0, 1, 2):
+                    data += payload
+        else:
+            data, buf = data + buf, b""
+        if b"HTTP/1" in data:
+            break
+        stream.settimeout(max(0.2, deadline - time.perf_counter()))
+        chunk = stream.recv(4096)
+        if not chunk:
+            break
+        buf += chunk
+    return data
+
+
+def open_stream(sock: socket.socket, d: dict):
+    """TLS (if any) + WebSocket upgrade (if ws). Returns (stream, leftover) or (stream, None)."""
     sock.settimeout(PROBE_TIMEOUT)
     stream = sock
-    try:
-        if d["security"] in ("tls", "reality"):
-            name = d["sni"] or d["hosthdr"] or (None if is_ip(d["host"]) else d["host"])
-            stream = TLS_CTX.wrap_socket(sock, server_hostname=name)
-        if d["net"] == "ws":
-            path = d["path"] if d["path"].startswith("/") else "/" + d["path"]
-            req = (
-                f"GET {quote(path, safe='/?&=:%@+,;-._~!$()*')} HTTP/1.1\r\n"
-                f"Host: {d['hosthdr'] or d['sni'] or d['host']}\r\n"
-                "User-Agent: Mozilla/5.0\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                f"Sec-WebSocket-Key: {base64.b64encode(os.urandom(16)).decode()}\r\n"
-                "Sec-WebSocket-Version: 13\r\n\r\n"
-            )
-            stream.sendall(req.encode())
-            line = stream.recv(512).split(b"\r\n", 1)[0]
-            ok = b" 101" in line if WS_STRICT else line.startswith(b"HTTP/")
-            if not ok:
-                return None
-        return (time.perf_counter() - start) * 1000
-    finally:
-        stream.close()
+    if d["security"] in ("tls", "reality"):
+        name = d["sni"] or d["hosthdr"] or (None if is_ip(d["host"]) else d["host"])
+        stream = TLS_CTX.wrap_socket(sock, server_hostname=name)
+    if d["net"] != "ws":
+        return stream, b""
+    path = d["path"] if d["path"].startswith("/") else "/" + d["path"]
+    stream.sendall((
+        f"GET {quote(path, safe='/?&=:%@+,;-._~!$()*')} HTTP/1.1\r\n"
+        f"Host: {d['hosthdr'] or d['sni'] or d['host']}\r\n"
+        "User-Agent: Mozilla/5.0\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {base64.b64encode(os.urandom(16)).decode()}\r\n"
+        "Sec-WebSocket-Version: 13\r\n\r\n").encode())
+    buf = b""
+    while b"\r\n\r\n" not in buf and len(buf) < 8192:
+        chunk = stream.recv(2048)
+        if not chunk:
+            break
+        buf += chunk
+    head, _, leftover = buf.partition(b"\r\n\r\n")
+    line = head.split(b"\r\n", 1)[0]
+    ok = b" 101" in line if WS_STRICT else line.startswith(b"HTTP/")
+    return stream, (leftover if ok else None)
 
 
-def test_entry(entry: dict) -> tuple[float, float | None] | None:
+def test_entry(entry: dict) -> tuple[float, float | None, bool | None] | None:
+    """Returns None (TCP failed) or (tcp_ms, probe_ms | None, e2e_ok | None)."""
     d = entry["d"]
     start = time.perf_counter()
     try:
@@ -450,31 +539,54 @@ def test_entry(entry: dict) -> tuple[float, float | None] | None:
     tcp_ms = (time.perf_counter() - start) * 1000
     if not PROBE_ENABLED:
         sock.close()
-        return tcp_ms, tcp_ms
+        return tcp_ms, tcp_ms, None
+    stream, probe_ms, attempted = sock, None, False
     try:
-        return tcp_ms, handshake(sock, d, start)
+        stream, leftover = open_stream(sock, d)
+        if leftover is None:
+            return tcp_ms, None, None
+        probe_ms = (time.perf_counter() - start) * 1000
+        if not (E2E_ENABLED and e2e_capable(d)):
+            return tcp_ms, probe_ms, None
+        attempted = True
+        request = e2e_request(d)
+        stream.sendall(ws_frame(request) if d["net"] == "ws" else request)
+        data = read_e2e(stream, d, leftover, time.perf_counter() + E2E_TIMEOUT)
+        ok = b"HTTP/1" in data and (d["scheme"] != "vless" or data[:1] == b"\x00")
+        return tcp_ms, probe_ms, ok
     except (OSError, ValueError):  # ssl.SSLError is an OSError; bad IDNA is a ValueError
-        return tcp_ms, None
+        return tcp_ms, probe_ms, (False if attempted else None) if probe_ms is not None else None
     finally:
+        stream.close()
         sock.close()
 
 
 def benchmark(entries: list[dict]) -> list[dict]:
+    """Adds 'tier' and 'lat'. Tier 0 = proxied end-to-end, 1 = TLS/WS verified, 3 = TCP only."""
     todo = sorted((e for e in entries if e["fp"] not in TEST_CACHE), key=lambda e: -e["score"])[:MAX_TEST]
-    print(f"[TEST] testing {len(todo)} configs (TCP{' + TLS/WS probe' if PROBE_ENABLED else ''})")
+    print(f"[TEST] testing {len(todo)} configs (TCP{' + TLS/WS + e2e' if PROBE_ENABLED else ''})")
     with ThreadPoolExecutor(max_workers=TEST_WORKERS) as pool:
         futures = {pool.submit(test_entry, e): e for e in todo}
         for count, future in enumerate(as_completed(futures), 1):
             TEST_CACHE[futures[future]["fp"]] = future.result()
             if count % 1000 == 0:
                 print(f"[TEST] {count}/{len(todo)}")
-    tcp_ok = [{**e, "lat": r[0]} for e in entries if (r := TEST_CACHE.get(e["fp"]))]
-    passed = [{**e, "lat": r[1]} for e in entries if (r := TEST_CACHE.get(e["fp"])) and r[1] is not None]
-    print(f"[TEST] tcp ok = {len(tcp_ok)}, probe ok = {len(passed)}")
-    if PROBE_ENABLED and tcp_ok and len(passed) * 50 < len(tcp_ok):
-        print("[WARN] probe pass rate under 2%; falling back to TCP-only results")
-        return tcp_ok
-    return passed
+    out = []
+    for e in entries:
+        r = TEST_CACHE.get(e["fp"])
+        if not r:
+            continue
+        tcp_ms, probe_ms, e2e = r
+        if probe_ms is not None and e2e is not False:
+            out.append({**e, "tier": 0 if e2e else 1, "lat": probe_ms})
+        else:
+            out.append({**e, "tier": 3, "lat": tcp_ms})
+    tiers = Counter(e["tier"] for e in out)
+    print(f"[TEST] tcp ok = {len(out)}, e2e ok = {tiers[0]}, tls/ws ok = {tiers[1]}, weak = {tiers[3]}")
+    if PROBE_ENABLED and out and (tiers[0] + tiers[1]) * 50 < len(out):
+        print("[WARN] probe pass rate under 2%; treating all TCP-reachable configs as tier 1")
+        return [{**e, "tier": 1} for e in out]
+    return out
 
 
 # ----------------------------------------------------------------------------
@@ -499,45 +611,56 @@ def net_key(e: dict) -> str:
 
 
 def select_diverse(entries: list[dict], limit: int) -> list[str]:
-    ranked = sorted(entries, key=lambda e: (-e["score"], round(e["lat"] / 150), e["fp"]))
+    """Best tier first; inside a tier every port is spread proportionally."""
+    max_tier = 3 if FILL_TO_FULL else 1
     hosts, nets, ports = Counter(), Counter(), Counter()
-    chosen: list[dict] = []
-    deferred: list[dict] = []
+    result: list[str] = []
+    summary = {}
 
     def port_cap(port: int) -> int:
         return max(1, int(limit * (PORT_443_SHARE if port == 443 else OTHER_PORT_SHARE)))
 
-    def take(e: dict) -> None:
-        hk, nk = host_key(e), net_key(e)
-        if hosts[hk] < MAX_PER_HOST and nets[nk] < MAX_PER_SUBNET:
-            hosts[hk] += 1
-            nets[nk] += 1
-            ports[e["d"]["port"]] += 1
-            chosen.append(e)
+    for tier in (0, 1, 3):
+        if tier > max_tier or len(result) >= limit:
+            continue
+        ranked = sorted((e for e in entries if e["tier"] == tier),
+                        key=lambda e: (-e["score"], round(e["lat"] / 150), e["fp"]))
+        chosen: list[dict] = []
+        deferred: list[dict] = []
 
-    for e in ranked:  # pass 1: respect per-port caps
-        if len(chosen) >= limit:
-            break
-        if ports[e["d"]["port"]] >= port_cap(e["d"]["port"]):
-            deferred.append(e)
-        else:
+        def take(e: dict) -> None:
+            hk, nk = host_key(e), net_key(e)
+            if hosts[hk] < MAX_PER_HOST and nets[nk] < MAX_PER_SUBNET:
+                hosts[hk] += 1
+                nets[nk] += 1
+                ports[e["d"]["port"]] += 1
+                chosen.append(e)
+
+        room = limit - len(result)
+        for e in ranked:  # pass 1: respect per-port caps
+            if len(chosen) >= room:
+                break
+            if ports[e["d"]["port"]] >= port_cap(e["d"]["port"]):
+                deferred.append(e)
+            else:
+                take(e)
+        for e in deferred:  # pass 2: relax port caps only if still short
+            if len(chosen) >= room:
+                break
             take(e)
-    for e in deferred:  # pass 2: relax port caps only if the output is still short
-        if len(chosen) >= limit:
-            break
-        take(e)
 
-    # Spread every port proportionally across the whole list so each file is mixed.
-    totals = Counter(e["d"]["port"] for e in chosen)
-    seen: Counter = Counter()
-    keyed = []
-    for e in chosen:
-        port = e["d"]["port"]
-        keyed.append(((seen[port] + 0.5) / totals[port], port, e["uri"]))
-        seen[port] += 1
-    keyed.sort()
-    print(f"[SELECT] {len(keyed)}/{limit} selected; top ports: {totals.most_common(6)}")
-    return [uri for _, _, uri in keyed]
+        totals = Counter(e["d"]["port"] for e in chosen)
+        seen: Counter = Counter()
+        keyed = []
+        for e in chosen:
+            port = e["d"]["port"]
+            keyed.append(((seen[port] + 0.5) / totals[port], port, e["uri"]))
+            seen[port] += 1
+        keyed.sort()
+        result.extend(uri for _, _, uri in keyed)
+        summary[tier] = len(keyed)
+    print(f"[SELECT] {len(result)}/{limit} selected; by tier {summary}; top ports {ports.most_common(6)}")
+    return result
 
 
 # ----------------------------------------------------------------------------
@@ -559,8 +682,8 @@ def write_configs(filename: str, configs: list[str]) -> None:
 
 
 def write_subscriptions(selected: list[str]) -> None:
-    # If fewer than TOTAL_CONFIGS survive, shrink every file proportionally
-    # so no subscription is left empty.
+    # Best configs go to sub1 first. If fewer than TOTAL_CONFIGS survive, shrink every
+    # file proportionally so no subscription is left empty.
     ratio = min(1.0, len(selected) / TOTAL_CONFIGS)
     offset = 0
     for filename, size in SUBS:
