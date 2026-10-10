@@ -63,9 +63,7 @@ jobs:
             fi
           }
 
-          for number in {1..5};   do check_max "sub${number}.txt" 2000; done
-          for number in {6..10};  do check_max "sub${number}.txt" 1000; done
-          for number in {11..20}; do check_max "sub${number}.txt" 500;  done
+          for number in {1..20}; do check_max "sub${number}.txt" 2000; done
 
           bot_count="$(wc -l < sub/general/bot.txt)"
           test "$bot_count" -le 5000
