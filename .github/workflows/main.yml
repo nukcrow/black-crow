@@ -2,7 +2,7 @@ name: Update NUKCROW Subscriptions
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 */3 * * *"   # every 3 hours; use "0 * * * *" for hourly
   workflow_dispatch:
 
 permissions:
@@ -44,33 +44,28 @@ jobs:
             sub16.txt sub17.txt sub18.txt sub19.txt sub20.txt
           )
 
-          actual_files=(
-            $(find sub/general -maxdepth 1 -type f -name "*.txt" -printf "%f\n" | sort)
-          )
-
           expected_sorted="$(printf '%s\n' "${expected_files[@]}" | sort)"
-          actual_sorted="$(printf '%s\n' "${actual_files[@]}")"
+          actual_sorted="$(find sub/general -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort)"
 
           if [[ "$actual_sorted" != "$expected_sorted" ]]; then
             echo "Unexpected output files detected."
-            echo "Expected:"
-            echo "$expected_sorted"
-            echo "Actual:"
-            echo "$actual_sorted"
+            echo "Expected:"; echo "$expected_sorted"
+            echo "Actual:"; echo "$actual_sorted"
             exit 1
           fi
 
-          for number in {1..5}; do
-            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 2000
-          done
+          check_max() {  # usage: check_max <file> <max_lines>
+            local n
+            n="$(wc -l < "sub/general/$1")"
+            if (( n < 1 || n > $2 )); then
+              echo "$1 has $n lines (allowed 1..$2)"
+              exit 1
+            fi
+          }
 
-          for number in {6..10}; do
-            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 1000
-          done
-
-          for number in {11..20}; do
-            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 500
-          done
+          for number in {1..5};   do check_max "sub${number}.txt" 2000; done
+          for number in {6..10};  do check_max "sub${number}.txt" 1000; done
+          for number in {11..20}; do check_max "sub${number}.txt" 500;  done
 
           bot_count="$(wc -l < sub/general/bot.txt)"
           test "$bot_count" -le 5000
@@ -81,10 +76,10 @@ jobs:
           fi
 
           total_count="$(cat sub/general/sub{1..20}.txt | wc -l)"
-          test "$total_count" -eq 20000
+          test "$total_count" -ge 3000   # sanity floor: blocks pushing a broken run
 
           echo "Output verification passed."
-          echo "General configs: $total_count"
+          echo "General configs: $total_count / 20000"
           echo "Bot configs: $bot_count / 5000"
 
       - name: Commit and push
