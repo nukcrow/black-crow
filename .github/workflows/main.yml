@@ -15,7 +15,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -27,29 +27,68 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
 
       - name: Run collector
-        run: |
-          python scripts/switcher.py
+        run: python scripts/switcher.py
 
-      - name: Verify output
+      - name: Verify outputs
+        shell: bash
         run: |
-          test -f sub/general/all_configs.txt
-          test -f sub/general/sub1.txt
-          test -f sub/general/sub10.txt
+          set -euo pipefail
 
-          echo "Output verification:"
-          wc -l sub/general/all_configs.txt
-          wc -l sub/general/sub1.txt
-          wc -l sub/general/sub10.txt
+          expected_files=(
+            bot.txt
+            sub1.txt sub2.txt sub3.txt sub4.txt sub5.txt
+            sub6.txt sub7.txt sub8.txt sub9.txt sub10.txt
+            sub11.txt sub12.txt sub13.txt sub14.txt sub15.txt
+            sub16.txt sub17.txt sub18.txt sub19.txt sub20.txt
+          )
+
+          actual_files=(
+            $(find sub/general -maxdepth 1 -type f -name "*.txt" -printf "%f\n" | sort)
+          )
+
+          expected_sorted="$(printf '%s\n' "${expected_files[@]}" | sort)"
+          actual_sorted="$(printf '%s\n' "${actual_files[@]}")"
+
+          if [[ "$actual_sorted" != "$expected_sorted" ]]; then
+            echo "Unexpected output files detected."
+            echo "Expected:"
+            echo "$expected_sorted"
+            echo "Actual:"
+            echo "$actual_sorted"
+            exit 1
+          fi
+
+          for number in {1..5}; do
+            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 2000
+          done
+
+          for number in {6..10}; do
+            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 1000
+          done
+
+          for number in {11..20}; do
+            test "$(wc -l < "sub/general/sub${number}.txt")" -eq 500
+          done
+
+          bot_count="$(wc -l < sub/general/bot.txt)"
+          test "$bot_count" -le 5000
+
+          if grep -h -v '#nukcrow$' sub/general/sub{1..20}.txt | grep -q .; then
+            echo "One or more general subscriptions have an invalid nukcrow tag."
+            exit 1
+          fi
+
+          total_count="$(cat sub/general/sub{1..20}.txt | wc -l)"
+          test "$total_count" -eq 20000
+
+          echo "Output verification passed."
+          echo "General configs: $total_count"
+          echo "Bot configs: $bot_count / 5000"
 
       - name: Commit and push
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
