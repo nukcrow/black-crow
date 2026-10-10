@@ -77,7 +77,7 @@ jobs:
           test "$total_count" -ge 3000   # sanity floor: blocks pushing a broken run
 
           echo "Output verification passed."
-          echo "General configs: $total_count / 20000"
+          echo "General configs: $total_count / 40000"
           echo "Bot configs: $bot_count / 5000"
 
       - name: Commit and push
