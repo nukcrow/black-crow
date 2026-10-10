@@ -75,8 +75,8 @@ KEEP_PLAIN_VLESS = False   # vless without TLS/reality leaks traffic and is easy
 INCLUDE_IPV6 = False       # runner has no IPv6, so these cannot be tested; set True to pass them untested
 PROBE_ENABLED = True       # TLS handshake (+ WebSocket upgrade) on top of TCP connect
 WS_STRICT = True           # ws must answer "101 Switching Protocols"; False accepts any HTTP reply
-MAX_PER_HOST = 2           # configs per host (Cloudflare IPs: per host+SNI)
-MAX_PER_SUBNET = 8         # configs per /24 (IPv4) or /64 (IPv6); Cloudflare IPs exempt
+MAX_PER_HOST = 3           # configs per host (Cloudflare IPs: per host+SNI)
+MAX_PER_SUBNET = 20        # configs per /24 (IPv4) or /64 (IPv6); Cloudflare IPs exempt
 PORT_443_SHARE = 0.35      # max share of one output taken by port 443
 OTHER_PORT_SHARE = 0.10    # max share of one output taken by any other single port
 CF_PORTS_TLS = {443, 2053, 2083, 2087, 2096, 8443}
@@ -559,10 +559,14 @@ def write_configs(filename: str, configs: list[str]) -> None:
 
 
 def write_subscriptions(selected: list[str]) -> None:
+    # If fewer than TOTAL_CONFIGS survive, shrink every file proportionally
+    # so no subscription is left empty.
+    ratio = min(1.0, len(selected) / TOTAL_CONFIGS)
     offset = 0
     for filename, size in SUBS:
-        write_configs(filename, selected[offset:offset + size])
-        offset += size
+        count = max(1, int(size * ratio)) if selected else 0
+        write_configs(filename, selected[offset:offset + count])
+        offset += count
 
 
 def write_bot() -> None:
