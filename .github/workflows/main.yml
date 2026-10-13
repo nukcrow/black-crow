@@ -2,7 +2,7 @@ name: Update NUKCROW Subscriptions
 
 on:
   schedule:
-    - cron: "0 */3 * * *"   # every 3 hours; use "0 * * * *" for hourly
+    - cron: "7 */3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,82 +15,74 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          fetch-depth: 1
 
       - name: Run collector
-        run: python scripts/switcher.py
+        run: python3 -u scripts/switcher.py
 
       - name: Verify outputs
         shell: bash
         run: |
           set -euo pipefail
+          cd sub/general
 
-          expected_files=(
-            bot.txt
-            sub1.txt sub2.txt sub3.txt sub4.txt sub5.txt
-            sub6.txt sub7.txt sub8.txt sub9.txt sub10.txt
-            sub11.txt sub12.txt sub13.txt sub14.txt sub15.txt
-            sub16.txt sub17.txt sub18.txt sub19.txt sub20.txt
-          )
-
-          expected_sorted="$(printf '%s\n' "${expected_files[@]}" | sort)"
-          actual_sorted="$(find sub/general -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort)"
-
-          if [[ "$actual_sorted" != "$expected_sorted" ]]; then
-            echo "Unexpected output files detected."
-            echo "Expected:"; echo "$expected_sorted"
-            echo "Actual:"; echo "$actual_sorted"
+          mapfile -t expected < <(printf '%s\n' bot.txt sub{1..20}.txt | sort)
+          mapfile -t actual < <(find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort)
+          if [[ "${actual[*]}" != "${expected[*]}" ]]; then
+            echo "Unexpected output files: ${actual[*]}"
             exit 1
           fi
 
-          check_max() {  # usage: check_max <file> <max_lines>
-            local n
-            n="$(wc -l < "sub/general/$1")"
-            if (( n < 1 || n > $2 )); then
-              echo "$1 has $n lines (allowed 1..$2)"
+          total=0
+          for i in {1..20}; do
+            n=$(wc -l < "sub${i}.txt")
+            if (( n < 1 || n > 2000 )); then
+              echo "sub${i}.txt has $n lines (allowed 1..2000)"
               exit 1
             fi
-          }
+            total=$((total + n))
+          done
 
-          for number in {1..20}; do check_max "sub${number}.txt" 2000; done
-
-          bot_count="$(wc -l < sub/general/bot.txt)"
-          test "$bot_count" -le 5000
-
-          if grep -h -v '#nukcrow$' sub/general/sub{1..20}.txt | grep -q .; then
-            echo "One or more general subscriptions have an invalid nukcrow tag."
+          if grep -hqv '#nukcrow$' sub{1..20}.txt; then
+            echo "Invalid nukcrow tag found."
             exit 1
           fi
 
-          total_count="$(cat sub/general/sub{1..20}.txt | wc -l)"
-          test "$total_count" -ge 3000   # sanity floor: blocks pushing a broken run
+          bot=$(wc -l < bot.txt)
+          if (( bot > 5000 )); then echo "bot.txt exceeds 5000"; exit 1; fi
+          if (( total < 3000 )); then echo "Only $total configs (floor 3000)"; exit 1; fi
 
-          echo "Output verification passed."
-          echo "General configs: $total_count / 40000"
-          echo "Bot configs: $bot_count / 5000"
+          echo "General: $total / 40000 | Bot: $bot / 5000"
+          {
+            echo "### NUKCROW"
+            echo "- General configs: **$total** / 40000"
+            echo "- Bot configs: **$bot** / 5000"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add sub/general
-
+          git add -A sub/general
           if git diff --cached --quiet; then
             echo "No changes detected."
-          else
-            git commit -m "Auto update subscriptions"
-            git push
+            exit 0
           fi
+
+          git commit -m "Auto update subscriptions"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase --autostash
+            sleep $((attempt * 3))
+          done
+          echo "Push failed after 3 attempts"
+          exit 1
