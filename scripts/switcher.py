@@ -4,13 +4,15 @@
 Writes only sub1.txt ... sub20.txt and bot.txt under sub/general.
 
 Pipeline: fetch -> parse/filter -> score (Iran profile) -> TCP + TLS/WS probe
--> real end-to-end proxy test (VLESS/Trojan over ws/tcp+TLS) -> tiered,
-diversity-capped selection -> write.
+-> real end-to-end proxy test (VLESS/Trojan over ws/tcp+TLS, plain VLESS over ws)
+-> tiered, diversity-capped selection -> write.
 
 NOTE: tests run from the GitHub runner, outside Iran. They prove the server is
 alive and speaks TLS / WebSocket on the given path; they cannot prove it is
 reachable from a specific Iranian ISP. The Iran profile (scoring + caps) is a
-heuristic built on what the Iranian collectors and iboxz have in common.
+heuristic derived from an analysis of 17 Iranian collector files (~25k configs):
+host overlap between sources, scheme/security/transport mix, ports and SNIs, and
+the OpenRay lists that are checked from inside Iran.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ import ssl
 import struct
 import time
 import uuid
-from collections import Counter
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from pathlib import Path
@@ -70,18 +72,29 @@ SS_METHODS = {
     "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
 }
 BLOCKED_PORTS = {22, 25, 53, 110, 143, 465, 587, 993, 995, 3306}
-KEEP_PLAIN_VLESS = False   # vless without TLS/reality leaks traffic and is easy to fingerprint
+PLAIN_VLESS_WS = True      # plain vless is kept only as ws on Cloudflare plain ports (~34% of cross-source consensus)
 INCLUDE_IPV6 = False       # runner has no IPv6, so these cannot be tested; set True to pass them untested
 PROBE_ENABLED = True       # TLS handshake (+ WebSocket upgrade) on top of TCP connect
-E2E_ENABLED = True         # real VLESS/Trojan request through the proxy (ws or tcp + TLS, no flow)
+E2E_ENABLED = True         # real VLESS/Trojan request through the proxy (ws or tcp + TLS, plain vless ws, no flow)
 E2E_HOST = "connectivitycheck.gstatic.com"  # non-Cloudflare target (Workers cannot reach CF IPs)
 E2E_PATH = "/generate_204"
 FILL_TO_FULL = True        # top up with weaker tiers (probe/e2e failed, TCP ok) when verified ones run short
 PRIORITY_BONUS = 40        # score bonus for configs that come from Iran-checked lists
+CONSENSUS_MIN = 3          # host listed by this many independent collectors (grouped by repo) ...
+CONSENSUS_BONUS = 8        # ... gets this score bonus
+BONUS_PORTS = {23576, 8388}  # common non-standard reality / ss ports across collectors and Iran-checked data
+BONUS_PORT_SCORE = 3
+COMMON_SNI = {
+    "google.com", "www.google.com", "play.google.com", "yahoo.com", "www.cloudflare.com",
+    "aws.amazon.com", "www.amazon.com", "www.microsoft.com", "www.speedtest.net", "speedtest.net",
+    "bmi.ir", "telewebion.com", "deepl.com", "api-maps.yandex.ru", "www.mozilla.org",
+    "addons.mozilla.org",
+}
+COMMON_SNI_SCORE = 2
 WS_STRICT = True           # ws must answer "101 Switching Protocols"; False accepts any HTTP reply
 MAX_PER_HOST = 3           # configs per host (Cloudflare IPs: per host+SNI)
 MAX_PER_SUBNET = 20        # configs per /24 (IPv4) or /64 (IPv6); Cloudflare IPs exempt
-PORT_443_SHARE = 0.35      # max share of one output taken by port 443
+PORT_SHARES = {443: 0.35, 8080: 0.15, 23576: 0.15}  # max share of one output per port
 OTHER_PORT_SHARE = 0.10    # max share of one output taken by any other single port
 CF_PORTS_TLS = {443, 2053, 2083, 2087, 2096, 8443}
 CF_PORTS_PLAIN = {80, 8080, 8880, 2052, 2082, 2086, 2095}
@@ -176,7 +189,7 @@ TLS_CTX = ssl.create_default_context()
 TLS_CTX.check_hostname = False
 TLS_CTX.verify_mode = ssl.CERT_NONE
 
-# fingerprint -> (tcp_ms, probe_ms | None) | None ; shared by general and bot runs
+# fingerprint -> (tcp_ms, probe_ms | None, e2e_ok | None) | None ; shared by general and bot runs
 TEST_CACHE: dict[str, tuple[float, float | None, bool | None] | None] = {}
 
 
@@ -312,8 +325,11 @@ def acceptable(d: dict) -> bool:
         return False
     if is_ipv6(d["host"]) and not INCLUDE_IPV6:
         return False
-    if sec == "none" and (scheme == "trojan" or (scheme == "vless" and not KEEP_PLAIN_VLESS)):
-        return False
+    if sec == "none":
+        if scheme == "trojan":
+            return False
+        if scheme == "vless" and not (PLAIN_VLESS_WS and d["net"] == "ws" and d["port"] in CF_PORTS_PLAIN):
+            return False
     if sec == "reality" and not (d["pbk"] and d["sni"]):
         return False
     return True
@@ -326,16 +342,17 @@ def fingerprint(d: dict) -> str:
 
 
 def iran_score(d: dict) -> int:
-    """Heuristic: what the Iranian collectors and iboxz lists have in common.
+    """Heuristic built from the cross-collector analysis and the Iran-checked OpenRay lists.
 
-    TLS/Reality on CDN-friendly ports, ws/grpc transport, real SNI/Host,
-    domain- or Cloudflare-fronted endpoints, VLESS first.
+    Iran-checked mix: vless+reality+tcp ~41%, ss ~24%, vmess ~20%, plain vless ws ~8%,
+    trojan tls ws ~7%; ports 23576/443/8080/80. Elsewhere TLS/WS on Cloudflare-friendly
+    ports dominates, so both profiles are rewarded.
     """
     sec, net, port = d["security"], d["net"], d["port"]
     domain = not is_ip(d["host"])
     cf = is_cloudflare(d["host"])
-    score = {"vless": 10, "trojan": 9, "vmess": 7, "ss": 5}[d["scheme"]]
-    score += {"reality": 5, "tls": 9}.get(sec, 0)  # reality weight lowered: reports of fast RST after its handshake
+    score = {"vless": 10, "trojan": 9, "vmess": 7, "ss": 8}[d["scheme"]]
+    score += {"reality": 8, "tls": 9}.get(sec, 0)
     score += {"ws": 8, "grpc": 8, "xhttp": 6, "splithttp": 6, "httpupgrade": 5, "h2": 5}.get(net, 4)
     score += 4 * (domain or cf) + 4 * cf
     if sec != "none" and (d["sni"] or d["hosthdr"]):
@@ -350,8 +367,12 @@ def iran_score(d: dict) -> int:
         score += 3
     elif sec == "none" and port in CF_PORTS_PLAIN:
         score += 1
+    if port in BONUS_PORTS:
+        score += BONUS_PORT_SCORE
     if d["flow"] == "xtls-rprx-vision":
         score += 4
+    if COMMON_SNI & {d["sni"].lower(), d["hosthdr"].lower()}:
+        score += COMMON_SNI_SCORE
     return score
 
 
@@ -378,6 +399,11 @@ def normalized_sources(values: Iterable[str]) -> list[str]:
             seen.add(url)
             result.append(url)
     return result
+
+
+def source_group(url: str) -> str:
+    """Independent collector = repo (owner/name); several files of one repo count once."""
+    return "/".join(urlparse(url).path.strip("/").split("/")[:2]).lower()
 
 
 def fetch_source(url: str) -> list[str]:
@@ -408,10 +434,12 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
     sources = normalized_sources(sources)
     print(f"[SOURCE] usable sources = {len(sources)}")
     entries: dict[str, dict] = {}
+    host_groups: defaultdict[str, set[str]] = defaultdict(set)
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         futures = {pool.submit(fetch_source, src): src for src in sources}
         for future in as_completed(futures):
-            prio = futures[future] in PRIORITY_SOURCES
+            src = futures[future]
+            prio, group = src in PRIORITY_SOURCES, source_group(src)
             try:
                 uris = future.result()
             except Exception as exc:  # one bad source must not stop the rest
@@ -421,6 +449,7 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
                 entry = make_entry(uri)
                 if not entry:
                     continue
+                host_groups[entry["d"]["host"]].add(group)
                 if prio:
                     entry["score"] += PRIORITY_BONUS
                 old = entries.get(entry["fp"])
@@ -429,7 +458,12 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
                         entries[entry["fp"]] = entry
                 elif entry["score"] > old["score"]:
                     entries[entry["fp"]] = entry
-    print(f"[COLLECT] accepted unique configs = {len(entries)}")
+    consensus = 0
+    for entry in entries.values():
+        if len(host_groups[entry["d"]["host"]]) >= CONSENSUS_MIN:
+            entry["score"] += CONSENSUS_BONUS
+            consensus += 1
+    print(f"[COLLECT] accepted unique configs = {len(entries)}, consensus hosts boosted = {consensus}")
     return list(entries.values())
 
 
@@ -461,8 +495,12 @@ def ws_parse(buf: bytes) -> tuple[int, bytes, int] | None:
 
 
 def e2e_capable(d: dict) -> bool:
-    return (d["scheme"] in ("vless", "trojan") and d["net"] in ("ws", "tcp")
-            and d["security"] == "tls" and not d["flow"])
+    if d["flow"] or d["scheme"] not in ("vless", "trojan"):
+        return False
+    if d["security"] == "tls":
+        return d["net"] in ("ws", "tcp")
+    # plain vless over ws: no TLS layer, the WebSocket path itself is verified
+    return d["security"] == "none" and d["scheme"] == "vless" and d["net"] == "ws"
 
 
 def e2e_request(d: dict) -> bytes:
@@ -618,7 +656,7 @@ def select_diverse(entries: list[dict], limit: int) -> list[str]:
     summary = {}
 
     def port_cap(port: int) -> int:
-        return max(1, int(limit * (PORT_443_SHARE if port == 443 else OTHER_PORT_SHARE)))
+        return max(1, int(limit * PORT_SHARES.get(port, OTHER_PORT_SHARE)))
 
     for tier in (0, 1, 3):
         if tier > max_tier or len(result) >= limit:
