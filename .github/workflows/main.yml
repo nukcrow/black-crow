@@ -15,7 +15,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -49,20 +49,20 @@ jobs:
             total=$((total + n))
           done
 
-          if grep -hqv '#nukcrow$' sub{1..20}.txt; then
+          if grep -hqv '#nukcrow$' sub{1..20}.txt bot.txt; then
             echo "Invalid nukcrow tag found."
             exit 1
           fi
 
           bot=$(wc -l < bot.txt)
-          if (( bot > 5000 )); then echo "bot.txt exceeds 5000"; exit 1; fi
+          if (( bot < 500 || bot > 2000 )); then echo "bot.txt has $bot lines (allowed 500..2000)"; exit 1; fi
           if (( total < 3000 )); then echo "Only $total configs (floor 3000)"; exit 1; fi
 
-          echo "General: $total / 40000 | Bot: $bot / 5000"
+          echo "General: $total / 40000 | Bot: $bot / 2000"
           {
             echo "### NUKCROW"
             echo "- General configs: **$total** / 40000"
-            echo "- Bot configs: **$bot** / 5000"
+            echo "- Bot configs: **$bot** / 2000"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
