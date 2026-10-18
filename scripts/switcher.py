@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""nukcrow configuration collector (tuned for Irancell / MCI with High Diversity).
+"""nukcrow configuration collector (tuned for Irancell / MCI).
 
 Writes only sub1.txt ... sub20.txt and bot.txt under sub/general.
 
 Pipeline: fetch -> parse/filter -> score (Iran profile) -> TCP + TLS/WS probe
 -> real end-to-end proxy test (VLESS/Trojan over ws/tcp+TLS, plain VLESS over ws)
 -> tiered, diversity-capped selection -> write.
+
+NOTE: tests run from the GitHub runner, outside Iran. They prove the server is
+alive and speaks TLS / WebSocket on the given path; they cannot prove it is
+reachable from a specific Iranian ISP. The Iran profile (scoring + caps) is a
+heuristic derived from an analysis of 17 Iranian collector files (~25k configs):
+host overlap between sources, scheme/security/transport mix, ports and SNIs, and
+the OpenRay lists that are checked from inside Iran.
 """
 
 from __future__ import annotations
@@ -36,9 +43,10 @@ from urllib.request import Request, urlopen
 OUT_DIR = Path("sub/general")
 REMARK = "nukcrow"
 
+# 20 general subscriptions, 2,000 configs each (40,000 max).
 SUBS = tuple((f"sub{i}.txt", 2000) for i in range(1, 21))
 TOTAL_CONFIGS = sum(size for _, size in SUBS)
-BOT_MAX_CONFIGS = 2000
+BOT_MAX_CONFIGS = 2000  # bot.txt target (filled from every tier; a warning is printed if short)
 
 # ----------------------------------------------------------------------------
 # Network / performance
@@ -51,34 +59,31 @@ PROBE_TIMEOUT = 4.0
 E2E_TIMEOUT = 5.0
 TEST_WORKERS = 500
 MAX_PER_SOURCE = 50_000
-MAX_CANDIDATES = 200_000
-MAX_TEST = 120_000
+MAX_CANDIDATES = 200_000   # unique parsed candidates kept
+MAX_TEST = 120_000         # best-scored candidates actually tested
 
 # ----------------------------------------------------------------------------
-# Filter / selection knobs (Expanded for high port & address diversity)
+# Filter / selection knobs
 # ----------------------------------------------------------------------------
 ALLOWED_SCHEMES = {"vless", "vmess", "trojan", "ss"}
-ALLOWED_NETS = {"tcp", "ws", "grpc", "xhttp", "splithttp", "httpupgrade", "h2", "http"}
+ALLOWED_NETS = {"tcp", "ws", "grpc", "xhttp", "splithttp", "httpupgrade", "h2", "http"}  # kcp/quic are UDP: dropped
 SS_METHODS = {
     "aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "chacha20-poly1305",
     "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
 }
 BLOCKED_PORTS = {22, 25, 53, 110, 143, 465, 587, 993, 995, 3306}
-PLAIN_VLESS_WS = True
-INCLUDE_IPV6 = False
-PROBE_ENABLED = True
-E2E_ENABLED = True
-E2E_HOST = "connectivitycheck.gstatic.com"
+PLAIN_VLESS_WS = True      # plain vless is kept only as ws on Cloudflare plain ports (~34% of cross-source consensus)
+INCLUDE_IPV6 = False       # runner has no IPv6, so these cannot be tested; set True to pass them untested
+PROBE_ENABLED = True       # TLS handshake (+ WebSocket upgrade) on top of TCP connect
+E2E_ENABLED = True         # real VLESS/Trojan request through the proxy (ws or tcp + TLS, plain vless ws, no flow)
+E2E_HOST = "connectivitycheck.gstatic.com"  # non-Cloudflare target (Workers cannot reach CF IPs)
 E2E_PATH = "/generate_204"
-FILL_TO_FULL = True
-PRIORITY_BONUS = 40
-CONSENSUS_MIN = 3
-CONSENSUS_BONUS = 8
-
-# پورت‌های محبوب و کاربردی در شرایط اختلال شدید
-BONUS_PORTS = {23576, 8388, 8443, 2053, 2087}  
+FILL_TO_FULL = True        # top up with weaker tiers (probe/e2e failed, TCP ok) when verified ones run short
+PRIORITY_BONUS = 40        # score bonus for configs that come from Iran-checked lists
+CONSENSUS_MIN = 3          # host listed by this many independent collectors (mirrors collapsed) ...
+CONSENSUS_BONUS = 8        # ... gets this score bonus
+BONUS_PORTS = {23576, 8388}  # common non-standard reality / ss ports across collectors and Iran-checked data
 BONUS_PORT_SCORE = 3
-
 COMMON_SNI = {
     "google.com", "www.google.com", "play.google.com", "yahoo.com", "www.cloudflare.com",
     "aws.amazon.com", "www.amazon.com", "www.microsoft.com", "www.speedtest.net", "speedtest.net",
@@ -86,37 +91,28 @@ COMMON_SNI = {
     "addons.mozilla.org",
 }
 COMMON_SNI_SCORE = 2
-
+# Mirror/aggregator repos copy each other (e.g. limilco <-> SoliSpirit share ~6,000 identical configs),
+# so together they count as ONE vote in the consensus bonus.
 AGGREGATORS = {
     "limilco/v2r", "solispirit/v2ray-configs", "epodonios/v2ray-configs", "barry-far/v2ray-config",
     "mheidari98/.proxy", "matinghanbari/v2ray-configs", "leon406/subcrawler",
     "delta-kronecker/v2ray-config", "argh94/proxy-list", "roosterkid/openproxylist",
     "wuqb2i4f/xray-config-toolkit",
 }
-
+# (scheme, security, net) families that dominate configs shared by 2+ repos
 FAMILY_BONUS = {
     ("vless", "tls", "ws"): 3, ("vless", "reality", "tcp"): 3, ("vless", "none", "ws"): 1,
     ("vless", "tls", "tcp"): 1, ("vmess", "tls", "ws"): 2, ("vmess", "none", "ws"): 1,
     ("vmess", "none", "tcp"): 1, ("ss", "none", "tcp"): 2, ("trojan", "tls", "tcp"): 2,
     ("trojan", "tls", "ws"): 2,
 }
-FAMILY_MAX_SHARE = 0.30
-RELAX_FACTOR = 3
-WS_STRICT = True
-MAX_PER_HOST = 2         # سخت‌گیری روی هاست‌های تکراری برای افزایش تنوع آدرس‌ها
-MAX_PER_SUBNET = 15      
-
-# توزیع متوازن پورت‌ها برای جلوگیری از تکیه روی یک پورت خاص
-PORT_SHARES = {
-    443: 0.25, 
-    8080: 0.15, 
-    8443: 0.15, 
-    2053: 0.10, 
-    2087: 0.10, 
-    23576: 0.10
-}  
-OTHER_PORT_SHARE = 0.05    
-
+FAMILY_MAX_SHARE = 0.35    # max share of one output taken by a single (scheme, security, net) family
+RELAX_FACTOR = 3           # last resort when still short: host/subnet caps x3 (FILL_TO_FULL)
+WS_STRICT = True           # ws must answer "101 Switching Protocols"; False accepts any HTTP reply
+MAX_PER_HOST = 3           # configs per host (Cloudflare IPs: per host+SNI)
+MAX_PER_SUBNET = 20        # configs per /24 (IPv4) or /64 (IPv6); Cloudflare IPs exempt
+PORT_SHARES = {443: 0.35, 8080: 0.15, 23576: 0.15}  # max share of one output per port
+OTHER_PORT_SHARE = 0.10    # max share of one output taken by any other single port
 CF_PORTS_TLS = {443, 2053, 2083, 2087, 2096, 8443}
 CF_PORTS_PLAIN = {80, 8080, 8880, 2052, 2082, 2086, 2095}
 
@@ -131,11 +127,15 @@ CLOUDFLARE_NETS = [ipaddress.ip_network(n) for n in (
 # ----------------------------------------------------------------------------
 GH = "https://raw.githubusercontent.com/"
 
+# bot.txt: Iran-checked lists first, then small Iranian collectors with mixed protocol types,
+# then large consensus pools only as a top-up so the bot always reaches BOT_MAX_CONFIGS.
+# OpenRay ranks configs using Iran-side checks (MCI / Irancell / TCI trackers).
 IRAN_CHECKED = [GH + "sakha1370/OpenRay/refs/heads/main/output_iran/" + n for n in (
     "iran_top100_checked.txt", "mci_top100.txt", "irancell_top100.txt")]
 PRIORITY_SOURCES = set(IRAN_CHECKED)
 
 BOT_SOURCES = IRAN_CHECKED + [GH + p for p in (
+    # Iranian collectors (mixed protocols: vless/reality, vmess, trojan, ss)
     "iboxz/free-v2ray-collector/main/main/mix.txt",
     "youfoundamin/V2rayCollector/main/mixed_iran.txt",
     "HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
@@ -154,6 +154,7 @@ BOT_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
     "F0rc3Run/F0rc3Run/main/splitted-by-protocol/vless.txt",
     "V2RayRoot/V2RayConfig/refs/heads/main/Config/vless.txt",
+    # OpenRay validated pools and the biggest consensus aggregators (top-up for 2,000)
     "sakha1370/OpenRay/refs/heads/main/output/kind/vless.txt",
     "sakha1370/OpenRay/refs/heads/main/output/kind/trojan.txt",
     "mheidari98/.proxy/refs/heads/main/vless",
@@ -164,9 +165,12 @@ BOT_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
 )]
 
+# Hand-picked general sources (all verified alive, dead/404 and 100 MB lists removed).
 RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
+    # OpenRay validated pools
     "sakha1370/OpenRay/refs/heads/main/output/kind/vless.txt",
     "sakha1370/OpenRay/refs/heads/main/output/kind/trojan.txt",
+    # Iranian collectors
     "HosseinKoofi/GO_V2rayCollector/main/mixed_iran.txt",
     "HosseinKoofi/GO_V2rayCollector/main/vless_iran.txt",
     "HosseinKoofi/GO_V2rayCollector/main/vmess_iran.txt",
@@ -181,6 +185,7 @@ RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "mehrtat/vless-collector/main/vless.txt",
     "coldwater-10/V2ray-Config/main/Sub7.txt",
     "snaCW/Config/main/config.txt",
+    # iboxz and similar curated, small, tested lists
     "iboxz/free-v2ray-collector/main/main/mix.txt",
     "iboxz/free-v2ray-collector/main/main/vless",
     "iboxz/free-v2ray-collector/main/main/vmess",
@@ -190,6 +195,7 @@ RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "wuqb2i4f/xray-config-toolkit/main/output/base64/mix-protocol-vl",
     "wuqb2i4f/xray-config-toolkit/main/output/base64/mix-protocol-vm",
     "wuqb2i4f/xray-config-toolkit/main/output/base64/mix-protocol-tr",
+    # Large fresh pools
     "Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
     "Epodonios/v2ray-configs/main/Splitted-By-Protocol/vless.txt",
     "Epodonios/v2ray-configs/main/Splitted-By-Protocol/trojan.txt",
@@ -209,6 +215,7 @@ RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "liMilCo/v2r/main/configs.txt",
     "Argh94/Proxy-List/refs/heads/main/All_Config.txt",
     "roosterkid/openproxylist/main/V2RAY_RAW.txt",
+    # Added after cross-collector analysis (new hosts + overlap with Iran-checked lists)
     "MahanKenway/Freedom-V2Ray/main/configs/mix.txt",
     "MahanKenway/Freedom-V2Ray/main/configs/vless.txt",
     "mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
@@ -220,6 +227,7 @@ RAW_SOURCES = IRAN_CHECKED + [GH + p for p in (
     "ALIILAPRO/v2rayNG-Config/main/server.txt",
     "ebrasha/free-v2ray-public-list/main/V2Ray-Config-By-EbraSha.txt",
     "barry-far/V2ray-config/main/All_Configs_Sub.txt",
+    # Bulk top-up (low Iran relevance, scored below the lists above; only fills what is missing)
     "hamedcode/port-based-v2ray-configs/main/sub/port_443.txt",
     "hamedcode/port-based-v2ray-configs/main/sub/port_80.txt",
     "hamedcode/port-based-v2ray-configs/main/sub/port_8443.txt",
@@ -240,6 +248,7 @@ TLS_CTX = ssl.create_default_context()
 TLS_CTX.check_hostname = False
 TLS_CTX.verify_mode = ssl.CERT_NONE
 
+# fingerprint -> (tcp_ms, probe_ms | None, e2e_ok | None) | None ; shared by general and bot runs
 TEST_CACHE: dict[str, tuple[float, float | None, bool | None] | None] = {}
 
 
@@ -324,7 +333,7 @@ def parse_uri(uri: str) -> dict | None:
             if "?" in body:
                 body, query = body.split("?", 1)
                 if "plugin" in query.lower():
-                    return None
+                    return None  # plugin-based ss needs extra client support
             body = body.rstrip("/")
             if "@" in body:
                 userinfo, address = body.rsplit("@", 1)
@@ -392,6 +401,12 @@ def fingerprint(d: dict) -> str:
 
 
 def iran_score(d: dict) -> int:
+    """Heuristic built from the cross-collector analysis and the Iran-checked OpenRay lists.
+
+    Iran-checked mix: vless+reality+tcp ~41%, ss ~24%, vmess ~20%, plain vless ws ~8%,
+    trojan tls ws ~7%; ports 23576/443/8080/80. Elsewhere TLS/WS on Cloudflare-friendly
+    ports dominates, so both profiles are rewarded.
+    """
     sec, net, port = d["security"], d["net"], d["port"]
     domain = not is_ip(d["host"])
     cf = is_cloudflare(d["host"])
@@ -447,6 +462,7 @@ def normalized_sources(values: Iterable[str]) -> list[str]:
 
 
 def source_group(url: str) -> str:
+    """Independent collector = repo (owner/name); files of one repo and known mirrors count once."""
     group = "/".join(urlparse(url).path.strip("/").split("/")[:2]).lower()
     return "aggregators" if group in AGGREGATORS else group
 
@@ -487,7 +503,7 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
             prio, group = src in PRIORITY_SOURCES, source_group(src)
             try:
                 uris = future.result()
-            except Exception as exc:
+            except Exception as exc:  # one bad source must not stop the rest
                 print(f"[SOURCE-ERROR] {exc}")
                 continue
             for uri in uris:
@@ -544,6 +560,7 @@ def e2e_capable(d: dict) -> bool:
         return False
     if d["security"] == "tls":
         return d["net"] in ("ws", "tcp")
+    # plain vless over ws: no TLS layer, the WebSocket path itself is verified
     return d["security"] == "none" and d["scheme"] == "vless" and d["net"] == "ws"
 
 
@@ -551,7 +568,7 @@ def e2e_request(d: dict) -> bytes:
     host = E2E_HOST.encode()
     payload = (f"GET {E2E_PATH} HTTP/1.1\r\nHost: {E2E_HOST}\r\n"
                "User-Agent: curl/8.5\r\nConnection: close\r\n\r\n").encode()
-    if d["scheme"] == "vless":
+    if d["scheme"] == "vless":  # ver, uuid, no addons, TCP, port 80, domain
         return (b"\x00" + uuid.UUID(d["identity"]).bytes + b"\x00\x01" + struct.pack(">H", 80)
                 + b"\x02" + bytes([len(host)]) + host + payload)
     password = hashlib.sha224(d["identity"].encode()).hexdigest().encode()
@@ -583,6 +600,7 @@ def read_e2e(stream, d: dict, buf: bytes, deadline: float) -> bytes:
 
 
 def open_stream(sock: socket.socket, d: dict):
+    """TLS (if any) + WebSocket upgrade (if ws). Returns (stream, leftover) or (stream, None)."""
     sock.settimeout(PROBE_TIMEOUT)
     stream = sock
     if d["security"] in ("tls", "reality"):
@@ -610,6 +628,7 @@ def open_stream(sock: socket.socket, d: dict):
 
 
 def test_entry(entry: dict) -> tuple[float, float | None, bool | None] | None:
+    """Returns None (TCP failed) or (tcp_ms, probe_ms | None, e2e_ok | None)."""
     d = entry["d"]
     start = time.perf_counter()
     try:
@@ -634,7 +653,7 @@ def test_entry(entry: dict) -> tuple[float, float | None, bool | None] | None:
         data = read_e2e(stream, d, leftover, time.perf_counter() + E2E_TIMEOUT)
         ok = b"HTTP/1" in data and (d["scheme"] != "vless" or data[:1] == b"\x00")
         return tcp_ms, probe_ms, ok
-    except (OSError, ValueError):
+    except (OSError, ValueError):  # ssl.SSLError is an OSError; bad IDNA is a ValueError
         return tcp_ms, probe_ms, (False if attempted else None) if probe_ms is not None else None
     finally:
         stream.close()
@@ -642,8 +661,9 @@ def test_entry(entry: dict) -> tuple[float, float | None, bool | None] | None:
 
 
 def benchmark(entries: list[dict]) -> list[dict]:
+    """Adds 'tier' and 'lat'. Tier 0 = proxied end-to-end, 1 = TLS/WS verified, 3 = TCP only."""
     todo = sorted((e for e in entries if e["fp"] not in TEST_CACHE), key=lambda e: -e["score"])[:MAX_TEST]
-    print(f"[TEST] testing {len(todo)} configs...")
+    print(f"[TEST] testing {len(todo)} configs (TCP{' + TLS/WS + e2e' if PROBE_ENABLED else ''})")
     with ThreadPoolExecutor(max_workers=TEST_WORKERS) as pool:
         futures = {pool.submit(test_entry, e): e for e in todo}
         for count, future in enumerate(as_completed(futures), 1):
@@ -662,6 +682,9 @@ def benchmark(entries: list[dict]) -> list[dict]:
             out.append({**e, "tier": 3, "lat": tcp_ms})
     tiers = Counter(e["tier"] for e in out)
     print(f"[TEST] tcp ok = {len(out)}, e2e ok = {tiers[0]}, tls/ws ok = {tiers[1]}, weak = {tiers[3]}")
+    if PROBE_ENABLED and out and (tiers[0] + tiers[1]) * 50 < len(out):
+        print("[WARN] probe pass rate under 2%; treating all TCP-reachable configs as tier 1")
+        return [{**e, "tier": 1} for e in out]
     return out
 
 
@@ -692,6 +715,8 @@ def family_key(e: dict) -> tuple[str, str, str]:
 
 
 def select_diverse(entries: list[dict], limit: int) -> list[str]:
+    """Best tier first; inside a tier ports and (scheme, security, net) families are capped,
+    then spread proportionally per port. If still short, caps are relaxed step by step."""
     max_tier = 3 if FILL_TO_FULL else 1
     hosts, nets, ports, families = Counter(), Counter(), Counter(), Counter()
     result: list[str] = []
@@ -722,18 +747,18 @@ def select_diverse(entries: list[dict], limit: int) -> list[str]:
                 picked.add(e["fp"])
 
         room = limit - len(result)
-        for e in ranked:
+        for e in ranked:  # pass 1: respect per-port and per-family caps
             if len(chosen) >= room:
                 break
             if ports[e["d"]["port"]] >= port_cap(e["d"]["port"]) or families[family_key(e)] >= family_cap:
                 deferred.append(e)
             else:
                 take(e)
-        for e in deferred:
+        for e in deferred:  # pass 2: relax port/family caps only if still short
             if len(chosen) >= room:
                 break
             take(e)
-        if FILL_TO_FULL and len(chosen) < room:
+        if FILL_TO_FULL and len(chosen) < room:  # pass 3: relax host/subnet caps as a last resort
             for e in ranked:
                 if len(chosen) >= room:
                     break
@@ -751,6 +776,7 @@ def select_diverse(entries: list[dict], limit: int) -> list[str]:
         result.extend(uri for _, _, uri in keyed)
         summary[tier] = len(keyed)
     print(f"[SELECT] {len(result)}/{limit} selected; by tier {summary}; top ports {ports.most_common(6)}")
+    print(f"[SELECT] families {[(f'{a}/{b}/{c}', n) for (a, b, c), n in families.most_common(6)]}")
     return result
 
 
@@ -773,7 +799,11 @@ def write_configs(filename: str, configs: list[str]) -> None:
 
 
 def write_subscriptions(selected: list[str]) -> None:
+    # Best configs go to sub1 first. If fewer than TOTAL_CONFIGS survive, shrink every
+    # file proportionally so no subscription is left empty.
     ratio = min(1.0, len(selected) / TOTAL_CONFIGS)
+    if ratio < 1.0:
+        print(f"[WARN] only {len(selected)}/{TOTAL_CONFIGS} configs available; subscriptions shrunk to {ratio:.0%}")
     offset = 0
     for filename, size in SUBS:
         count = max(1, int(size * ratio)) if selected else 0
@@ -784,6 +814,8 @@ def write_subscriptions(selected: list[str]) -> None:
 def write_bot() -> None:
     entries = benchmark(collect_sources(BOT_SOURCES)) if BOT_SOURCES else []
     selected = select_diverse(entries, BOT_MAX_CONFIGS) if entries else []
+    if len(selected) < BOT_MAX_CONFIGS:
+        print(f"[WARN] bot.txt short: {len(selected)}/{BOT_MAX_CONFIGS}")
     write_configs("bot.txt", selected)
 
 
@@ -795,12 +827,21 @@ def verify_outputs() -> None:
     seen, total = set(), 0
     for filename, size in sizes.items():
         lines = (OUT_DIR / filename).read_text(encoding="utf-8").splitlines()
+        if len(lines) > size:
+            raise RuntimeError(f"{filename}: {len(lines)} lines, limit {size}")
         for line in lines:
+            if not line.endswith("#" + REMARK):
+                raise RuntimeError(f"{filename} has an incorrect remark.")
             entry = make_entry(line)
             token = entry["fp"] if entry else line
+            if token in seen:
+                raise RuntimeError(f"Duplicate config across subscriptions: {filename}")
             seen.add(token)
         total += len(lines)
-    print(f"[VERIFY] general = {total}/{TOTAL_CONFIGS}")
+    bot_lines = (OUT_DIR / "bot.txt").read_text(encoding="utf-8").splitlines()
+    if len(bot_lines) > BOT_MAX_CONFIGS:
+        raise RuntimeError("bot.txt exceeds its cap.")
+    print(f"[VERIFY] general = {total}/{TOTAL_CONFIGS}, bot = {len(bot_lines)}/{BOT_MAX_CONFIGS}")
 
 
 def main() -> None:
