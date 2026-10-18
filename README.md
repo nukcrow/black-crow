@@ -6,10 +6,17 @@
 
 <br/>
 
-
 <a href="https://t.me/nukcrow"><img src="https://img.shields.io/badge/CHANNEL-@nukcrow-1b1f24?style=for-the-badge&logo=telegram&logoColor=8A8F98&labelColor=050505"/></a>
 <a href="https://t.me/Nukcrowbot"><img src="https://img.shields.io/badge/BOT-@Nukcrowbot-1b1f24?style=for-the-badge&logo=telegram&logoColor=8A8F98&labelColor=050505"/></a>
 <a href="https://t.me/nukcrowvpnbot"><img src="https://img.shields.io/badge/VPN-@nukcrowvpnbot-1b1f24?style=for-the-badge&logo=telegram&logoColor=8A8F98&labelColor=050505"/></a>
+
+<br/><br/>
+
+<a href="https://github.com/nukcrow/black-crow/releases/latest"><img src="https://img.shields.io/badge/DOWNLOAD-BLACK_CROW-1b1f24?style=for-the-badge&logo=github&logoColor=8A8F98&labelColor=050505"/></a>
+<a href="https://github.com/2dust/v2rayNG/releases/latest"><img src="https://img.shields.io/badge/ANDROID-v2rayNG-1b1f24?style=for-the-badge&logo=android&logoColor=8A8F98&labelColor=050505"/></a>
+<a href="https://github.com/DeerNo/V2Box/releases/latest"><img src="https://img.shields.io/badge/iOS-V2Box-1b1f24?style=for-the-badge&logo=apple&logoColor=8A8F98&labelColor=050505"/></a>
+<a href="https://github.com/2dust/v2rayN/releases/latest"><img src="https://img.shields.io/badge/WINDOWS-v2rayN-1b1f24?style=for-the-badge&logo=windows&logoColor=8A8F98&labelColor=050505"/></a>
+<a href="https://github.com/MatsuriDayo/NekoBoxForAndroid/releases/latest"><img src="https://img.shields.io/badge/ANDROID-NekoBox-1b1f24?style=for-the-badge&logo=android&logoColor=8A8F98&labelColor=050505"/></a>
 
 <br/><br/>
 
