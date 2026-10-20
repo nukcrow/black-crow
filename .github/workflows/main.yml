@@ -1,3 +1,4 @@
+
 name: Update NUKCROW Subscriptions
 
 on:
@@ -21,7 +22,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
 
       - name: Run collector
         run: python3 -u scripts/switcher.py
@@ -32,9 +39,13 @@ jobs:
           set -euo pipefail
           cd sub/general
 
-          # switcher.py intentionally creates nin.txt as well as bot.txt and sub1..sub20.txt.
-          mapfile -t expected < <(printf '%s\n' bot.txt nin.txt sub{1..20}.txt | sort)
-          mapfile -t actual < <(find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort)
+          mapfile -t expected < <(
+            printf '%s\n' bot.txt sub{1..20}.txt | sort
+          )
+          mapfile -t actual < <(
+            find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort
+          )
+
           if [[ "${actual[*]}" != "${expected[*]}" ]]; then
             echo "Output file set does not match."
             echo "Expected: ${expected[*]}"
@@ -44,82 +55,107 @@ jobs:
 
           total=0
           nonempty=0
+          declare -A seen_configs=()
+
           for i in {1..20}; do
             file="sub${i}.txt"
             n=$(wc -l < "$file")
+
             if (( n > 2000 )); then
               echo "$file has $n lines (maximum 2000)"
               exit 1
             fi
+
             if (( n > 0 )); then
               nonempty=$((nonempty + 1))
             fi
-            total=$((total + n))
-          done
 
-          # Validate tags in all generated subscription files, including nin.txt.
-          for file in bot.txt nin.txt sub{1..20}.txt; do
             if grep -qv '#nukcrow$' "$file"; then
               echo "Invalid nukcrow tag found in $file."
               exit 1
             fi
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              if [[ -z "$line" ]]; then
+                echo "Empty line found in $file."
+                exit 1
+              fi
+
+              if [[ -n "${seen_configs[$line]+x}" ]]; then
+                echo "Duplicate config found across general subscriptions."
+                exit 1
+              fi
+
+              seen_configs["$line"]=1
+            done < "$file"
+
+            total=$((total + n))
           done
 
           bot=$(wc -l < bot.txt)
-          nin=$(wc -l < nin.txt)
+
           if (( bot > 2000 )); then
             echo "bot.txt has $bot lines (maximum 2000)"
             exit 1
           fi
-          if (( nin > 300 )); then
-            echo "nin.txt has $nin lines (maximum 300)"
+
+          if grep -qv '#nukcrow$' bot.txt; then
+            echo "Invalid nukcrow tag found in bot.txt."
             exit 1
           fi
 
-          # Low source availability should be reported, not fail the entire workflow.
-          # Keep hard failure for a completely empty run; show a warning below the target.
           if (( total == 0 && bot == 0 )); then
             echo "No usable configs were generated in this run."
             exit 1
           fi
+
           if (( total < 3000 )); then
             echo "::warning::Only $total general configs were generated (target: at least 3000). Check source availability and collector logs."
           fi
+
           if (( bot < 500 )); then
             echo "::warning::bot.txt has only $bot configs (target: at least 500). Check source availability and collector logs."
           fi
+
           if (( nonempty < 1 )); then
             echo "No general subscription contains configs."
             exit 1
           fi
 
-          echo "General: $total / 40000 | Non-empty subscriptions: $nonempty / 20 | Bot: $bot / 2000 | NIN: $nin / 300"
+          echo "General: $total / 40000 | Non-empty subscriptions: $nonempty / 20 | Bot: $bot / 2000"
+
           {
             echo "### NUKCROW"
             echo "- General configs: **$total** / 40000"
             echo "- Non-empty subscriptions: **$nonempty** / 20"
             echo "- Bot configs: **$bot** / 2000"
-            echo "- NIN configs: **$nin** / 300"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
         shell: bash
         run: |
           set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A sub/general
+
           if git diff --cached --quiet; then
             echo "No changes detected."
             exit 0
           fi
 
           git commit -m "Auto update subscriptions"
+
           for attempt in 1 2 3; do
-            if git push; then exit 0; fi
+            if git push; then
+              exit 0
+            fi
+
             git pull --rebase --autostash
             sleep $((attempt * 3))
           done
+
           echo "Push failed after 3 attempts"
           exit 1
