@@ -28,10 +28,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Run collector
-        run: python3 -u scripts/switcher.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u scripts/switcher.py
 
       - name: Verify outputs
         shell: bash
@@ -39,17 +41,15 @@ jobs:
           set -euo pipefail
           cd sub/general
 
-          mapfile -t expected < <(
-            printf '%s\n' bot.txt sub{1..20}.txt | sort
-          )
-          mapfile -t actual < <(
-            find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort
-          )
+          expected_file="$(mktemp)"
+          actual_file="$(mktemp)"
+          trap 'rm -f "$expected_file" "$actual_file"' EXIT
 
-          if [[ "${actual[*]}" != "${expected[*]}" ]]; then
-            echo "Output file set does not match."
-            echo "Expected: ${expected[*]}"
-            echo "Actual:   ${actual[*]}"
+          printf '%s\n' bot.txt sub{1..20}.txt | sort > "$expected_file"
+          find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort > "$actual_file"
+
+          if ! diff -u "$expected_file" "$actual_file"; then
+            echo "::error::Generated output files do not match the expected set."
             exit 1
           fi
 
@@ -59,10 +59,16 @@ jobs:
 
           for i in {1..20}; do
             file="sub${i}.txt"
-            n=$(wc -l < "$file")
+
+            if [[ ! -f "$file" ]]; then
+              echo "::error::Missing file: $file"
+              exit 1
+            fi
+
+            n=$(grep -c '.' "$file" || true)
 
             if (( n > 2000 )); then
-              echo "$file has $n lines (maximum 2000)"
+              echo "::error::$file has $n lines; maximum is 2000."
               exit 1
             fi
 
@@ -70,65 +76,71 @@ jobs:
               nonempty=$((nonempty + 1))
             fi
 
+            total=$((total + n))
+
             if grep -qv '#nukcrow$' "$file"; then
-              echo "Invalid nukcrow tag found in $file."
+              echo "::error::Invalid tag found in $file."
               exit 1
             fi
 
             while IFS= read -r line || [[ -n "$line" ]]; do
-              if [[ -z "$line" ]]; then
-                echo "Empty line found in $file."
+              [[ -z "$line" ]] && continue
+
+              config="${line%#nukcrow}"
+
+              if [[ -n "${seen_configs[$config]+x}" ]]; then
+                echo "::error::Duplicate configuration found across general subscriptions."
                 exit 1
               fi
 
-              if [[ -n "${seen_configs[$line]+x}" ]]; then
-                echo "Duplicate config found across general subscriptions."
-                exit 1
-              fi
-
-              seen_configs["$line"]=1
+              seen_configs["$config"]=1
             done < "$file"
-
-            total=$((total + n))
           done
 
-          bot=$(wc -l < bot.txt)
+          if [[ ! -f bot.txt ]]; then
+            echo "::error::bot.txt was not generated."
+            exit 1
+          fi
+
+          bot=$(grep -c '.' bot.txt || true)
 
           if (( bot > 2000 )); then
-            echo "bot.txt has $bot lines (maximum 2000)"
+            echo "::error::bot.txt has $bot lines; maximum is 2000."
             exit 1
           fi
 
           if grep -qv '#nukcrow$' bot.txt; then
-            echo "Invalid nukcrow tag found in bot.txt."
+            echo "::error::Invalid tag found in bot.txt."
             exit 1
           fi
 
           if (( total == 0 && bot == 0 )); then
-            echo "No usable configs were generated in this run."
+            echo "::error::No usable configurations were generated."
+            exit 1
+          fi
+
+          if (( nonempty == 0 )); then
+            echo "::error::All general subscriptions are empty."
             exit 1
           fi
 
           if (( total < 3000 )); then
-            echo "::warning::Only $total general configs were generated (target: at least 3000). Check source availability and collector logs."
+            echo "::warning::Only $total general configurations were generated; target is at least 3000."
           fi
 
           if (( bot < 500 )); then
-            echo "::warning::bot.txt has only $bot configs (target: at least 500). Check source availability and collector logs."
+            echo "::warning::bot.txt contains only $bot configurations; target is at least 500."
           fi
 
-          if (( nonempty < 1 )); then
-            echo "No general subscription contains configs."
-            exit 1
-          fi
-
-          echo "General: $total / 40000 | Non-empty subscriptions: $nonempty / 20 | Bot: $bot / 2000"
+          echo "General configurations: $total / 40000"
+          echo "Non-empty subscriptions: $nonempty / 20"
+          echo "Bot configurations: $bot / 2000"
 
           {
-            echo "### NUKCROW"
-            echo "- General configs: **$total** / 40000"
-            echo "- Non-empty subscriptions: **$nonempty** / 20"
-            echo "- Bot configs: **$bot** / 2000"
+            echo "### NUKCROW Subscription Update"
+            echo "- General configurations: **$total / 40000**"
+            echo "- Non-empty subscriptions: **$nonempty / 20**"
+            echo "- Bot configurations: **$bot / 2000**"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
@@ -150,12 +162,14 @@ jobs:
 
           for attempt in 1 2 3; do
             if git push; then
+              echo "Changes pushed successfully."
               exit 0
             fi
 
-            git pull --rebase --autostash
+            echo "Push attempt $attempt failed; syncing with remote."
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}"
             sleep $((attempt * 3))
           done
 
-          echo "Push failed after 3 attempts"
+          echo "::error::Push failed after 3 attempts."
           exit 1
