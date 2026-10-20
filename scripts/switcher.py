@@ -636,8 +636,11 @@ def benchmark(entries: list[dict]) -> list[dict]:
         if not r:
             continue
         tcp_ms, probe_ms, e2e, ip = r
-        if probe_ms is not None and e2e is not False:
-            out.append({**e, "tier": 0 if e2e else 1, "lat": probe_ms, "ip": ip})
+        # A failed end-to-end request does NOT mean TLS/WS failed.
+        # Keep the config in the TLS/WS-verified tier whenever the probe passed;
+        # tier 0 is reserved for a successful end-to-end proxy request.
+        if probe_ms is not None:
+            out.append({**e, "tier": 0 if e2e is True else 1, "lat": probe_ms, "ip": ip})
         else:
             out.append({**e, "tier": 3, "lat": tcp_ms, "ip": ip})
     tiers = Counter(e["tier"] for e in out)
@@ -870,8 +873,13 @@ def write_stats(entries: list[dict], plan: list[dict], nin: int, bot: int) -> No
 def verify_outputs() -> None:
     sizes = dict(SUBS)
     actual = {path.name for path in OUT_DIR.glob("*.txt")}
-    if actual != set(sizes) | {"bot.txt"} | EXTRA_FILES:
-        raise RuntimeError(f"Unexpected output files: {sorted(actual)}")
+    expected = set(sizes) | {"bot.txt"} | EXTRA_FILES
+    missing, extra = sorted(expected - actual), sorted(actual - expected)
+    if missing or extra:
+        raise RuntimeError(
+            f"Output file mismatch in {OUT_DIR}: missing={missing}; extra={extra}; "
+            f"expected_count={len(expected)} actual_count={len(actual)}"
+        )
     seen, total, host_owner = set(), 0, {}
     for filename, size in sizes.items():
         lines = (OUT_DIR / filename).read_text(encoding="utf-8").splitlines()
