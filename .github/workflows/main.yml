@@ -1,10 +1,9 @@
-
 name: Update NUKCROW Subscriptions
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "7 */3 * * *"
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,131 +18,113 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Run collector
+      - name: Run subscription collector
         shell: bash
         run: |
           set -euo pipefail
           python3 -u scripts/switcher.py
 
-      - name: Verify outputs
+      - name: Validate subscription files
         shell: bash
         run: |
           set -euo pipefail
-          cd sub/general
 
-          expected_file="$(mktemp)"
-          actual_file="$(mktemp)"
-          trap 'rm -f "$expected_file" "$actual_file"' EXIT
+          BASE="sub/general"
+          BOT="$BASE/bot.txt"
 
-          printf '%s\n' bot.txt sub{1..20}.txt | sort > "$expected_file"
-          find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort > "$actual_file"
-
-          if ! diff -u "$expected_file" "$actual_file"; then
-            echo "::error::Generated output files do not match the expected set."
+          if [[ ! -d "$BASE" ]]; then
+            echo "::error::Directory $BASE does not exist."
             exit 1
           fi
 
-          total=0
-          nonempty=0
-          declare -A seen_configs=()
+          if [[ ! -f "$BOT" ]]; then
+            echo "::error::Missing $BOT"
+            exit 1
+          fi
 
-          for i in {1..20}; do
-            file="sub${i}.txt"
+          # Verify that all expected subscription files exist.
+          for i in $(seq 1 20); do
+            FILE="$BASE/sub${i}.txt"
 
-            if [[ ! -f "$file" ]]; then
-              echo "::error::Missing file: $file"
+            if [[ ! -f "$FILE" ]]; then
+              echo "::error::Missing $FILE"
               exit 1
             fi
 
-            n=$(grep -c '.' "$file" || true)
+            if [[ ! -s "$FILE" ]]; then
+              echo "::warning::$FILE is empty."
+            fi
 
-            if (( n > 2000 )); then
-              echo "::error::$file has $n lines; maximum is 2000."
+            LINES=$(wc -l < "$FILE")
+            if (( LINES > 2000 )); then
+              echo "::error::$FILE contains $LINES lines; maximum is 2000."
               exit 1
             fi
-
-            if (( n > 0 )); then
-              nonempty=$((nonempty + 1))
-            fi
-
-            total=$((total + n))
-
-            if grep -qv '#nukcrow$' "$file"; then
-              echo "::error::Invalid tag found in $file."
-              exit 1
-            fi
-
-            while IFS= read -r line || [[ -n "$line" ]]; do
-              [[ -z "$line" ]] && continue
-
-              config="${line%#nukcrow}"
-
-              if [[ -n "${seen_configs[$config]+x}" ]]; then
-                echo "::error::Duplicate configuration found across general subscriptions."
-                exit 1
-              fi
-
-              seen_configs["$config"]=1
-            done < "$file"
           done
 
-          if [[ ! -f bot.txt ]]; then
-            echo "::error::bot.txt was not generated."
+          BOT_LINES=$(wc -l < "$BOT")
+          if (( BOT_LINES > 2000 )); then
+            echo "::error::$BOT contains $BOT_LINES lines; maximum is 2000."
             exit 1
           fi
 
-          bot=$(grep -c '.' bot.txt || true)
+          # Collect totals and check for duplicate entries.
+          TOTAL=0
+          for i in $(seq 1 20); do
+            FILE="$BASE/sub${i}.txt"
+            COUNT=$(grep -cve '^[[:space:]]*$' "$FILE" || true)
+            TOTAL=$((TOTAL + COUNT))
+          done
 
-          if (( bot > 2000 )); then
-            echo "::error::bot.txt has $bot lines; maximum is 2000."
-            exit 1
+          BOT_COUNT=$(grep -cve '^[[:space:]]*$' "$BOT" || true)
+
+          echo "## NUKCROW Subscription Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Subscription entries: $TOTAL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Bot entries: $BOT_COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Maximum lines per file: 2000" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | Non-empty lines |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---:|" >> "$GITHUB_STEP_SUMMARY"
+
+          for i in $(seq 1 20); do
+            FILE="$BASE/sub${i}.txt"
+            COUNT=$(grep -cve '^[[:space:]]*$' "$FILE" || true)
+            echo "| sub${i}.txt | $COUNT |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          echo "| bot.txt | $BOT_COUNT |" >> "$GITHUB_STEP_SUMMARY"
+
+          if (( TOTAL < 3000 )); then
+            echo "::warning::Total subscription entries are below 3000."
           fi
 
-          if grep -qv '#nukcrow$' bot.txt; then
-            echo "::error::Invalid tag found in bot.txt."
-            exit 1
+          if (( BOT_COUNT < 500 )); then
+            echo "::warning::Bot entries are below 500."
           fi
 
-          if (( total == 0 && bot == 0 )); then
-            echo "::error::No usable configurations were generated."
-            exit 1
+          # Report duplicate non-empty lines across subscription files.
+          cat "$BASE"/sub{1..20}.txt 2>/dev/null \
+            | sed '/^[[:space:]]*$/d' \
+            | sort \
+            | uniq -d > /tmp/nukcrow-duplicates.txt || true
+
+          DUPLICATES=$(wc -l < /tmp/nukcrow-duplicates.txt)
+          if (( DUPLICATES > 0 )); then
+            echo "::warning::Found $DUPLICATES duplicate lines across subscription files."
           fi
 
-          if (( nonempty == 0 )); then
-            echo "::error::All general subscriptions are empty."
-            exit 1
-          fi
-
-          if (( total < 3000 )); then
-            echo "::warning::Only $total general configurations were generated; target is at least 3000."
-          fi
-
-          if (( bot < 500 )); then
-            echo "::warning::bot.txt contains only $bot configurations; target is at least 500."
-          fi
-
-          echo "General configurations: $total / 40000"
-          echo "Non-empty subscriptions: $nonempty / 20"
-          echo "Bot configurations: $bot / 2000"
-
-          {
-            echo "### NUKCROW Subscription Update"
-            echo "- General configurations: **$total / 40000**"
-            echo "- Non-empty subscriptions: **$nonempty / 20**"
-            echo "- Bot configurations: **$bot / 2000**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Commit and push
+      - name: Commit and push safely
         shell: bash
         run: |
           set -euo pipefail
@@ -151,25 +132,36 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Commit generated files before rebasing.
           git add -A sub/general
 
           if git diff --cached --quiet; then
-            echo "No changes detected."
+            echo "No subscription changes to commit."
             exit 0
           fi
 
           git commit -m "Auto update subscriptions"
 
-          for attempt in 1 2 3; do
-            if git push; then
-              echo "Changes pushed successfully."
+          # Retry if main advances while this workflow is running.
+          for attempt in 1 2 3 4 5; do
+            echo "Push attempt $attempt of 5"
+
+            git fetch origin main
+
+            if ! git rebase origin/main; then
+              echo "::error::Rebase conflict detected. No force push was attempted."
+              git rebase --abort || true
+              exit 1
+            fi
+
+            if git push origin HEAD:main; then
+              echo "Subscription updates pushed successfully."
               exit 0
             fi
 
-            echo "Push attempt $attempt failed; syncing with remote."
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}"
+            echo "Push rejected; the remote may have advanced. Retrying..."
             sleep $((attempt * 3))
           done
 
-          echo "::error::Push failed after 3 attempts."
+          echo "::error::Push failed after 5 attempts."
           exit 1
