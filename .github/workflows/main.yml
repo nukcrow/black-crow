@@ -32,37 +32,74 @@ jobs:
           set -euo pipefail
           cd sub/general
 
-          mapfile -t expected < <(printf '%s\n' bot.txt sub{1..20}.txt | sort)
+          # switcher.py intentionally creates nin.txt as well as bot.txt and sub1..sub20.txt.
+          mapfile -t expected < <(printf '%s\n' bot.txt nin.txt sub{1..20}.txt | sort)
           mapfile -t actual < <(find . -maxdepth 1 -type f -name '*.txt' -printf '%f\n' | sort)
           if [[ "${actual[*]}" != "${expected[*]}" ]]; then
-            echo "Unexpected output files: ${actual[*]}"
+            echo "Output file set does not match."
+            echo "Expected: ${expected[*]}"
+            echo "Actual:   ${actual[*]}"
             exit 1
           fi
 
           total=0
+          nonempty=0
           for i in {1..20}; do
-            n=$(wc -l < "sub${i}.txt")
-            if (( n < 1 || n > 2000 )); then
-              echo "sub${i}.txt has $n lines (allowed 1..2000)"
+            file="sub${i}.txt"
+            n=$(wc -l < "$file")
+            if (( n > 2000 )); then
+              echo "$file has $n lines (maximum 2000)"
               exit 1
+            fi
+            if (( n > 0 )); then
+              nonempty=$((nonempty + 1))
             fi
             total=$((total + n))
           done
 
-          if grep -hqv '#nukcrow$' sub{1..20}.txt bot.txt; then
-            echo "Invalid nukcrow tag found."
+          # Validate tags in all generated subscription files, including nin.txt.
+          for file in bot.txt nin.txt sub{1..20}.txt; do
+            if grep -qv '#nukcrow$' "$file"; then
+              echo "Invalid nukcrow tag found in $file."
+              exit 1
+            fi
+          done
+
+          bot=$(wc -l < bot.txt)
+          nin=$(wc -l < nin.txt)
+          if (( bot > 2000 )); then
+            echo "bot.txt has $bot lines (maximum 2000)"
+            exit 1
+          fi
+          if (( nin > 300 )); then
+            echo "nin.txt has $nin lines (maximum 300)"
             exit 1
           fi
 
-          bot=$(wc -l < bot.txt)
-          if (( bot < 500 || bot > 2000 )); then echo "bot.txt has $bot lines (allowed 500..2000)"; exit 1; fi
-          if (( total < 3000 )); then echo "Only $total configs (floor 3000)"; exit 1; fi
+          # Low source availability should be reported, not fail the entire workflow.
+          # Keep hard failure for a completely empty run; show a warning below the target.
+          if (( total == 0 && bot == 0 )); then
+            echo "No usable configs were generated in this run."
+            exit 1
+          fi
+          if (( total < 3000 )); then
+            echo "::warning::Only $total general configs were generated (target: at least 3000). Check source availability and collector logs."
+          fi
+          if (( bot < 500 )); then
+            echo "::warning::bot.txt has only $bot configs (target: at least 500). Check source availability and collector logs."
+          fi
+          if (( nonempty < 1 )); then
+            echo "No general subscription contains configs."
+            exit 1
+          fi
 
-          echo "General: $total / 40000 | Bot: $bot / 2000"
+          echo "General: $total / 40000 | Non-empty subscriptions: $nonempty / 20 | Bot: $bot / 2000 | NIN: $nin / 300"
           {
             echo "### NUKCROW"
             echo "- General configs: **$total** / 40000"
+            echo "- Non-empty subscriptions: **$nonempty** / 20"
             echo "- Bot configs: **$bot** / 2000"
+            echo "- NIN configs: **$nin** / 300"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
