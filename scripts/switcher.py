@@ -298,6 +298,8 @@ TLS_CTX.check_hostname = False
 TLS_CTX.verify_mode = ssl.CERT_NONE
 
 TEST_CACHE: dict[str, tuple[float, float | None, bool | None] | None] = {}
+# Measured TCP/TLS/WS connection latency, keyed by the fragment-free URI.
+LATENCY_BY_URI: dict[str, float] = {}
 
 
 # -----------------------------------------------------------------------------
@@ -528,6 +530,18 @@ def iran_score(d: dict) -> int:
 
     score += 4 * (domain or cf) + 4 * cf
 
+    # Rank Cloudflare-fronted TLS/WS candidates higher only when the URI has
+    # the expected transport metadata. This is a routing heuristic, not proof
+    # that the endpoint is reachable from an Iranian ISP.
+    if cf and sec == "tls" and port in CF_PORTS_TLS:
+        score += 4
+        if net in {"ws", "grpc", "httpupgrade", "xhttp", "splithttp"}:
+            score += 2
+        if d["sni"] and d["hosthdr"] and d["sni"].lower() == d["hosthdr"].lower():
+            score += 3
+    elif cf and sec == "none" and port not in CF_PORTS_PLAIN:
+        score -= 3
+
     if sec != "none" and (d["sni"] or d["hosthdr"]):
         score += 3
     elif sec == "tls" and not domain:
@@ -571,7 +585,12 @@ def make_entry(uri: str) -> dict | None:
 
 
 def render(uri: str) -> str:
-    return uri.split("#", 1)[0].strip() + "#" + REMARK
+    clean = uri.split("#", 1)[0].strip()
+    latency = LATENCY_BY_URI.get(clean)
+    # Preserve a per-config measured latency in the URI fragment so the Worker
+    # can show it in each category. This is connection latency, not ICMP ping.
+    remark = f"{REMARK}-{round(latency)}ms" if latency is not None else REMARK
+    return clean + "#" + remark
 
 
 # -----------------------------------------------------------------------------
@@ -822,6 +841,11 @@ def open_stream(sock: socket.socket, d: dict):
             or (None if is_ip(d["host"]) else d["host"])
         )
         stream = TLS_CTX.wrap_socket(sock, server_hostname=name)
+        # Cloudflare-fronted configs must complete the TLS handshake on a
+        # known TLS port to qualify for the strong TLS/WS tier.
+        if is_cloudflare(d["host"]) and d["port"] not in CF_PORTS_TLS:
+            stream.close()
+            raise OSError("Cloudflare IP on a non-standard TLS port")
 
     if d["net"] != "ws":
         return stream, b""
@@ -956,9 +980,13 @@ def benchmark(entries: list[dict]) -> list[dict]:
 
         if probe_ms is not None and e2e is not False:
             tier = 0 if e2e else 1
-            output.append({**entry, "tier": tier, "lat": probe_ms})
+            measured = probe_ms
+            output.append({**entry, "tier": tier, "lat": measured})
         else:
-            output.append({**entry, "tier": 3, "lat": tcp_ms})
+            tier = 3
+            measured = tcp_ms
+            output.append({**entry, "tier": tier, "lat": measured})
+        LATENCY_BY_URI[entry["uri"].split("#", 1)[0].strip()] = measured
 
     tiers = Counter(entry["tier"] for entry in output)
 
@@ -1036,8 +1064,8 @@ def select_diverse(entries: list[dict], limit: int) -> list[str]:
         ranked = sorted(
             (entry for entry in entries if entry["tier"] == tier),
             key=lambda entry: (
+                round(entry["lat"] / 25),
                 -entry["score"],
-                round(entry["lat"] / 150),
                 entry["fp"],
             ),
         )
@@ -1199,8 +1227,8 @@ def verify_outputs() -> None:
             )
 
         for line in lines:
-            if not line.endswith("#" + REMARK):
-                raise RuntimeError(f"{filename} has an incorrect remark.")
+            if not re.search(r"#" + re.escape(REMARK) + r"(?:-\d+ms)?$", line):
+                raise RuntimeError(f"{filename} has an incorrect remark or latency tag.")
 
             entry = make_entry(line)
             token = entry["fp"] if entry else line
