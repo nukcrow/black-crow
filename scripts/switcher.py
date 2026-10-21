@@ -616,11 +616,8 @@ def load_known_working_configs() -> list[dict]:
 
 def render(uri: str) -> str:
     clean = uri.split("#", 1)[0].strip()
-    latency = LATENCY_BY_URI.get(clean)
-    # Preserve a per-config measured latency in the URI fragment so the Worker
-    # can show it in each category. This is connection latency, not ICMP ping.
-    remark = f"{REMARK}-{round(latency)}ms" if latency is not None else REMARK
-    return clean + "#" + remark
+    # Keep the URI remark stable; latency is tracked internally only.
+    return clean + "#" + REMARK
 
 
 # -----------------------------------------------------------------------------
@@ -1283,7 +1280,7 @@ def verify_outputs() -> None:
             )
 
         for line in lines:
-            if not re.search(r"#" + re.escape(REMARK) + r"(?:-\d+ms)?$", line):
+            if not re.search(r"#" + re.escape(REMARK) + r"$", line):
                 raise RuntimeError(f"{filename} has an incorrect remark or latency tag.")
 
             entry = make_entry(line)
