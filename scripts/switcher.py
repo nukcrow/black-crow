@@ -33,6 +33,11 @@ from urllib.request import Request, urlopen
 OUT_DIR = Path("sub/general")
 REMARK = "nukcrow"
 
+# Optional list of configurations the user has personally confirmed working.
+# Put one URI per line in this file beside switcher.py.
+KNOWN_WORKING_FILE = Path("known_working_configs.txt")
+KNOWN_WORKING_BONUS = 200
+
 SUBS = tuple((f"sub{i}.txt", 2000) for i in range(1, 21))
 TOTAL_CONFIGS = sum(size for _, size in SUBS)
 BOT_MAX_CONFIGS = 2000
@@ -581,7 +586,32 @@ def make_entry(uri: str) -> dict | None:
         "d": d,
         "fp": fingerprint(d),
         "score": iran_score(d),
+        "known_working": False,
     }
+
+
+def load_known_working_configs() -> list[dict]:
+    """Load user-confirmed configs from an optional adjacent text file."""
+    if not KNOWN_WORKING_FILE.is_file():
+        return []
+
+    try:
+        text = KNOWN_WORKING_FILE.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"[KNOWN-WORKING-ERROR] {exc}")
+        return []
+
+    entries: dict[str, dict] = {}
+    for uri in extract_uris(text):
+        entry = make_entry(uri)
+        if entry is None:
+            continue
+        entry["known_working"] = True
+        entry["score"] += KNOWN_WORKING_BONUS
+        entries.setdefault(entry["fp"], entry)
+
+    print(f"[KNOWN-WORKING] loaded {len(entries)} confirmed configs from {KNOWN_WORKING_FILE}")
+    return list(entries.values())
 
 
 def render(uri: str) -> str:
@@ -663,6 +693,11 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
     entries: dict[str, dict] = {}
     host_groups: defaultdict[str, set[str]] = defaultdict(set)
 
+    # Seed the candidate pool with configs personally confirmed by the user.
+    # These remain eligible even when a remote CI runner cannot reach them.
+    for entry in load_known_working_configs():
+        entries[entry["fp"]] = entry
+
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
         futures = {pool.submit(fetch_source, src): src for src in sources}
 
@@ -692,8 +727,14 @@ def collect_sources(sources: Iterable[str]) -> list[dict]:
                 if old is None:
                     if len(entries) < MAX_CANDIDATES:
                         entries[entry["fp"]] = entry
-                elif entry["score"] > old["score"]:
-                    entries[entry["fp"]] = entry
+                else:
+                    # Keep user-confirmed status when the same URI is also
+                    # found in a repository; do not lose its ranking bonus.
+                    if old.get("known_working"):
+                        entry["known_working"] = True
+                        entry["score"] += KNOWN_WORKING_BONUS
+                    if entry["score"] > old["score"]:
+                        entries[entry["fp"]] = entry
 
     consensus = 0
 
@@ -974,25 +1015,36 @@ def benchmark(entries: list[dict]) -> list[dict]:
     for entry in entries:
         result = TEST_CACHE.get(entry["fp"])
         if not result:
+            if entry.get("known_working"):
+                # Tier 2 means user-confirmed, but not verified from this run.
+                # Do not invent a ping value for these configs.
+                output.append({**entry, "tier": 2, "lat": 9999.0})
             continue
 
         tcp_ms, probe_ms, e2e = result
 
-        if probe_ms is not None and e2e is not False:
-            tier = 0 if e2e else 1
+        if probe_ms is not None and e2e is True:
+            tier = 0
             measured = probe_ms
-            output.append({**entry, "tier": tier, "lat": measured})
+        elif probe_ms is not None and e2e is False:
+            tier = 2 if entry.get("known_working") else 1
+            measured = probe_ms
+        elif entry.get("known_working"):
+            tier = 2
+            measured = tcp_ms
         else:
             tier = 3
             measured = tcp_ms
-            output.append({**entry, "tier": tier, "lat": measured})
+
+        output.append({**entry, "tier": tier, "lat": measured})
         LATENCY_BY_URI[entry["uri"].split("#", 1)[0].strip()] = measured
 
     tiers = Counter(entry["tier"] for entry in output)
 
     print(
         f"[TEST] tcp ok = {len(output)}, "
-        f"e2e ok = {tiers[0]}, tls/ws ok = {tiers[1]}, weak = {tiers[3]}"
+        f"e2e ok = {tiers[0]}, tls/ws ok = {tiers[1]}, "
+        f"user-confirmed fallback = {tiers[2]}, weak = {tiers[3]}"
     )
 
     if PROBE_ENABLED and output and (tiers[0] + tiers[1]) * 50 < len(output):
@@ -1000,7 +1052,10 @@ def benchmark(entries: list[dict]) -> list[dict]:
             "[WARN] probe pass rate under 2%; "
             "treating TCP-reachable configs as tier 1"
         )
-        return [{**entry, "tier": 1} for entry in output]
+        return [
+            {**entry, "tier": 2 if entry.get("known_working") else 1}
+            for entry in output
+        ]
 
     return output
 
@@ -1057,13 +1112,14 @@ def select_diverse(entries: list[dict], limit: int) -> list[str]:
 
     family_cap = max(1, int(limit * FAMILY_MAX_SHARE))
 
-    for tier in (0, 1, 3):
+    for tier in (0, 1, 2, 3):
         if tier > max_tier or len(result) >= limit:
             continue
 
         ranked = sorted(
             (entry for entry in entries if entry["tier"] == tier),
             key=lambda entry: (
+                0 if entry.get("known_working") else 1,
                 round(entry["lat"] / 25),
                 -entry["score"],
                 entry["fp"],
