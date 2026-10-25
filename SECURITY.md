@@ -2,35 +2,61 @@
 
 ## Supported Versions
 
-We take the security of **black-crow** seriously. Please use the table below to see which versions are currently supported with security updates:
+We take the security of **Raptor Config Tester (black-crow)** seriously. The following table indicates which versions are currently supported with security updates.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| latest  | :white_check_mark: |
-| < 1.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| Latest release | ✅ |
+| 1.0.x | ✅ |
+| Below 1.0 | ❌ |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within **black-crow**, please report it responsibly. **Do not disclose it publicly** until it has been addressed and a fix has been released.
+If you discover a security vulnerability in Raptor Config Tester, please report it responsibly.
+
+**Please do not disclose vulnerabilities publicly until they have been investigated and, where possible, addressed.**
 
 ### How to Report
 
-To report a vulnerability, please use one of the following methods:
+You can report security vulnerabilities through GitHub Private Vulnerability Reporting:
 
-- **Private Vulnerability Reporting:** Use the [GitHub Security Advisories](https://github.com/nukcrow/black-crow/security/advisories/new) tab to create a private draft report.
-- **Direct Contact:** Send an email to the maintainer's communication channel (or open a secure discussion if applicable).
+- [Report a vulnerability privately](https://github.com/nukcrow/black-crow/security/advisories/new)
 
-Please include the following details in your report to help us understand and reproduce the issue quickly:
-- Type of issue (e.g., buffer overflow, SQL injection, cross-site scripting, etc.)
-- Full paths of source file(s) related to the manifestation of the issue
-- Step-by-step instructions to reproduce the issue
-- Proof-of-concept (PoC) or exploit code if possible
-- Any special configuration required to reproduce the issue
+Please include as much of the following information as possible:
+
+- A description of the vulnerability and its potential impact.
+- The affected software version and operating system.
+- Steps to reproduce the issue.
+- Relevant logs, screenshots, or proof-of-concept files, if available.
+- Any special configuration or prerequisites needed to reproduce the issue.
+
+Do not include real credentials, private configuration links, access tokens, or other sensitive information in your report.
 
 ### What to Expect
 
-- **Acknowledgment:** You will receive an initial response within 48–72 hours acknowledging receipt of your report.
-- **Investigation:** The security team will investigate the issue and may reach out for additional information.
-- **Resolution & Disclosure:** Once a fix is verified, we will coordinate a public disclosure and credit you for the discovery (unless you prefer to remain anonymous).
+- **Acknowledgment:** We aim to acknowledge your report within 72 hours.
+- **Investigation:** We will review the report and may request additional information.
+- **Resolution:** We will work to verify the issue and prepare a fix when appropriate.
+- **Disclosure:** Public disclosure will be coordinated after the issue has been addressed, where feasible.
 
-Thank you for helping keep **black-crow** and its users safe!
+Response and resolution times may vary depending on the severity and complexity of the issue.
+
+## Scope
+
+Security reports may include issues affecting:
+
+- Configuration parsing and processing.
+- Handling of downloaded or externally sourced configuration data.
+- Execution and interaction with bundled third-party components, including sing-box and Xray, where applicable.
+- Local file handling and unintended disclosure of sensitive information.
+- Application behavior that could compromise the user's system or data.
+
+Please report only vulnerabilities you have permission to investigate. Do not test against third-party systems without authorization.
+
+## Third-Party Components
+
+Third-party components distributed with this application may have their own security reporting procedures. Where appropriate, vulnerabilities should also be reported to the relevant upstream project.
+
+## Thank You
+
+Thank you for helping improve the security of Raptor Config Tester and protecting its users.
