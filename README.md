@@ -27,7 +27,3 @@
 <img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&size=11&duration=4000&pause=1500&color=484F58&background=00000000&center=true&vCenter=true&width=400&lines=%5B+online+%5D;%5B+connected+%5D;%5B+nukcrow+%5D" alt="status"/>
 
 </div>
-
-
-
-همرو تو یک راستا به صورت یک دست از سمت چپ به راست قرار بده
