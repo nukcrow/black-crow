@@ -1,8 +1,8 @@
-<div align="center">
+ <div align="center">
 
 <img src="assets/header.svg" width="100%" alt="NUKCROW"/>
 
-<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=400&size=15&duration=3200&pause=1100&color=8A8F98&background=00000000&center=true&vCenter=true&width=500&lines=stay+curious.;build+quietly.;keep+moving.;nukcrow." alt="nukcrow"/>
+<img src="https://readme-typing-svg.demolab.com/?font=Fira+Code&weight=400&size=15&duration=3200&pause=1100&color=8A8F98&background=00000000&center=true&vCenter=true&width=500&lines=stay+curious.;build+quietly.;keep+moving.;nukcrow" alt="nukcrow"/>
 
 <br/>
 
@@ -13,6 +13,10 @@
 <br/><br/>
 
 <a href="https://github.com/nukcrow/black-crow/releases/latest"><img src="https://img.shields.io/badge/DOWNLOAD-BLACK_CROW-1b1f24?style=for-the-badge&logo=github&logoColor=8A8F98&labelColor=050505"/></a>
+<a href="https://github.com/nukcrow/black-crow/releases/download/v1.0.0/RaptorConfigTester.zip"><img src="https://img.shields.io/badge/DOWNLOAD-RAPTOR_CONFIG_TESTER-1b1f24?style=for-the-badge&logo=github&logoColor=8A8F98&labelColor=050505"/></a>
+
+<br/><br/>
+
 <a href="https://github.com/2dust/v2rayNG/releases/latest"><img src="https://img.shields.io/badge/ANDROID-v2rayNG-1b1f24?style=for-the-badge&logo=android&logoColor=8A8F98&labelColor=050505"/></a>
 <a href="https://github.com/DeerNo/V2Box/releases/latest"><img src="https://img.shields.io/badge/iOS-V2Box-1b1f24?style=for-the-badge&logo=apple&logoColor=8A8F98&labelColor=050505"/></a>
 <a href="https://github.com/2dust/v2rayN/releases/latest"><img src="https://img.shields.io/badge/WINDOWS-v2rayN-1b1f24?style=for-the-badge&logo=windows&logoColor=8A8F98&labelColor=050505"/></a>
